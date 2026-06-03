@@ -1,6 +1,32 @@
 const API_BASE = "https://api.gatcg.com";
 const PAGE_SIZE = 50;
 const EXAMPLE_QUERY = "fire spells that target units";
+const DECK_STORAGE_KEY = "advga.deck";
+const RECENT_SEARCHES_KEY = "advga.recentSearches";
+const MAX_RECENT_SEARCHES = 8;
+
+const KEYWORD_SEARCHES = [
+  "foster",
+  "floating memory",
+  "stealth",
+  "taunt",
+  "on enter",
+  "banish",
+  "draw a card",
+  "deal damage",
+  "target unit",
+];
+
+const SORT_OPTIONS = [
+  { label: "Name A-Z", sort: "name", order: "ASC" },
+  { label: "Name Z-A", sort: "name", order: "DESC" },
+  { label: "Cost low-high", sort: "cost_reserve", order: "ASC" },
+  { label: "Cost high-low", sort: "cost_reserve", order: "DESC" },
+  { label: "Power high-low", sort: "power", order: "DESC" },
+  { label: "Level high-low", sort: "level", order: "DESC" },
+  { label: "Rarity high-low", sort: "rarity", order: "DESC" },
+  { label: "Collector number", sort: "collector_number", order: "ASC" },
+];
 
 const FALLBACK_OPTIONS = {
   class: [
@@ -84,12 +110,16 @@ const OPERATOR_PATTERNS = [
 
 const state = {
   cards: [],
+  deck: loadStoredJson(DECK_STORAGE_KEY, []),
   loading: false,
   options: FALLBACK_OPTIONS,
   page: 1,
   parsed: null,
-  query: EXAMPLE_QUERY,
+  query: getInitialQuery(),
   reachedEnd: false,
+  recentSearches: loadStoredJson(RECENT_SEARCHES_KEY, []),
+  sort: SORT_OPTIONS[0],
+  activeLightboxCard: null,
   status: "Loading Grand Archive card terms...",
 };
 
@@ -102,8 +132,7 @@ app.innerHTML = `
         <p class="eyebrow">Grand Archive TCG</p>
         <h1 id="app-title">Grand Archive Advanced Book by RPGgamerPH</h1>
         <p class="hero-copy">
-          Search by plain English. Try element, type, subtype, class, and effect text
-          in one sentence.
+          Search by plain English, refine with filters, save cards to a list, and share exact searches.
         </p>
       </div>
 
@@ -114,31 +143,85 @@ app.innerHTML = `
             id="search-input"
             name="query"
             autocomplete="off"
+            list="search-suggestions"
             spellcheck="true"
-            value="${EXAMPLE_QUERY}"
-            placeholder="fire spells that target units"
+            value="${escapeHtml(state.query)}"
+            placeholder="normal ally that cost 2 in RDO"
           />
           <button type="submit">Search</button>
         </div>
+        <datalist id="search-suggestions"></datalist>
         <div class="quick-searches" aria-label="Example searches">
-          <button type="button" data-example="water allies that draw a card">
-            water allies that draw a card
+          <button type="button" data-example="normal ally that cost 2 in RDO">
+            normal ally that cost 2 in RDO
           </button>
-          <button type="button" data-example="mage attacks that deal damage">
-            mage attacks that deal damage
+          <button type="button" data-example="normal spells that target units in RDO set">
+            normal spells that target units in RDO set
           </button>
-          <button type="button" data-example="wind cards with floating memory">
-            wind cards with floating memory
+          <button type="button" data-example="standard legal fire or water attacks cost 2 or less">
+            standard legal fire or water attacks cost 2 or less
           </button>
         </div>
+        <div class="keyword-row" id="keyword-row" aria-label="Keyword helpers"></div>
       </form>
     </section>
 
-    <section class="toolbar" aria-live="polite">
-      <div>
+    <section class="control-grid">
+      <article class="panel explanation-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Parsed search</p>
+            <h2>What the app searched</h2>
+          </div>
+          <button class="secondary compact" type="button" id="copy-share">Copy link</button>
+        </div>
         <p class="status" id="status"></p>
         <div class="chips" id="chips"></div>
+        <p class="hint" id="search-explanation"></p>
+      </article>
+
+      <article class="panel deck-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">List builder</p>
+            <h2>Saved cards <span id="deck-count">0</span></h2>
+          </div>
+          <div class="button-pair">
+            <button class="secondary compact" type="button" id="export-deck">Export</button>
+            <button class="ghost compact" type="button" id="clear-deck">Clear</button>
+          </div>
+        </div>
+        <div class="deck-list" id="deck-list"></div>
+      </article>
+    </section>
+
+    <details class="panel advanced-panel" id="advanced-panel">
+      <summary>Advanced filters and sorting</summary>
+      <form class="advanced-grid" id="advanced-form">
+        <label>Element<select name="element" id="filter-element"><option value="">Any</option></select></label>
+        <label>Type<select name="type" id="filter-type"><option value="">Any</option></select></label>
+        <label>Subtype<select name="subtype" id="filter-subtype"><option value="">Any</option></select></label>
+        <label>Class<select name="class" id="filter-class"><option value="">Any</option></select></label>
+        <label>Set<select name="set" id="filter-set"><option value="">Any</option></select></label>
+        <label>Speed<select name="speed" id="filter-speed"><option value="">Any</option></select></label>
+        <label>Stat<select name="stat" id="filter-stat"><option value="">None</option></select></label>
+        <label>Compare<select name="operator" id="filter-operator"><option value="=">=</option><option value="<">&lt;</option><option value="<=">&lt;=</option><option value=">">&gt;</option><option value=">=">&gt;=</option></select></label>
+        <label>Value<input name="statValue" id="filter-stat-value" inputmode="numeric" placeholder="2" /></label>
+        <label>Format<select name="format" id="filter-format"><option value="">Any</option><option value="standard legal">Standard legal</option><option value="standard restricted">Standard restricted</option><option value="material legal">Material legal</option></select></label>
+        <label>Sort<select name="sort" id="sort-select"></select></label>
+        <div class="advanced-actions">
+          <button type="submit">Apply filters</button>
+          <button class="ghost" type="button" id="clear-filters">Clear</button>
+        </div>
+      </form>
+    </details>
+
+    <section class="recent-panel panel">
+      <div class="panel-heading compact-heading">
+        <p class="eyebrow">Recent searches</p>
+        <button class="ghost compact" type="button" id="clear-recents">Clear recents</button>
       </div>
+      <div class="quick-searches" id="recent-searches"></div>
     </section>
 
     <section class="results-grid" id="results" aria-label="Search results"></section>
@@ -160,6 +243,7 @@ app.innerHTML = `
         <div class="detail-tags" id="lightbox-tags"></div>
         <dl class="stat-list" id="lightbox-stats"></dl>
         <p class="effect-text" id="lightbox-effect"></p>
+        <button class="secondary" type="button" id="lightbox-add-card">Add to list</button>
       </div>
     </article>
   </dialog>
@@ -169,27 +253,149 @@ const form = document.querySelector("#search-form");
 const input = document.querySelector("#search-input");
 const statusEl = document.querySelector("#status");
 const chipsEl = document.querySelector("#chips");
+const explanationEl = document.querySelector("#search-explanation");
 const resultsEl = document.querySelector("#results");
 const loadMoreButton = document.querySelector("#load-more");
 const lightbox = document.querySelector("#lightbox");
 const closeLightboxButton = document.querySelector("#close-lightbox");
+const keywordRow = document.querySelector("#keyword-row");
+const suggestionsEl = document.querySelector("#search-suggestions");
+const advancedForm = document.querySelector("#advanced-form");
+const sortSelect = document.querySelector("#sort-select");
+const recentSearchesEl = document.querySelector("#recent-searches");
+const clearRecentsButton = document.querySelector("#clear-recents");
+const copyShareButton = document.querySelector("#copy-share");
+const deckListEl = document.querySelector("#deck-list");
+const deckCountEl = document.querySelector("#deck-count");
+const exportDeckButton = document.querySelector("#export-deck");
+const clearDeckButton = document.querySelector("#clear-deck");
+const clearFiltersButton = document.querySelector("#clear-filters");
+const lightboxAddCardButton = document.querySelector("#lightbox-add-card");
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  runSearch(input.value.trim(), { reset: true });
+  runSearch(input.value.trim(), { reset: true, remember: true });
 });
 
 document.querySelectorAll("[data-example]").forEach((button) => {
   button.addEventListener("click", () => {
     input.value = button.dataset.example;
-    runSearch(input.value, { reset: true });
+    runSearch(input.value, { reset: true, remember: true });
   });
+});
+
+keywordRow.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-keyword]");
+  if (!button) {
+    return;
+  }
+
+  input.value = appendQueryToken(input.value, button.dataset.keyword);
+  input.focus();
+});
+
+recentSearchesEl.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-recent]");
+  if (!button) {
+    return;
+  }
+
+  input.value = button.dataset.recent;
+  runSearch(input.value, { reset: true, remember: true });
+});
+
+clearRecentsButton.addEventListener("click", () => {
+  state.recentSearches = [];
+  saveStoredJson(RECENT_SEARCHES_KEY, state.recentSearches);
+  renderRecentSearches();
+});
+
+copyShareButton.addEventListener("click", async () => {
+  const url = buildShareUrl();
+  try {
+    await navigator.clipboard.writeText(url);
+    copyShareButton.textContent = "Copied";
+  } catch {
+    window.prompt("Copy this search link", url);
+  } finally {
+    window.setTimeout(() => {
+      copyShareButton.textContent = "Copy link";
+    }, 1200);
+  }
+});
+
+advancedForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = buildQueryFromAdvancedForm(new FormData(advancedForm));
+  input.value = query || input.value;
+  runSearch(input.value.trim(), { reset: true, remember: true });
+});
+
+clearFiltersButton.addEventListener("click", () => {
+  advancedForm.reset();
+  state.sort = SORT_OPTIONS[0];
+  sortSelect.value = "0";
+});
+
+sortSelect.addEventListener("change", () => {
+  state.sort = SORT_OPTIONS[Number(sortSelect.value)] || SORT_OPTIONS[0];
+  if (state.query) {
+    runSearch(state.query, { reset: true, remember: false });
+  }
 });
 
 loadMoreButton.addEventListener("click", () => {
   if (!state.loading && !state.reachedEnd) {
-    runSearch(state.query, { reset: false });
+    runSearch(state.query, { reset: false, remember: false });
   }
+});
+
+exportDeckButton.addEventListener("click", exportDeck);
+clearDeckButton.addEventListener("click", () => {
+  state.deck = [];
+  saveDeck();
+  renderDeck();
+  renderCards();
+});
+lightboxAddCardButton.addEventListener("click", () => {
+  if (state.activeLightboxCard) {
+    addCardToDeck(state.activeLightboxCard);
+  }
+});
+
+resultsEl.addEventListener("click", (event) => {
+  const addButton = event.target.closest("[data-add-card]");
+  if (!addButton) {
+    return;
+  }
+
+  event.stopPropagation();
+  const card = state.cards.find((item) => getCardKey(item) === addButton.dataset.addCard);
+  if (card) {
+    addCardToDeck(card);
+  }
+});
+
+deckListEl.addEventListener("click", (event) => {
+  const removeButton = event.target.closest("[data-remove-deck]");
+  if (!removeButton) {
+    return;
+  }
+
+  state.deck = state.deck.filter((card) => card.key !== removeButton.dataset.removeDeck);
+  saveDeck();
+  renderDeck();
+  renderCards();
+});
+
+chipsEl.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-phrase]");
+  if (!button) {
+    return;
+  }
+
+  input.value = removePhrasesFromQuery(input.value, button.dataset.removePhrase.split("||"));
+  runSearch(input.value.trim(), { reset: true, remember: true });
 });
 
 closeLightboxButton.addEventListener("click", closeLightbox);
@@ -206,8 +412,14 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+renderKeywordButtons();
+renderSortOptions();
+renderRecentSearches();
+renderDeck();
+
 loadOptions().then(() => {
-  runSearch(EXAMPLE_QUERY, { reset: true });
+  input.value = state.query;
+  runSearch(state.query, { reset: true, remember: false });
 });
 
 async function loadOptions() {
@@ -226,6 +438,8 @@ async function loadOptions() {
       subtype: normalizeOptions(options.subtype, FALLBACK_OPTIONS.subtype),
       type: normalizeOptions(options.type, FALLBACK_OPTIONS.type),
     };
+    renderAdvancedOptions();
+    renderSearchSuggestions();
     state.status = "Ready.";
   } catch (error) {
     console.warn(error);
@@ -235,15 +449,23 @@ async function loadOptions() {
   render();
 }
 
-async function runSearch(query, { reset }) {
+async function runSearch(query, { reset, remember = false }) {
   if (!query) {
     state.cards = [];
     state.parsed = null;
     state.query = "";
     state.status = "Enter a search such as “fire spells that target units”.";
     state.reachedEnd = true;
+    updateShareUrl("");
     render();
     return;
+  }
+
+  if (remember) {
+    rememberSearch(query);
+  }
+  if (reset) {
+    updateShareUrl(query);
   }
 
   if (reset) {
@@ -311,7 +533,8 @@ function buildSearchParams(parsed, page) {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(PAGE_SIZE),
-    sort: "name",
+    sort: parsed.sort.sort,
+    order: parsed.sort.order,
   });
 
   appendAll(params, "element", parsed.filters.element);
@@ -321,6 +544,11 @@ function buildSearchParams(parsed, page) {
   appendAll(params, "prefix", parsed.filters.prefix);
   appendAll(params, "speed", parsed.filters.speed);
   appendAll(params, "rarity", parsed.filters.rarity);
+
+  if (parsed.legality.format) {
+    params.set("legality_format", parsed.legality.format);
+    params.set("legality_state", parsed.legality.state);
+  }
 
   if (parsed.effectQuery) {
     params.set("effect", parsed.effectQuery);
@@ -344,31 +572,76 @@ function parseNaturalQuery(query, options) {
       subtype: [],
       type: [],
     },
+    excludeFilters: {
+      class: [],
+      element: [],
+      prefix: [],
+      rarity: [],
+      speed: [],
+      subtype: [],
+      type: [],
+    },
+    legality: extractLegalityFilter(normalized),
     matchedLabels: [],
     statFilters: [],
     nameQuery: "",
     raw: query,
+    sort: state.sort,
   };
 
-  const consumedPhrases = [];
+  if (parsed.legality.format) {
+    parsed.matchedLabels.push({
+      field: "Legality",
+      phrases: [parsed.legality.phrase],
+      text: `${titleCase(parsed.legality.format)} ${titleCase(parsed.legality.state)}`,
+      value: parsed.legality.format,
+    });
+  }
+
+  const consumedPhrases = parsed.legality.phrase ? [parsed.legality.phrase] : [];
   for (const config of OPTION_FIELDS) {
-    const matches = matchOptions(normalized, options[config.optionKey] || [], config.optionKey);
-    parsed.filters[config.field] = matches.map((match) => match.value);
+    const optionMatches = matchOptions(normalized, options[config.optionKey] || [], config.optionKey);
+    const excluded = optionMatches.filter((match) => isExcludedPhrase(normalized, match.phrases));
+    const included = optionMatches.filter(
+      (match) => !excluded.some((excludedMatch) => excludedMatch.value === match.value),
+    );
+
+    parsed.filters[config.field] = included.map((match) => match.value);
+    parsed.excludeFilters[config.field] = excluded.map((match) => match.value);
     parsed.matchedLabels.push(
-      ...matches.map((match) => ({
+      ...included.map((match) => ({
         field: config.label,
+        phrases: match.phrases,
+        text: match.text,
+        value: match.value,
+      })),
+      ...excluded.map((match) => ({
+        field: `Exclude ${config.label}`,
+        phrases: match.phrases,
         text: match.text,
         value: match.value,
       })),
     );
-    consumedPhrases.push(...matches.flatMap((match) => match.phrases));
+    consumedPhrases.push(...optionMatches.flatMap((match) => match.phrases));
   }
 
   const speedMatches = matchOptions(normalized, SPEED_OPTIONS, "speed");
-  parsed.filters.speed = speedMatches.map((match) => match.value);
+  const excludedSpeeds = speedMatches.filter((match) => isExcludedPhrase(normalized, match.phrases));
+  const includedSpeeds = speedMatches.filter(
+    (match) => !excludedSpeeds.some((excludedMatch) => excludedMatch.value === match.value),
+  );
+  parsed.filters.speed = includedSpeeds.map((match) => match.value);
+  parsed.excludeFilters.speed = excludedSpeeds.map((match) => match.value);
   parsed.matchedLabels.push(
-    ...speedMatches.map((match) => ({
+    ...includedSpeeds.map((match) => ({
       field: "Speed",
+      phrases: match.phrases,
+      text: match.text,
+      value: match.value,
+    })),
+    ...excludedSpeeds.map((match) => ({
+      field: "Exclude Speed",
+      phrases: match.phrases,
       text: match.text,
       value: match.value,
     })),
@@ -379,6 +652,7 @@ function parseNaturalQuery(query, options) {
   parsed.matchedLabels.push(
     ...parsed.statFilters.map((filter) => ({
       field: "Stat",
+      phrases: [filter.phrase, normalizeEffectQuery(filter.phrase)],
       text: `${filter.label} ${formatOperator(filter.operator)} ${filter.value}`,
       value: `${filter.key}${filter.operator}${filter.value}`,
     })),
@@ -408,6 +682,14 @@ function parseNaturalQuery(query, options) {
 
   parsed.effectQuery = normalizeEffectQuery(cleanRemainder(parsed.effectQuery, consumedPhrases));
   return parsed;
+}
+
+function isExcludedPhrase(normalizedQuery, phrases) {
+  return phrases.some((phrase) =>
+    new RegExp(String.raw`\b(?:not|without|except|exclude|excluding|minus)\s+(?:the\s+)?${escapeRegex(phrase)}\b`).test(
+      normalizedQuery,
+    ),
+  );
 }
 
 function matchOptions(normalizedQuery, options, field) {
@@ -450,6 +732,34 @@ function buildOptionPhrases(option, field) {
   return [...phrases].filter(Boolean).sort((a, b) => b.length - a.length);
 }
 
+function extractLegalityFilter(normalizedQuery) {
+  const formats = [
+    { format: "STANDARD", phrases: ["standard"] },
+    { format: "DRAFT", phrases: ["draft", "limited"] },
+    { format: "PANTHEON", phrases: ["pantheon"] },
+  ];
+
+  for (const entry of formats) {
+    for (const phrase of entry.phrases) {
+      const legalMatch = normalizedQuery.match(
+        new RegExp(String.raw`\b${escapeRegex(phrase)}\s+(legal|restricted)\b`),
+      );
+      if (legalMatch) {
+        return { format: entry.format, phrase: legalMatch[0], state: legalMatch[1].toUpperCase() };
+      }
+
+      const reverseMatch = normalizedQuery.match(
+        new RegExp(String.raw`\b(legal|restricted)\s+(?:in\s+)?${escapeRegex(phrase)}\b`),
+      );
+      if (reverseMatch) {
+        return { format: entry.format, phrase: reverseMatch[0], state: reverseMatch[1].toUpperCase() };
+      }
+    }
+  }
+
+  return { format: "", phrase: "", state: "ANY" };
+}
+
 function extractStatFilters(normalizedQuery) {
   const filters = [];
   const usedPhrases = new Set();
@@ -463,23 +773,43 @@ function extractStatFilters(normalizedQuery) {
 
     const patterns = [
       {
-        regex: new RegExp(`\\b(${operatorPattern})\\s+(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+        regex: new RegExp(String.raw`\b(${operatorPattern})\s+(\d+)\s+(${aliasPattern})\b`, "g"),
         parse: (match) => ({ operator: operatorFromPhrase(match[1]), value: match[2] }),
       },
       {
-        regex: new RegExp(`\\b(${aliasPattern})\\s+(${operatorPattern})\\s+(\\d+)\\b`, "g"),
+        regex: new RegExp(String.raw`\b(${aliasPattern})\s+(${operatorPattern})\s+(\d+)\b`, "g"),
         parse: (match) => ({ operator: operatorFromPhrase(match[2]), value: match[3] }),
       },
       {
-        regex: new RegExp(`\\b(${aliasPattern})\\s*(?:is|are|=|:)\\s*(\\d+)\\b`, "g"),
+        regex: new RegExp(String.raw`\b(${aliasPattern})\s+(\d+)\s+or\s+(less|lower)\b`, "g"),
+        parse: (match) => ({ operator: "<=", value: match[2] }),
+      },
+      {
+        regex: new RegExp(String.raw`\b(${aliasPattern})\s+(\d+)\s+or\s+(more|greater|higher)\b`, "g"),
+        parse: (match) => ({ operator: ">=", value: match[2] }),
+      },
+      {
+        regex: new RegExp(String.raw`\b(\d+)\s+or\s+(less|lower)\s+(${aliasPattern})\b`, "g"),
+        parse: (match) => ({ operator: "<=", value: match[1] }),
+      },
+      {
+        regex: new RegExp(String.raw`\b(\d+)\s+or\s+(more|greater|higher)\s+(${aliasPattern})\b`, "g"),
+        parse: (match) => ({ operator: ">=", value: match[1] }),
+      },
+      {
+        regex: new RegExp(String.raw`\b(${aliasPattern})\s+(\d+)\+(?=\s|$)`, "g"),
+        parse: (match) => ({ operator: ">=", value: match[2] }),
+      },
+      {
+        regex: new RegExp(String.raw`\b(${aliasPattern})\s*(?:is|are|=|:)\s*(\d+)\b`, "g"),
         parse: (match) => ({ operator: "=", value: match[2] }),
       },
       {
-        regex: new RegExp(`\\b(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+        regex: new RegExp(String.raw`\b(\d+)\s+(${aliasPattern})\b`, "g"),
         parse: (match) => ({ operator: "=", value: match[1] }),
       },
       {
-        regex: new RegExp(`\\b(${aliasPattern})\\s+(\\d+)\\b`, "g"),
+        regex: new RegExp(String.raw`\b(${aliasPattern})\s+(\d+)\b`, "g"),
         parse: (match) => ({ operator: "=", value: match[2] }),
       },
     ];
@@ -487,7 +817,7 @@ function extractStatFilters(normalizedQuery) {
     for (const pattern of patterns) {
       for (const match of normalizedQuery.matchAll(pattern.regex)) {
         const phrase = match[0].trim();
-        if (usedPhrases.has(phrase)) {
+        if ([...usedPhrases].some((usedPhrase) => usedPhrase.includes(phrase) || phrase.includes(usedPhrase))) {
           continue;
         }
 
@@ -591,13 +921,14 @@ function extractEffectFromCue(normalizedQuery) {
 
 function cleanRemainder(normalizedQuery, consumedPhrases) {
   let remainder = ` ${normalizedQuery} `;
-  for (const phrase of consumedPhrases) {
-    remainder = remainder.replace(new RegExp(`\\b${escapeRegex(phrase)}\\b`, "g"), " ");
+  for (const phrase of consumedPhrases.filter(Boolean)) {
+    remainder = remainder.split(phrase).join(" ");
+    remainder = remainder.replace(new RegExp(String.raw`\b${escapeRegex(phrase)}\b`, "g"), " ");
   }
 
   remainder = remainder
     .replace(
-      /\b(show|shows|find|search|get|cards?|element|elements|types?|subtypes?|classes?|sets?|prefix|editions?|stats?|cost|costs|costing|effect|effects|text|that|which|where|whose|with|has|have|having|include|includes|including|contain|contains|containing|of|the|a|an|and|or|is|are|for|in|to|using|use)\b/g,
+      /\b(show|shows|find|search|get|not|without|except|exclude|excluding|minus|cards?|element|elements|types?|subtypes?|classes?|sets?|prefix|editions?|stats?|cost|costs|costing|effect|effects|text|that|which|where|whose|with|has|have|having|include|includes|including|contain|contains|containing|of|the|a|an|and|or|is|are|for|in|to|using|use)\b/g,
       " ",
     )
     .replace(/\s+/g, " ")
@@ -613,7 +944,9 @@ function normalizeEffectQuery(value) {
 function hasAnyFilter(parsed) {
   return (
     Object.values(parsed.filters).some((values) => values.length > 0) ||
-    parsed.statFilters.length > 0
+    Object.values(parsed.excludeFilters).some((values) => values.length > 0) ||
+    parsed.statFilters.length > 0 ||
+    Boolean(parsed.legality.format)
   );
 }
 
@@ -626,6 +959,7 @@ function cardMatchesParsedQuery(card, parsed) {
     setMatches(card, parsed.filters.prefix) &&
     rarityMatches(card, parsed.filters.rarity) &&
     speedMatches(card, parsed.filters.speed) &&
+    excludedFiltersMatch(card, parsed.excludeFilters) &&
     statFiltersMatch(card, parsed.statFilters) &&
     effectMatches(card, parsed.effectQuery)
   );
@@ -637,7 +971,23 @@ function fieldMatches(cardValues = [], requiredValues = []) {
   }
 
   const normalizedValues = new Set(cardValues.map((value) => String(value).toUpperCase()));
-  return requiredValues.every((value) => normalizedValues.has(String(value).toUpperCase()));
+  return requiredValues.some((value) => normalizedValues.has(String(value).toUpperCase()));
+}
+
+function excludedFiltersMatch(card, excludeFilters) {
+  return (
+    !hasExcludedMatch(card.elements, excludeFilters.element) &&
+    !hasExcludedMatch(card.types, excludeFilters.type) &&
+    !hasExcludedMatch(card.subtypes, excludeFilters.subtype) &&
+    !hasExcludedMatch(card.classes, excludeFilters.class) &&
+    !(excludeFilters.prefix.length > 0 && setMatches(card, excludeFilters.prefix)) &&
+    !(excludeFilters.rarity.length > 0 && rarityMatches(card, excludeFilters.rarity)) &&
+    !(excludeFilters.speed.length > 0 && speedMatches(card, excludeFilters.speed))
+  );
+}
+
+function hasExcludedMatch(cardValues, excludedValues) {
+  return excludedValues.length > 0 && fieldMatches(cardValues, excludedValues);
 }
 
 function effectMatches(card, effectQuery) {
@@ -737,10 +1087,287 @@ function parseStatNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function renderKeywordButtons() {
+  keywordRow.replaceChildren(
+    ...KEYWORD_SEARCHES.map((keyword) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.keyword = keyword;
+      button.textContent = keyword;
+      return button;
+    }),
+  );
+}
+
+function renderSortOptions() {
+  sortSelect.replaceChildren(
+    ...SORT_OPTIONS.map((option, index) => {
+      const item = document.createElement("option");
+      item.value = String(index);
+      item.textContent = option.label;
+      return item;
+    }),
+  );
+  sortSelect.value = String(SORT_OPTIONS.indexOf(state.sort));
+}
+
+function renderAdvancedOptions() {
+  fillSelect("#filter-element", state.options.element, "Any element");
+  fillSelect("#filter-type", state.options.type, "Any type");
+  fillSelect("#filter-subtype", state.options.subtype, "Any subtype");
+  fillSelect("#filter-class", state.options.class, "Any class");
+  fillSelect("#filter-set", state.options.set, "Any set");
+  fillSelect("#filter-speed", SPEED_OPTIONS, "Any speed");
+  fillSelect(
+    "#filter-stat",
+    STAT_DEFINITIONS.map((stat) => ({ text: stat.label, value: stat.key })),
+    "No stat filter",
+  );
+}
+
+function renderSearchSuggestions() {
+  const suggestions = [
+    ...KEYWORD_SEARCHES,
+    ...flattenOptionTexts(state.options.element),
+    ...flattenOptionTexts(state.options.type),
+    ...flattenOptionTexts(state.options.subtype),
+    ...flattenOptionTexts(state.options.class),
+    ...flattenOptionTexts(state.options.set),
+    ...STAT_DEFINITIONS.flatMap((stat) => stat.aliases),
+    ...state.recentSearches,
+  ];
+
+  suggestionsEl.replaceChildren(
+    ...uniqueBy(suggestions.filter(Boolean), (value) => normalizeText(value)).map((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      return option;
+    }),
+  );
+}
+
+function fillSelect(selector, options, placeholder) {
+  const select = document.querySelector(selector);
+  select.replaceChildren(createOption("", placeholder));
+  for (const option of options || []) {
+    select.append(createOption(option.value, option.display || option.text || option.value));
+  }
+}
+
+function createOption(value, text) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = text;
+  return option;
+}
+
+function flattenOptionTexts(options = []) {
+  return options.flatMap((option) => [option.text, option.display, option.value]).filter(Boolean);
+}
+
+function buildQueryFromAdvancedForm(formData) {
+  const parts = [];
+  const labelFor = (key, value) => {
+    if (!value) return "";
+    const list = key === "speed" ? SPEED_OPTIONS : state.options[key] || [];
+    const option = list.find((item) => String(item.value) === String(value));
+    return option?.display || option?.text || value;
+  };
+
+  for (const [key, label] of [
+    ["element", "element"],
+    ["type", "type"],
+    ["subtype", "subtype"],
+    ["class", "class"],
+    ["set", "set"],
+    ["speed", "speed"],
+  ]) {
+    const value = formData.get(key);
+    if (value) parts.push(labelFor(label, value));
+  }
+
+  const statKey = formData.get("stat");
+  const statValueInput = formData.get("statValue")?.trim();
+  if (statKey && statValueInput) {
+    const stat = STAT_DEFINITIONS.find((item) => item.key === statKey);
+    parts.push(`${stat?.aliases[0] || statKey} ${formData.get("operator")} ${statValueInput}`);
+  }
+
+  if (formData.get("format")) {
+    parts.push(formData.get("format"));
+  }
+
+  state.sort = SORT_OPTIONS[Number(formData.get("sort"))] || state.sort;
+  return parts.join(" ").trim();
+}
+
+function renderRecentSearches() {
+  recentSearchesEl.replaceChildren();
+  if (state.recentSearches.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "hint";
+    empty.textContent = "Your recent searches will appear here.";
+    recentSearchesEl.append(empty);
+    return;
+  }
+
+  state.recentSearches.forEach((search) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.recent = search;
+    button.textContent = search;
+    recentSearchesEl.append(button);
+  });
+}
+
+function rememberSearch(query) {
+  const normalized = query.trim();
+  if (!normalized) return;
+  state.recentSearches = [
+    normalized,
+    ...state.recentSearches.filter((search) => search !== normalized),
+  ].slice(0, MAX_RECENT_SEARCHES);
+  saveStoredJson(RECENT_SEARCHES_KEY, state.recentSearches);
+  renderRecentSearches();
+  renderSearchSuggestions();
+}
+
+function renderDeck() {
+  deckCountEl.textContent = String(state.deck.length);
+  deckListEl.replaceChildren();
+  if (state.deck.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Add cards from results or the lightbox, then export your list.";
+    deckListEl.append(empty);
+    return;
+  }
+
+  state.deck.forEach((card) => {
+    const row = document.createElement("div");
+    row.className = "deck-row";
+    row.innerHTML = `<span>${escapeHtml(card.name)}</span><button class="ghost compact" type="button" data-remove-deck="${escapeHtml(card.key)}">Remove</button>`;
+    deckListEl.append(row);
+  });
+}
+
+function addCardToDeck(card) {
+  const key = getCardKey(card);
+  if (state.deck.some((item) => item.key === key)) {
+    return;
+  }
+
+  state.deck.push({
+    key,
+    name: card.name,
+    line: formatCardLine(card),
+  });
+  saveDeck();
+  renderDeck();
+  renderCards();
+}
+
+function saveDeck() {
+  saveStoredJson(DECK_STORAGE_KEY, state.deck);
+}
+
+function exportDeck() {
+  const text = state.deck.map((card, index) => `${index + 1}. ${card.name} - ${card.line}`).join("\n");
+  if (!text) {
+    window.alert("Add cards to your list before exporting.");
+    return;
+  }
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "grand-archive-list.txt";
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildShareUrl() {
+  const url = new URL(window.location.href);
+  if (state.query) {
+    url.searchParams.set("q", state.query);
+  } else {
+    url.searchParams.delete("q");
+  }
+  return url.toString();
+}
+
+function updateShareUrl(query) {
+  const url = new URL(window.location.href);
+  if (query) {
+    url.searchParams.set("q", query);
+  } else {
+    url.searchParams.delete("q");
+  }
+  window.history.replaceState({}, "", url);
+}
+
+function getInitialQuery() {
+  return new URLSearchParams(window.location.search).get("q") || EXAMPLE_QUERY;
+}
+
+function appendQueryToken(query, token) {
+  const trimmed = query.trim();
+  return trimmed ? `${trimmed} ${token}` : token;
+}
+
+function removePhrasesFromQuery(query, phrases) {
+  let next = ` ${query} `;
+  for (const phrase of phrases.filter(Boolean)) {
+    next = next.replace(new RegExp(String.raw`\b${escapeRegex(phrase)}\b`, "ig"), " ");
+  }
+  return next.replace(/\s+/g, " ").trim();
+}
+
+function loadStoredJson(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStoredJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  })[char]);
+}
+
+function getCardKey(card) {
+  return card.uuid || card.slug || card.name;
+}
+
+function buildExplanation(parsed) {
+  if (!parsed) return "Search terms will be explained here.";
+  const parts = [];
+  for (const match of parsed.matchedLabels) {
+    parts.push(`${match.field}: ${match.text}`);
+  }
+  if (parsed.effectQuery) parts.push(`Effect contains: ${parsed.effectQuery}`);
+  if (parsed.nameQuery) parts.push(`Name like: ${parsed.nameQuery}`);
+  if (parts.length === 0) return "No structured filters detected; searching by card name or effect text.";
+  return `Interpreted as ${parts.join("; ")}.`;
+}
+
 function render() {
   statusEl.textContent = state.status;
+  explanationEl.textContent = buildExplanation(state.parsed);
   renderChips();
   renderCards();
+  renderDeck();
   loadMoreButton.classList.toggle("hidden", !state.parsed || state.reachedEnd);
   loadMoreButton.disabled = state.loading;
   loadMoreButton.textContent = state.loading ? "Loading..." : "Load more";
@@ -754,11 +1381,11 @@ function renderChips() {
   }
 
   for (const match of state.parsed.matchedLabels) {
-    chipsEl.append(createChip(`${titleCase(match.field)}: ${match.text}`));
+    chipsEl.append(createChip(`${titleCase(match.field)}: ${match.text}`, match.phrases));
   }
 
   if (state.parsed.effectQuery) {
-    chipsEl.append(createChip(`Effect: ${state.parsed.effectQuery}`));
+    chipsEl.append(createChip(`Effect: ${state.parsed.effectQuery}`, [state.parsed.effectQuery]));
   } else if (state.parsed.nameQuery) {
     chipsEl.append(createChip(`Name: ${state.parsed.nameQuery}`));
   }
@@ -768,13 +1395,17 @@ function renderCards() {
   resultsEl.replaceChildren();
 
   if (state.loading && state.cards.length === 0) {
-    resultsEl.append(createEmptyState("Searching the Grand Archive database..."));
+    for (let index = 0; index < 8; index += 1) {
+      const skeleton = document.createElement("div");
+      skeleton.className = "skeleton-card";
+      resultsEl.append(skeleton);
+    }
     return;
   }
 
   if (!state.loading && state.cards.length === 0) {
     resultsEl.append(
-      createEmptyState("No cards matched. Try fewer filters or a shorter effect phrase."),
+      createEmptyState("No cards matched. Try removing a set/stat filter, using a shorter effect phrase, or clicking a keyword helper."),
     );
     return;
   }
@@ -802,6 +1433,10 @@ function createCardButton(card) {
     image.loading = "lazy";
     image.src = imageUrl;
     image.alt = card.name;
+    image.onerror = () => {
+      image.remove();
+      imageWrap.append(createPlaceholder(card.name));
+    };
     imageWrap.append(image);
   } else {
     imageWrap.append(createPlaceholder(card.name));
@@ -816,9 +1451,37 @@ function createCardButton(card) {
   const line = document.createElement("span");
   line.textContent = formatCardLine(card);
 
-  meta.append(name, line);
+  const badges = document.createElement("span");
+  badges.className = "card-badges";
+  [formatCost(card.cost), ...(card.elements || []).map(titleCase), edition?.set?.prefix, rarityLabel(edition?.rarity)]
+    .filter(Boolean)
+    .slice(0, 5)
+    .forEach((value) => badges.append(createBadge(value)));
+
+  const addButton = document.createElement("span");
+  addButton.className = "add-card-button";
+  addButton.dataset.addCard = getCardKey(card);
+  addButton.textContent = state.deck.some((item) => item.key === getCardKey(card)) ? "Saved" : "Add";
+  addButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    addCardToDeck(card);
+  });
+
+  meta.append(name, line, badges, addButton);
   button.append(imageWrap, meta);
   return button;
+}
+
+function createBadge(text) {
+  const badge = document.createElement("span");
+  badge.className = "mini-badge";
+  badge.textContent = text;
+  return badge;
+}
+
+function rarityLabel(value) {
+  const option = (state.options.rarity || []).find((item) => String(item.value) === String(value));
+  return option?.display || option?.text || (value ? `R${value}` : "");
 }
 
 function createEmptyState(message) {
@@ -828,10 +1491,18 @@ function createEmptyState(message) {
   return element;
 }
 
-function createChip(text) {
+function createChip(text, removablePhrases = []) {
   const chip = document.createElement("span");
   chip.className = "chip";
   chip.textContent = text;
+  if (removablePhrases.length > 0) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.removePhrase = removablePhrases.join("||");
+    remove.setAttribute("aria-label", `Remove ${text}`);
+    remove.textContent = "×";
+    chip.append(remove);
+  }
   return chip;
 }
 
@@ -843,6 +1514,7 @@ function createPlaceholder(name) {
 }
 
 function openLightbox(card) {
+  state.activeLightboxCard = card;
   const edition = getPrimaryEdition(card);
   const imageUrl = getImageUrl(edition?.image);
   const image = document.querySelector("#lightbox-image");
@@ -904,8 +1576,16 @@ function buildStatus(count, parsed, usedFallback) {
       criteria.push(`${field} ${parsed.filters[field].join(", ")}`);
     }
   }
+  for (const field of ["element", "type", "subtype", "class", "prefix", "speed", "rarity"]) {
+    if (parsed.excludeFilters[field].length > 0) {
+      criteria.push(`not ${field} ${parsed.excludeFilters[field].join(", ")}`);
+    }
+  }
   for (const filter of parsed.statFilters) {
     criteria.push(`${filter.label} ${formatOperator(filter.operator)} ${filter.value}`);
+  }
+  if (parsed.legality.format) {
+    criteria.push(`${parsed.legality.format} ${parsed.legality.state}`);
   }
   if (parsed.effectQuery) {
     criteria.push(`effect "${parsed.effectQuery}"`);
@@ -926,7 +1606,7 @@ function appendAll(params, key, values) {
 }
 
 function containsPhrase(haystack, phrase) {
-  return new RegExp(`(^|\\s)${escapeRegex(phrase)}($|\\s)`).test(haystack);
+  return new RegExp(String.raw`(^|\s)${escapeRegex(phrase)}($|\s)`).test(haystack);
 }
 
 function escapeRegex(value) {
