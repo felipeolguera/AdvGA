@@ -248,7 +248,7 @@ app.innerHTML = `
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
 
-    <footer class="app-version" aria-label="App version">v0.14</footer>
+    <footer class="app-version" aria-label="App version">v0.15</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
@@ -295,6 +295,8 @@ app.innerHTML = `
       <div class="deck-list deck-list-fullscreen" id="deck-list-fullscreen"></div>
     </div>
   </dialog>
+
+  <button class="scroll-top-button" type="button" id="scroll-top" aria-label="Move to top">↑</button>
 `;
 
 const form = document.querySelector("#search-form");
@@ -325,6 +327,7 @@ const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen")
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
 const clearFiltersButton = document.querySelector("#clear-filters");
+const scrollTopButton = document.querySelector("#scroll-top");
 const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
 const lightboxAddedMessage = document.querySelector("#lightbox-added-message");
 
@@ -435,6 +438,10 @@ deckFullscreen.addEventListener("click", (event) => {
     deckFullscreen.close();
   }
 });
+scrollTopButton.addEventListener("click", () => {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
 lightboxQuantitySelect.addEventListener("change", () => {
   const amount = Number(lightboxQuantitySelect.value);
   if (!amount || !state.activeLightboxCard) {
@@ -1435,9 +1442,8 @@ function handleDeckListInput(event) {
   updateDeckCard(quantityInput.dataset.deckQuantity, {
     quantity: Math.max(1, Number(quantityInput.value) || 1),
   });
-  deckCountEl.textContent = String(
-    state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0),
-  );
+  renderDeck();
+  renderCards();
 }
 
 function clearDeck() {
