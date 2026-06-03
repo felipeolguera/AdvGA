@@ -65,7 +65,7 @@ app.innerHTML = `
     <section class="hero" aria-labelledby="app-title">
       <div>
         <p class="eyebrow">Grand Archive TCG</p>
-        <h1 id="app-title">Natural language card finder</h1>
+        <h1 id="app-title">Grand Archive Advanced Book by RPGgamerPH</h1>
         <p class="hero-copy">
           Search by plain English. Try element, type, subtype, class, and effect text
           in one sentence.
