@@ -24,3 +24,13 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## Deploy to GitHub Pages
+
+The app can be served two ways:
+
+- GitHub Pages from the repository root, because `index.html` uses relative
+  `./src/...` asset paths.
+- The included GitHub Actions workflow, which builds Vite and deploys the
+  generated `dist` directory with the `/AdvGA/` base path.
+
