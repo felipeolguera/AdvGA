@@ -436,7 +436,7 @@ function buildOptionPhrases(option, field) {
   const text = normalizeText(option.text);
   const value = normalizeText(option.value);
   const display = normalizeText(option.display);
-  const phrases = new Set([text, value, display]);
+  const phrases = field === "rarity" ? new Set([text, display]) : new Set([text, value, display]);
   const aliases = OPTION_ALIASES[field]?.[option.value] || [];
 
   aliases.forEach((alias) => phrases.add(normalizeText(alias)));
