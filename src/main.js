@@ -1678,6 +1678,12 @@ function createCardButton(card) {
   [1, 2, 3, 4].forEach((quantity) => {
     quantitySelect.append(createOption(String(quantity), String(quantity)));
   });
+
+  const addedMessage = document.createElement("span");
+  addedMessage.className = "result-added-message";
+  addedMessage.setAttribute("aria-live", "polite");
+
+  let messageTimer;
   quantitySelect.addEventListener("click", (event) => event.stopPropagation());
   quantitySelect.addEventListener("change", (event) => {
     event.stopPropagation();
@@ -1687,10 +1693,15 @@ function createCardButton(card) {
     }
 
     addCardToDeck(card, amount);
-    quantitySelect.value = "";
+    addedMessage.textContent = `${amount} Added`;
+    addedMessage.classList.add("show");
+    window.clearTimeout(messageTimer);
+    messageTimer = window.setTimeout(() => {
+      addedMessage.classList.remove("show");
+    }, 1300);
   });
 
-  quantityControl.append(quantitySelect);
+  quantityControl.append(quantitySelect, addedMessage);
 
   meta.append(name, line, quantityControl);
   button.append(imageWrap, meta);
