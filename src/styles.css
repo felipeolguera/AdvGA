@@ -315,6 +315,16 @@ h1 {
   margin-top: 28px;
 }
 
+.app-version {
+  margin-top: 28px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .hidden {
   display: none !important;
 }
