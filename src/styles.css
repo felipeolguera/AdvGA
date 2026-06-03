@@ -601,13 +601,23 @@ h1 {
   width: 64px;
 }
 
-.add-card-button {
-  display: inline-flex;
-  justify-content: center;
+.result-quantity-control {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.result-quantity-control select {
+  width: 100%;
+  min-height: 36px;
   border: 1px solid rgba(255, 204, 115, 0.5);
   border-radius: 12px;
-  padding: 7px 10px;
-  color: var(--gold-strong) !important;
+  padding: 0 10px;
+  color: var(--gold-strong);
   background: rgba(244, 184, 93, 0.11);
   font-weight: 900;
 }
