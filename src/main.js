@@ -139,15 +139,23 @@ app.innerHTML = `
       <form class="search-card" id="search-form">
         <label for="search-input">Search cards</label>
         <div class="search-row">
-          <input
-            id="search-input"
-            name="query"
-            autocomplete="off"
-            list="search-suggestions"
-            spellcheck="true"
-            value="${escapeHtml(state.query)}"
-            placeholder="normal ally that cost 2 in RDO"
-          />
+          <div class="search-input-wrap">
+            <input
+              id="search-input"
+              name="query"
+              autocomplete="off"
+              list="search-suggestions"
+              spellcheck="true"
+              value="${escapeHtml(state.query)}"
+              placeholder="normal ally that cost 2 in RDO"
+            />
+            <button
+              class="clear-search hidden"
+              type="button"
+              id="clear-search"
+              aria-label="Clear search text"
+            >×</button>
+          </div>
           <button type="submit">Search</button>
         </div>
         <datalist id="search-suggestions"></datalist>
@@ -251,6 +259,7 @@ app.innerHTML = `
 
 const form = document.querySelector("#search-form");
 const input = document.querySelector("#search-input");
+const clearSearchButton = document.querySelector("#clear-search");
 const statusEl = document.querySelector("#status");
 const chipsEl = document.querySelector("#chips");
 const explanationEl = document.querySelector("#search-explanation");
@@ -275,6 +284,21 @@ const lightboxAddCardButton = document.querySelector("#lightbox-add-card");
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   runSearch(input.value.trim(), { reset: true, remember: true });
+});
+
+input.addEventListener("input", updateClearSearchVisibility);
+
+clearSearchButton.addEventListener("click", () => {
+  input.value = "";
+  state.query = "";
+  state.cards = [];
+  state.parsed = null;
+  state.reachedEnd = true;
+  state.status = "Enter a search such as “fire spells that target units”.";
+  updateShareUrl("");
+  updateClearSearchVisibility();
+  render();
+  input.focus();
 });
 
 document.querySelectorAll("[data-example]").forEach((button) => {
@@ -419,6 +443,7 @@ renderDeck();
 
 loadOptions().then(() => {
   input.value = state.query;
+  updateClearSearchVisibility();
   runSearch(state.query, { reset: true, remember: false });
 });
 
@@ -1085,6 +1110,10 @@ function parseStatNumber(value) {
 
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function updateClearSearchVisibility() {
+  clearSearchButton.classList.toggle("hidden", input.value.length === 0);
 }
 
 function renderKeywordButtons() {
