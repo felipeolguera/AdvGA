@@ -383,7 +383,9 @@ function parseNaturalQuery(query, options) {
       value: `${filter.key}${filter.operator}${filter.value}`,
     })),
   );
-  consumedPhrases.push(...parsed.statFilters.map((filter) => filter.phrase));
+  consumedPhrases.push(
+    ...parsed.statFilters.flatMap((filter) => [filter.phrase, normalizeEffectQuery(filter.phrase)]),
+  );
 
   const quotedPhrases = extractQuotedPhrases(query);
   const targetPhrase = extractTargetPhrase(normalized);
@@ -404,7 +406,7 @@ function parseNaturalQuery(query, options) {
     }
   }
 
-  parsed.effectQuery = normalizeEffectQuery(parsed.effectQuery);
+  parsed.effectQuery = normalizeEffectQuery(cleanRemainder(parsed.effectQuery, consumedPhrases));
   return parsed;
 }
 
@@ -453,43 +455,43 @@ function extractStatFilters(normalizedQuery) {
   const usedPhrases = new Set();
 
   for (const stat of STAT_DEFINITIONS) {
-    const aliasPattern = stat.aliases
-      .map((alias) => escapeRegex(normalizeText(alias)))
-      .sort((a, b) => b.length - a.length)
-      .join("|");
+    const aliasPattern = buildStatAliasPattern(stat);
     const operatorPattern = OPERATOR_PATTERNS.flatMap((entry) => entry.phrases)
       .map(escapeRegex)
       .sort((a, b) => b.length - a.length)
       .join("|");
 
     const patterns = [
-      new RegExp(`\\b(${operatorPattern})\\s+(\\d+)\\s+(${aliasPattern})\\b`, "g"),
-      new RegExp(`\\b(${aliasPattern})\\s+(${operatorPattern})\\s+(\\d+)\\b`, "g"),
-      new RegExp(`\\b(${aliasPattern})\\s*(?:is|are|=|:)\\s*(\\d+)\\b`, "g"),
-      new RegExp(`\\b(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+      {
+        regex: new RegExp(`\\b(${operatorPattern})\\s+(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+        parse: (match) => ({ operator: operatorFromPhrase(match[1]), value: match[2] }),
+      },
+      {
+        regex: new RegExp(`\\b(${aliasPattern})\\s+(${operatorPattern})\\s+(\\d+)\\b`, "g"),
+        parse: (match) => ({ operator: operatorFromPhrase(match[2]), value: match[3] }),
+      },
+      {
+        regex: new RegExp(`\\b(${aliasPattern})\\s*(?:is|are|=|:)\\s*(\\d+)\\b`, "g"),
+        parse: (match) => ({ operator: "=", value: match[2] }),
+      },
+      {
+        regex: new RegExp(`\\b(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+        parse: (match) => ({ operator: "=", value: match[1] }),
+      },
+      {
+        regex: new RegExp(`\\b(${aliasPattern})\\s+(\\d+)\\b`, "g"),
+        parse: (match) => ({ operator: "=", value: match[2] }),
+      },
     ];
 
-    for (const [index, pattern] of patterns.entries()) {
-      for (const match of normalizedQuery.matchAll(pattern)) {
+    for (const pattern of patterns) {
+      for (const match of normalizedQuery.matchAll(pattern.regex)) {
         const phrase = match[0].trim();
         if (usedPhrases.has(phrase)) {
           continue;
         }
 
-        let operator = "=";
-        let value;
-        if (index === 0) {
-          operator = operatorFromPhrase(match[1]);
-          value = match[2];
-        } else if (index === 1) {
-          operator = operatorFromPhrase(match[2]);
-          value = match[3];
-        } else if (index === 2) {
-          value = match[2];
-        } else {
-          value = match[1];
-        }
-
+        const { operator, value } = pattern.parse(match);
         usedPhrases.add(phrase);
         filters.push({
           key: stat.key,
@@ -503,6 +505,29 @@ function extractStatFilters(normalizedQuery) {
   }
 
   return dedupeStatFilters(filters);
+}
+
+function buildStatAliasPattern(stat) {
+  const aliases = new Set();
+
+  for (const alias of stat.aliases.map(normalizeText)) {
+    aliases.add(alias);
+    if (!alias.endsWith("s")) {
+      aliases.add(`${alias}s`);
+    }
+    if (alias.endsWith(" cost")) {
+      aliases.add(alias.replace(/ cost$/, " costs"));
+    }
+    if (alias === "cost") {
+      aliases.add("costing");
+    }
+  }
+
+  return [...aliases]
+    .filter(Boolean)
+    .map(escapeRegex)
+    .sort((a, b) => b.length - a.length)
+    .join("|");
 }
 
 function dedupeStatFilters(filters) {
@@ -561,7 +586,7 @@ function extractEffectFromCue(normalizedQuery) {
     return "";
   }
 
-  return cleanRemainder(cueMatch[1], []);
+  return normalizeEffectQuery(cueMatch[1]);
 }
 
 function cleanRemainder(normalizedQuery, consumedPhrases) {
@@ -572,7 +597,7 @@ function cleanRemainder(normalizedQuery, consumedPhrases) {
 
   remainder = remainder
     .replace(
-      /\b(cards?|element|elements|types?|subtypes?|classes?|effect|effects|text|that|which|where|whose|with|has|have|having|include|includes|including|contain|contains|containing|of|the|a|an|and|or|is|are|for|in|to|using|use)\b/g,
+      /\b(show|shows|find|search|get|cards?|element|elements|types?|subtypes?|classes?|sets?|prefix|editions?|stats?|cost|costs|costing|effect|effects|text|that|which|where|whose|with|has|have|having|include|includes|including|contain|contains|containing|of|the|a|an|and|or|is|are|for|in|to|using|use)\b/g,
       " ",
     )
     .replace(/\s+/g, " ")
