@@ -560,8 +560,8 @@ h1 {
 
 .deck-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(70px, 0.3fr) minmax(140px, 0.55fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(70px, 0.25fr) minmax(230px, 0.75fr) auto;
+  gap: 10px;
   align-items: end;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -586,8 +586,7 @@ h1 {
   text-transform: uppercase;
 }
 
-.deck-field input,
-.deck-field select {
+.deck-field input {
   min-height: 34px;
   min-width: 0;
   border: 1px solid var(--line);
@@ -595,6 +594,112 @@ h1 {
   padding: 0 8px;
   color: var(--text);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.deck-section-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.deck-section-picker legend {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.deck-section-picker button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.deck-section-picker button.active {
+  border-color: rgba(255, 204, 115, 0.65);
+  color: #170f0b;
+  background: linear-gradient(135deg, var(--gold-strong), var(--gold));
+}
+
+.deck-fullscreen {
+  width: min(980px, calc(100% - 18px));
+  height: min(900px, calc(100vh - 18px));
+  max-height: calc(100vh - 18px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 0;
+  color: var(--text);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.deck-fullscreen::backdrop {
+  background: rgba(6, 5, 10, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.deck-fullscreen-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 16px;
+  height: 100%;
+  padding: 24px;
+}
+
+.deck-fullscreen-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.deck-fullscreen-header h2 {
+  margin-bottom: 6px;
+}
+
+.deck-close {
+  position: static !important;
+  flex: 0 0 auto;
+}
+
+.deck-fullscreen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deck-list-fullscreen {
+  max-height: none;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.deck-section-group {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.deck-section-group h3 {
+  margin: 0;
+  color: var(--gold-strong);
+}
+
+.deck-row-fullscreen {
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 0.22fr) minmax(260px, 0.7fr) auto;
 }
 
 .deck-quantity-field input {
@@ -665,13 +770,34 @@ h1 {
     gap: 14px;
   }
 
-  .deck-row {
+  .deck-row,
+  .deck-row-fullscreen {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
 
   .deck-card-name {
     white-space: normal;
+  }
+
+  .deck-section-picker button {
+    min-height: 44px;
+    font-size: 0.9rem;
+  }
+
+  .deck-fullscreen {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .deck-fullscreen-shell {
+    padding: 16px;
+  }
+
+  .deck-fullscreen-header {
+    align-items: flex-start;
   }
 
   .lightbox-card {

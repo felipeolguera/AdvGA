@@ -201,6 +201,7 @@ app.innerHTML = `
             <h2>Deck Builder <span id="deck-count">0</span></h2>
           </div>
           <div class="button-pair">
+            <button class="secondary compact" type="button" id="open-deck-fullscreen">Fullscreen</button>
             <button class="secondary compact" type="button" id="export-deck">Copy export</button>
             <button class="ghost compact" type="button" id="clear-deck">Clear</button>
           </div>
@@ -261,6 +262,24 @@ app.innerHTML = `
       </div>
     </article>
   </dialog>
+
+  <dialog class="deck-fullscreen" id="deck-fullscreen" aria-labelledby="deck-fullscreen-title">
+    <div class="deck-fullscreen-shell">
+      <header class="deck-fullscreen-header">
+        <div>
+          <p class="eyebrow">Deck Builder</p>
+          <h2 id="deck-fullscreen-title">Fullscreen Deck List</h2>
+          <p class="hint">Edit quantities and sections with larger mobile-friendly controls.</p>
+        </div>
+        <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
+      </header>
+      <div class="deck-fullscreen-actions">
+        <button class="secondary compact" type="button" id="export-deck-fullscreen">Copy export</button>
+        <button class="ghost compact" type="button" id="clear-deck-fullscreen">Clear</button>
+      </div>
+      <div class="deck-list deck-list-fullscreen" id="deck-list-fullscreen"></div>
+    </div>
+  </dialog>
 `;
 
 const form = document.querySelector("#search-form");
@@ -281,9 +300,15 @@ const recentSearchesEl = document.querySelector("#recent-searches");
 const clearRecentsButton = document.querySelector("#clear-recents");
 const copyShareButton = document.querySelector("#copy-share");
 const deckListEl = document.querySelector("#deck-list");
+const deckListFullscreenEl = document.querySelector("#deck-list-fullscreen");
 const deckCountEl = document.querySelector("#deck-count");
 const exportDeckButton = document.querySelector("#export-deck");
+const exportDeckFullscreenButton = document.querySelector("#export-deck-fullscreen");
 const clearDeckButton = document.querySelector("#clear-deck");
+const clearDeckFullscreenButton = document.querySelector("#clear-deck-fullscreen");
+const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen");
+const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
+const deckFullscreen = document.querySelector("#deck-fullscreen");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const lightboxAddCardButton = document.querySelector("#lightbox-add-card");
 
@@ -380,12 +405,19 @@ loadMoreButton.addEventListener("click", () => {
   }
 });
 
-exportDeckButton.addEventListener("click", exportDeck);
-clearDeckButton.addEventListener("click", () => {
-  state.deck = [];
-  saveDeck();
+exportDeckButton.addEventListener("click", () => exportDeck(exportDeckButton));
+exportDeckFullscreenButton.addEventListener("click", () => exportDeck(exportDeckFullscreenButton));
+clearDeckButton.addEventListener("click", clearDeck);
+clearDeckFullscreenButton.addEventListener("click", clearDeck);
+openDeckFullscreenButton.addEventListener("click", () => {
   renderDeck();
-  renderCards();
+  deckFullscreen.showModal();
+});
+closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
+deckFullscreen.addEventListener("click", (event) => {
+  if (event.target === deckFullscreen) {
+    deckFullscreen.close();
+  }
 });
 lightboxAddCardButton.addEventListener("click", () => {
   if (state.activeLightboxCard) {
@@ -393,39 +425,9 @@ lightboxAddCardButton.addEventListener("click", () => {
   }
 });
 
-deckListEl.addEventListener("click", (event) => {
-  const removeButton = event.target.closest("[data-remove-deck]");
-  if (!removeButton) {
-    return;
-  }
-
-  state.deck = state.deck.filter((card) => card.key !== removeButton.dataset.removeDeck);
-  saveDeck();
-  renderDeck();
-  renderCards();
-});
-
-deckListEl.addEventListener("input", (event) => {
-  const quantityInput = event.target.closest("[data-deck-quantity]");
-  if (!quantityInput) {
-    return;
-  }
-
-  updateDeckCard(quantityInput.dataset.deckQuantity, {
-    quantity: Math.max(1, Number(quantityInput.value) || 1),
-  });
-  deckCountEl.textContent = String(
-    state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0),
-  );
-});
-
-deckListEl.addEventListener("change", (event) => {
-  const sectionSelect = event.target.closest("[data-deck-section]");
-  if (!sectionSelect) {
-    return;
-  }
-
-  updateDeckCard(sectionSelect.dataset.deckSection, { section: sectionSelect.value });
+[deckListEl, deckListFullscreenEl].forEach((deckList) => {
+  deckList.addEventListener("click", handleDeckListClick);
+  deckList.addEventListener("input", handleDeckListInput);
 });
 
 chipsEl.addEventListener("click", (event) => {
@@ -1279,57 +1281,142 @@ function rememberSearch(query) {
 
 function renderDeck() {
   deckCountEl.textContent = String(state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0));
-  deckListEl.replaceChildren();
+  renderDeckInto(deckListEl, { fullscreen: false });
+  renderDeckInto(deckListFullscreenEl, { fullscreen: true });
+}
+
+function renderDeckInto(container, { fullscreen }) {
+  container.replaceChildren();
   if (state.deck.length === 0) {
     const empty = document.createElement("p");
     empty.className = "hint";
     empty.textContent = "Add cards from results or the lightbox, set quantities, choose a deck section, then copy the export.";
-    deckListEl.append(empty);
+    container.append(empty);
     return;
   }
 
-  state.deck.forEach((card) => {
-    const row = document.createElement("div");
-    row.className = "deck-row";
+  if (fullscreen) {
+    DECK_SECTIONS.forEach((section) => {
+      const sectionCards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
+      const group = document.createElement("section");
+      group.className = "deck-section-group";
 
-    const name = document.createElement("span");
-    name.className = "deck-card-name";
-    name.textContent = card.name;
+      const heading = document.createElement("h3");
+      heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
+      group.append(heading);
 
-    const quantityLabel = document.createElement("label");
-    quantityLabel.className = "deck-field deck-quantity-field";
-    quantityLabel.textContent = "Qty";
-    const quantity = document.createElement("input");
-    quantity.type = "number";
-    quantity.min = "1";
-    quantity.step = "1";
-    quantity.value = String(normalizeQuantity(card.quantity));
-    quantity.dataset.deckQuantity = card.key;
-    quantityLabel.append(quantity);
-
-    const sectionLabel = document.createElement("label");
-    sectionLabel.className = "deck-field deck-section-field";
-    sectionLabel.textContent = "Section";
-    const section = document.createElement("select");
-    section.dataset.deckSection = card.key;
-    DECK_SECTIONS.forEach((deckSection) => {
-      const option = document.createElement("option");
-      option.value = deckSection.key;
-      option.textContent = deckSection.title;
-      option.selected = normalizeDeckSection(card.section) === deckSection.key;
-      section.append(option);
+      if (sectionCards.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "No cards in this section yet.";
+        group.append(empty);
+      } else {
+        sectionCards.forEach((card) => group.append(createDeckRow(card, { fullscreen: true })));
+      }
+      container.append(group);
     });
-    sectionLabel.append(section);
+    return;
+  }
 
-    const remove = document.createElement("button");
-    remove.className = "ghost compact";
-    remove.type = "button";
-    remove.dataset.removeDeck = card.key;
-    remove.textContent = "Remove";
+  state.deck.forEach((card) => container.append(createDeckRow(card, { fullscreen: false })));
+}
 
-    row.append(name, quantityLabel, sectionLabel, remove);
-    deckListEl.append(row);
+function createDeckRow(card, { fullscreen }) {
+  const row = document.createElement("div");
+  row.className = fullscreen ? "deck-row deck-row-fullscreen" : "deck-row";
+
+  const name = document.createElement("span");
+  name.className = "deck-card-name";
+  name.textContent = card.name;
+
+  const quantityLabel = document.createElement("label");
+  quantityLabel.className = "deck-field deck-quantity-field";
+  quantityLabel.textContent = "Qty";
+  const quantity = document.createElement("input");
+  quantity.type = "number";
+  quantity.min = "1";
+  quantity.step = "1";
+  quantity.value = String(normalizeQuantity(card.quantity));
+  quantity.dataset.deckQuantity = card.key;
+  quantityLabel.append(quantity);
+
+  const sectionPicker = createSectionPicker(card);
+
+  const remove = document.createElement("button");
+  remove.className = "ghost compact";
+  remove.type = "button";
+  remove.dataset.removeDeck = card.key;
+  remove.textContent = "Remove";
+
+  row.append(name, quantityLabel, sectionPicker, remove);
+  return row;
+}
+
+function createSectionPicker(card) {
+  const wrapper = document.createElement("fieldset");
+  wrapper.className = "deck-section-picker";
+  const legend = document.createElement("legend");
+  legend.textContent = "Section";
+  wrapper.append(legend);
+
+  DECK_SECTIONS.forEach((section) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.deckSection = card.key;
+    button.dataset.section = section.key;
+    button.textContent = shortSectionLabel(section.key);
+    button.setAttribute("aria-label", `Move ${card.name} to ${section.title}`);
+    button.classList.toggle("active", normalizeDeckSection(card.section) === section.key);
+    wrapper.append(button);
   });
+
+  return wrapper;
+}
+
+function shortSectionLabel(section) {
+  return {
+    material: "Material",
+    main: "Main",
+    sideboard: "Side",
+  }[section] || section;
+}
+
+function handleDeckListClick(event) {
+  const removeButton = event.target.closest("[data-remove-deck]");
+  if (removeButton) {
+    state.deck = state.deck.filter((card) => card.key !== removeButton.dataset.removeDeck);
+    saveDeck();
+    renderDeck();
+    renderCards();
+    return;
+  }
+
+  const sectionButton = event.target.closest("[data-deck-section]");
+  if (sectionButton) {
+    updateDeckCard(sectionButton.dataset.deckSection, { section: sectionButton.dataset.section });
+    renderDeck();
+  }
+}
+
+function handleDeckListInput(event) {
+  const quantityInput = event.target.closest("[data-deck-quantity]");
+  if (!quantityInput) {
+    return;
+  }
+
+  updateDeckCard(quantityInput.dataset.deckQuantity, {
+    quantity: Math.max(1, Number(quantityInput.value) || 1),
+  });
+  deckCountEl.textContent = String(
+    state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0),
+  );
+}
+
+function clearDeck() {
+  state.deck = [];
+  saveDeck();
+  renderDeck();
+  renderCards();
 }
 
 function addCardToDeck(card, quantityToAdd = 1) {
@@ -1375,7 +1462,7 @@ function saveDeck() {
   );
 }
 
-async function exportDeck() {
+async function exportDeck(button = exportDeckButton) {
   const text = formatDeckExport();
   if (!text.trim()) {
     window.alert("Add cards to your deck before exporting.");
@@ -1384,13 +1471,13 @@ async function exportDeck() {
 
   try {
     await navigator.clipboard.writeText(text);
-    exportDeckButton.textContent = "Coppied. Ready to paste.";
+    button.textContent = "Coppied. Ready to paste.";
   } catch {
     window.prompt("Copy this decklist", text);
-    exportDeckButton.textContent = "Coppied. Ready to paste.";
+    button.textContent = "Coppied. Ready to paste.";
   } finally {
     window.setTimeout(() => {
-      exportDeckButton.textContent = "Copy export";
+      button.textContent = "Copy export";
     }, 1800);
   }
 }
