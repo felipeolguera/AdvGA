@@ -325,9 +325,9 @@ h1 {
 
 .app-version {
   margin-top: 28px;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 800;
+  color: var(--gold-strong);
+  font-size: 1rem;
+  font-weight: 900;
   letter-spacing: 0.08em;
   text-align: center;
   text-transform: uppercase;

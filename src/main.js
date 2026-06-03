@@ -248,7 +248,7 @@ app.innerHTML = `
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
 
-    <footer class="app-version" aria-label="App version">v0.11</footer>
+    <footer class="app-version" aria-label="App version">v0.12</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
