@@ -248,7 +248,7 @@ app.innerHTML = `
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
 
-    <footer class="app-version" aria-label="App version">v0.13</footer>
+    <footer class="app-version" aria-label="App version">v0.14</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
@@ -263,7 +263,17 @@ app.innerHTML = `
         <div class="detail-tags" id="lightbox-tags"></div>
         <dl class="stat-list" id="lightbox-stats"></dl>
         <p class="effect-text" id="lightbox-effect"></p>
-        <button class="secondary" type="button" id="lightbox-add-card">Add to list</button>
+        <label class="lightbox-quantity-control" for="lightbox-quantity-select">
+          Add quantity
+          <select id="lightbox-quantity-select" aria-label="Add quantity from lightbox">
+            <option value="">Add</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+          <span class="result-added-message lightbox-added-message" id="lightbox-added-message" aria-live="polite"></span>
+        </label>
       </div>
     </article>
   </dialog>
@@ -315,7 +325,8 @@ const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen")
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
 const clearFiltersButton = document.querySelector("#clear-filters");
-const lightboxAddCardButton = document.querySelector("#lightbox-add-card");
+const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
+const lightboxAddedMessage = document.querySelector("#lightbox-added-message");
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -424,10 +435,22 @@ deckFullscreen.addEventListener("click", (event) => {
     deckFullscreen.close();
   }
 });
-lightboxAddCardButton.addEventListener("click", () => {
-  if (state.activeLightboxCard) {
-    addCardToDeck(state.activeLightboxCard);
+lightboxQuantitySelect.addEventListener("change", () => {
+  const amount = Number(lightboxQuantitySelect.value);
+  if (!amount || !state.activeLightboxCard) {
+    return;
   }
+
+  const cardKey = getCardKey(state.activeLightboxCard);
+  state.resultSelectedQuantities[cardKey] = String(amount);
+  state.resultAddedMessages[cardKey] = `${amount} Added`;
+  window.clearTimeout(state.resultFeedbackTimers[cardKey]);
+  addCardToDeck(state.activeLightboxCard, amount);
+  showLightboxAddedMessage(`${amount} Added`);
+  state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
+    delete state.resultAddedMessages[cardKey];
+    renderCards();
+  }, 1300);
 });
 
 [deckListEl, deckListFullscreenEl].forEach((deckList) => {
@@ -1757,6 +1780,14 @@ function createPlaceholder(name) {
   return placeholder;
 }
 
+function showLightboxAddedMessage(message) {
+  lightboxAddedMessage.textContent = message;
+  lightboxAddedMessage.classList.add("show");
+  window.setTimeout(() => {
+    lightboxAddedMessage.classList.remove("show");
+  }, 1300);
+}
+
 function openLightbox(card) {
   state.activeLightboxCard = card;
   const edition = getPrimaryEdition(card);
@@ -1793,6 +1824,11 @@ function openLightbox(card) {
 
   effect.textContent =
     edition?.effect_raw || card.effect_raw || "No effect text available for this print.";
+
+  const cardKey = getCardKey(card);
+  lightboxQuantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
+  lightboxAddedMessage.textContent = state.resultAddedMessages[cardKey] || "";
+  lightboxAddedMessage.classList.toggle("show", Boolean(state.resultAddedMessages[cardKey]));
 
   lightbox.showModal();
 }

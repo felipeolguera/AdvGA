@@ -421,6 +421,33 @@ h1 {
   font-weight: 800;
 }
 
+.lightbox-quantity-control {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  max-width: 220px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.lightbox-quantity-control select {
+  min-height: 48px;
+  border: 1px solid rgba(255, 204, 115, 0.65);
+  border-radius: 14px;
+  padding: 0 12px;
+  color: #000;
+  background: var(--gold-strong);
+  font-weight: 900;
+}
+
+.lightbox-added-message {
+  right: auto;
+  left: 0;
+}
+
 .effect-text {
   white-space: pre-line;
   color: #efe5d6;
