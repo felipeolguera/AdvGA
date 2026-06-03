@@ -248,7 +248,7 @@ app.innerHTML = `
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
 
-    <footer class="app-version" aria-label="App version">v0.12</footer>
+    <footer class="app-version" aria-label="App version">v0.13</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
@@ -432,7 +432,7 @@ lightboxAddCardButton.addEventListener("click", () => {
 
 [deckListEl, deckListFullscreenEl].forEach((deckList) => {
   deckList.addEventListener("click", handleDeckListClick);
-  deckList.addEventListener("input", handleDeckListInput);
+  deckList.addEventListener("change", handleDeckListInput);
 });
 
 chipsEl.addEventListener("click", (event) => {
@@ -1337,12 +1337,12 @@ function createDeckRow(card, { fullscreen }) {
   const quantityLabel = document.createElement("label");
   quantityLabel.className = "deck-field deck-quantity-field";
   quantityLabel.textContent = "Qty";
-  const quantity = document.createElement("input");
-  quantity.type = "number";
-  quantity.min = "1";
-  quantity.step = "1";
-  quantity.value = String(normalizeQuantity(card.quantity));
+  const quantity = document.createElement("select");
   quantity.dataset.deckQuantity = card.key;
+  [1, 2, 3, 4].forEach((amount) => {
+    quantity.append(createOption(String(amount), String(amount)));
+  });
+  quantity.value = String(Math.min(4, normalizeQuantity(card.quantity)));
   quantityLabel.append(quantity);
 
   const sectionPicker = createSectionPicker(card);
