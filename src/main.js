@@ -248,7 +248,7 @@ app.innerHTML = `
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
 
-    <footer class="app-version" aria-label="App version">v0.15</footer>
+    <footer class="app-version" aria-label="App version">v0.16</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
@@ -441,6 +441,7 @@ deckFullscreen.addEventListener("click", (event) => {
 scrollTopButton.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
+window.addEventListener("scroll", updateScrollTopVisibility, { passive: true });
 
 lightboxQuantitySelect.addEventListener("change", () => {
   const amount = Number(lightboxQuantitySelect.value);
@@ -493,6 +494,7 @@ renderKeywordButtons();
 renderSortOptions();
 renderRecentSearches();
 renderDeck();
+updateScrollTopVisibility();
 
 loadOptions().then(() => {
   input.value = state.query;
@@ -1165,6 +1167,14 @@ function parseStatNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function updateScrollTopVisibility() {
+  const scrolled = window.scrollY || document.documentElement.scrollTop || 0;
+  const viewport = window.innerHeight || document.documentElement.clientHeight || 1;
+  const pageHeight = document.documentElement.scrollHeight || document.body.scrollHeight || viewport;
+  const nearBottom = scrolled + viewport >= pageHeight * 0.72;
+  scrollTopButton.classList.toggle("show", nearBottom && scrolled > viewport * 0.6);
+}
+
 function updateClearSearchVisibility() {
   clearSearchButton.classList.toggle("hidden", input.value.length === 0);
 }
@@ -1364,6 +1374,10 @@ function createDeckRow(card, { fullscreen }) {
   name.className = "deck-card-name";
   name.textContent = card.name;
 
+  if (fullscreen) {
+    row.append(createDeckThumbnail(card));
+  }
+
   const quantityLabel = document.createElement("label");
   quantityLabel.className = "deck-field deck-quantity-field";
   quantityLabel.textContent = "Qty";
@@ -1385,6 +1399,26 @@ function createDeckRow(card, { fullscreen }) {
 
   row.append(name, quantityLabel, sectionPicker, remove);
   return row;
+}
+
+function createDeckThumbnail(card) {
+  const thumbnail = document.createElement("span");
+  thumbnail.className = "deck-card-thumbnail";
+  const imageUrl = getImageUrl(card.image);
+  if (imageUrl) {
+    const image = document.createElement("img");
+    image.loading = "lazy";
+    image.src = imageUrl;
+    image.alt = card.name;
+    image.onerror = () => {
+      image.remove();
+      thumbnail.textContent = card.name.slice(0, 2).toUpperCase();
+    };
+    thumbnail.append(image);
+  } else {
+    thumbnail.textContent = card.name.slice(0, 2).toUpperCase();
+  }
+  return thumbnail;
 }
 
 function createSectionPicker(card) {
@@ -1465,6 +1499,7 @@ function addCardToDeck(card, quantityToAdd = 1) {
     state.deck.push({
       key,
       name: card.name,
+      image: getPrimaryEdition(card)?.image || "",
       line: formatCardLine(card),
       quantity: amount,
       section: defaultDeckSection(card),
