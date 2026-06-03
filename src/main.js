@@ -5,6 +5,12 @@ const DECK_STORAGE_KEY = "advga.deck";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
 
+const DECK_SECTIONS = [
+  { key: "material", title: "Material Deck" },
+  { key: "main", title: "Main Deck" },
+  { key: "sideboard", title: "Sideboard" },
+];
+
 const KEYWORD_SEARCHES = [
   "foster",
   "floating memory",
@@ -191,11 +197,11 @@ app.innerHTML = `
       <article class="panel deck-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">List builder</p>
-            <h2>Saved cards <span id="deck-count">0</span></h2>
+            <p class="eyebrow">Deck Builder</p>
+            <h2>Deck Builder <span id="deck-count">0</span></h2>
           </div>
           <div class="button-pair">
-            <button class="secondary compact" type="button" id="export-deck">Export</button>
+            <button class="secondary compact" type="button" id="export-deck">Copy export</button>
             <button class="ghost compact" type="button" id="clear-deck">Clear</button>
           </div>
         </div>
@@ -410,6 +416,29 @@ deckListEl.addEventListener("click", (event) => {
   saveDeck();
   renderDeck();
   renderCards();
+});
+
+deckListEl.addEventListener("input", (event) => {
+  const quantityInput = event.target.closest("[data-deck-quantity]");
+  if (!quantityInput) {
+    return;
+  }
+
+  updateDeckCard(quantityInput.dataset.deckQuantity, {
+    quantity: Math.max(1, Number(quantityInput.value) || 1),
+  });
+  deckCountEl.textContent = String(
+    state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0),
+  );
+});
+
+deckListEl.addEventListener("change", (event) => {
+  const sectionSelect = event.target.closest("[data-deck-section]");
+  if (!sectionSelect) {
+    return;
+  }
+
+  updateDeckCard(sectionSelect.dataset.deckSection, { section: sectionSelect.value });
 });
 
 chipsEl.addEventListener("click", (event) => {
@@ -1262,12 +1291,12 @@ function rememberSearch(query) {
 }
 
 function renderDeck() {
-  deckCountEl.textContent = String(state.deck.length);
+  deckCountEl.textContent = String(state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0));
   deckListEl.replaceChildren();
   if (state.deck.length === 0) {
     const empty = document.createElement("p");
     empty.className = "hint";
-    empty.textContent = "Add cards from results or the lightbox, then export your list.";
+    empty.textContent = "Add cards from results or the lightbox, set quantities, choose a deck section, then copy the export.";
     deckListEl.append(empty);
     return;
   }
@@ -1275,45 +1304,128 @@ function renderDeck() {
   state.deck.forEach((card) => {
     const row = document.createElement("div");
     row.className = "deck-row";
-    row.innerHTML = `<span>${escapeHtml(card.name)}</span><button class="ghost compact" type="button" data-remove-deck="${escapeHtml(card.key)}">Remove</button>`;
+
+    const name = document.createElement("span");
+    name.className = "deck-card-name";
+    name.textContent = card.name;
+
+    const quantityLabel = document.createElement("label");
+    quantityLabel.className = "deck-field deck-quantity-field";
+    quantityLabel.textContent = "Qty";
+    const quantity = document.createElement("input");
+    quantity.type = "number";
+    quantity.min = "1";
+    quantity.step = "1";
+    quantity.value = String(normalizeQuantity(card.quantity));
+    quantity.dataset.deckQuantity = card.key;
+    quantityLabel.append(quantity);
+
+    const sectionLabel = document.createElement("label");
+    sectionLabel.className = "deck-field deck-section-field";
+    sectionLabel.textContent = "Section";
+    const section = document.createElement("select");
+    section.dataset.deckSection = card.key;
+    DECK_SECTIONS.forEach((deckSection) => {
+      const option = document.createElement("option");
+      option.value = deckSection.key;
+      option.textContent = deckSection.title;
+      option.selected = normalizeDeckSection(card.section) === deckSection.key;
+      section.append(option);
+    });
+    sectionLabel.append(section);
+
+    const remove = document.createElement("button");
+    remove.className = "ghost compact";
+    remove.type = "button";
+    remove.dataset.removeDeck = card.key;
+    remove.textContent = "Remove";
+
+    row.append(name, quantityLabel, sectionLabel, remove);
     deckListEl.append(row);
   });
 }
 
 function addCardToDeck(card) {
   const key = getCardKey(card);
-  if (state.deck.some((item) => item.key === key)) {
-    return;
+  const existing = state.deck.find((item) => item.key === key);
+  if (existing) {
+    existing.quantity = normalizeQuantity(existing.quantity) + 1;
+  } else {
+    state.deck.push({
+      key,
+      name: card.name,
+      line: formatCardLine(card),
+      quantity: 1,
+      section: defaultDeckSection(card),
+    });
   }
-
-  state.deck.push({
-    key,
-    name: card.name,
-    line: formatCardLine(card),
-  });
   saveDeck();
   renderDeck();
   renderCards();
 }
 
-function saveDeck() {
-  saveStoredJson(DECK_STORAGE_KEY, state.deck);
-}
-
-function exportDeck() {
-  const text = state.deck.map((card, index) => `${index + 1}. ${card.name} - ${card.line}`).join("\n");
-  if (!text) {
-    window.alert("Add cards to your list before exporting.");
+function updateDeckCard(key, updates) {
+  const card = state.deck.find((item) => item.key === key);
+  if (!card) {
     return;
   }
 
-  const blob = new Blob([text], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = "grand-archive-list.txt";
-  anchor.click();
-  URL.revokeObjectURL(url);
+  Object.assign(card, updates);
+  card.quantity = normalizeQuantity(card.quantity);
+  card.section = normalizeDeckSection(card.section);
+  saveDeck();
+}
+
+function saveDeck() {
+  saveStoredJson(
+    DECK_STORAGE_KEY,
+    state.deck.map((card) => ({
+      ...card,
+      quantity: normalizeQuantity(card.quantity),
+      section: normalizeDeckSection(card.section),
+    })),
+  );
+}
+
+async function exportDeck() {
+  const text = formatDeckExport();
+  if (!text.trim()) {
+    window.alert("Add cards to your deck before exporting.");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    exportDeckButton.textContent = "Coppied. Ready to paste.";
+  } catch {
+    window.prompt("Copy this decklist", text);
+    exportDeckButton.textContent = "Coppied. Ready to paste.";
+  } finally {
+    window.setTimeout(() => {
+      exportDeckButton.textContent = "Copy export";
+    }, 1800);
+  }
+}
+
+function formatDeckExport() {
+  return DECK_SECTIONS.map((section) => {
+    const cards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
+    const lines = cards.map((card) => `${normalizeQuantity(card.quantity)} ${card.name}`);
+    return [`# ${section.title}`, "", ...lines].join("\n").trimEnd();
+  }).join("\n\n");
+}
+
+function normalizeQuantity(value) {
+  return Math.max(1, Number.parseInt(value, 10) || 1);
+}
+
+function normalizeDeckSection(section) {
+  return DECK_SECTIONS.some((item) => item.key === section) ? section : "main";
+}
+
+function defaultDeckSection(card) {
+  const types = new Set((card.types || []).map((type) => String(type).toUpperCase()));
+  return types.has("CHAMPION") || types.has("REGALIA") || types.has("WEAPON") ? "material" : "main";
 }
 
 function buildShareUrl() {
@@ -1480,13 +1592,6 @@ function createCardButton(card) {
   const line = document.createElement("span");
   line.textContent = formatCardLine(card);
 
-  const badges = document.createElement("span");
-  badges.className = "card-badges";
-  [formatCost(card.cost), ...(card.elements || []).map(titleCase), edition?.set?.prefix, rarityLabel(edition?.rarity)]
-    .filter(Boolean)
-    .slice(0, 5)
-    .forEach((value) => badges.append(createBadge(value)));
-
   const addButton = document.createElement("span");
   addButton.className = "add-card-button";
   addButton.dataset.addCard = getCardKey(card);
@@ -1496,21 +1601,9 @@ function createCardButton(card) {
     addCardToDeck(card);
   });
 
-  meta.append(name, line, badges, addButton);
+  meta.append(name, line, addButton);
   button.append(imageWrap, meta);
   return button;
-}
-
-function createBadge(text) {
-  const badge = document.createElement("span");
-  badge.className = "mini-badge";
-  badge.textContent = text;
-  return badge;
-}
-
-function rarityLabel(value) {
-  const option = (state.options.rarity || []).find((item) => String(item.value) === String(value));
-  return option?.display || option?.text || (value ? `R${value}` : "");
 }
 
 function createEmptyState(message) {
