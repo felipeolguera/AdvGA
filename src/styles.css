@@ -560,35 +560,45 @@ h1 {
 
 .deck-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(70px, 0.3fr) minmax(140px, 0.55fr) auto;
   gap: 8px;
-  align-items: center;
+  align-items: end;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.05);
 }
 
-.deck-row span {
+.deck-card-name {
+  align-self: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.card-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+.deck-field {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.mini-badge {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  padding: 3px 7px;
-  color: #fce7bd;
-  background: rgba(244, 184, 93, 0.11);
-  font-size: 0.72rem;
-  font-weight: 800;
+.deck-field input,
+.deck-field select {
+  min-height: 34px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 8px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deck-quantity-field input {
+  width: 64px;
 }
 
 .add-card-button {
@@ -643,6 +653,15 @@ h1 {
   .results-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 14px;
+  }
+
+  .deck-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .deck-card-name {
+    white-space: normal;
   }
 
   .lightbox-card {
