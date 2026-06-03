@@ -260,6 +260,14 @@ h1 {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.card-tile.in-deck {
+  border-color: rgba(255, 204, 115, 0.72);
+  background: rgba(244, 184, 93, 0.12);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 204, 115, 0.18);
+}
+
 .card-image-wrap {
   display: grid;
   place-items: center;
@@ -763,6 +771,24 @@ h1 {
 .result-added-message.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.result-deck-indicator {
+  display: inline-flex;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.card-tile.in-deck .result-deck-indicator {
+  border-color: rgba(255, 204, 115, 0.55);
+  color: #ffe3b0;
+  background: rgba(244, 184, 93, 0.16);
 }
 
 .skeleton-card {

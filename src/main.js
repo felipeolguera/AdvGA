@@ -126,6 +126,9 @@ const state = {
   recentSearches: loadStoredJson(RECENT_SEARCHES_KEY, []),
   sort: SORT_OPTIONS[0],
   activeLightboxCard: null,
+  resultAddedMessages: {},
+  resultFeedbackTimers: {},
+  resultSelectedQuantities: {},
   status: "Loading Grand Archive card terms...",
 };
 
@@ -1416,6 +1419,8 @@ function handleDeckListInput(event) {
 
 function clearDeck() {
   state.deck = [];
+  state.resultSelectedQuantities = {};
+  state.resultAddedMessages = {};
   saveDeck();
   renderDeck();
   renderCards();
@@ -1669,23 +1674,31 @@ function createCardButton(card) {
   const line = document.createElement("span");
   line.textContent = formatCardLine(card);
 
+  const cardKey = getCardKey(card);
+  const deckEntry = state.deck.find((item) => item.key === cardKey);
+  button.classList.toggle("in-deck", Boolean(deckEntry));
+
   const quantityControl = document.createElement("label");
   quantityControl.className = "result-quantity-control";
   quantityControl.textContent = "Add qty";
 
   const quantitySelect = document.createElement("select");
   quantitySelect.setAttribute("aria-label", `Add quantity for ${card.name}`);
-  quantitySelect.dataset.addCardQuantity = getCardKey(card);
+  quantitySelect.dataset.addCardQuantity = cardKey;
   quantitySelect.append(createOption("", "Add"));
   [1, 2, 3, 4].forEach((quantity) => {
     quantitySelect.append(createOption(String(quantity), String(quantity)));
   });
+  quantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
 
   const addedMessage = document.createElement("span");
   addedMessage.className = "result-added-message";
   addedMessage.setAttribute("aria-live", "polite");
+  if (state.resultAddedMessages[cardKey]) {
+    addedMessage.textContent = state.resultAddedMessages[cardKey];
+    addedMessage.classList.add("show");
+  }
 
-  let messageTimer;
   quantitySelect.addEventListener("click", (event) => event.stopPropagation());
   quantitySelect.addEventListener("change", (event) => {
     event.stopPropagation();
@@ -1694,18 +1707,23 @@ function createCardButton(card) {
       return;
     }
 
+    state.resultSelectedQuantities[cardKey] = String(amount);
+    state.resultAddedMessages[cardKey] = `${amount} Added`;
+    window.clearTimeout(state.resultFeedbackTimers[cardKey]);
     addCardToDeck(card, amount);
-    addedMessage.textContent = `${amount} Added`;
-    addedMessage.classList.add("show");
-    window.clearTimeout(messageTimer);
-    messageTimer = window.setTimeout(() => {
-      addedMessage.classList.remove("show");
+    state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
+      delete state.resultAddedMessages[cardKey];
+      renderCards();
     }, 1300);
   });
 
   quantityControl.append(quantitySelect, addedMessage);
 
-  meta.append(name, line, quantityControl);
+  const deckIndicator = document.createElement("span");
+  deckIndicator.className = "result-deck-indicator";
+  deckIndicator.textContent = deckEntry ? `In deck: ${normalizeQuantity(deckEntry.quantity)}` : "Not in deck";
+
+  meta.append(name, line, quantityControl, deckIndicator);
   button.append(imageWrap, meta);
   return button;
 }
