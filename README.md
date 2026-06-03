@@ -6,11 +6,16 @@ English. The app uses the official Grand Archive API and translates queries like
 
 ## Features
 
-- Natural-language search for elements, card types, subtypes, classes, and effect
-  text.
-- Responsive card grid populated from live Grand Archive card data.
+- Natural-language search for elements, card types, subtypes, classes, sets,
+  legality, speed, rarity, stats, costs, and effect text.
+- Interchangeable phrase order such as `2 cost ally` and `ally that cost 2`.
+- Parsed filter chips, search explanations, advanced filter controls, sorting,
+  keyword helpers, recent searches, and shareable search URLs.
+- Responsive card grid populated from live Grand Archive card data with result
+  badges, loading skeletons, and helpful no-result guidance.
 - Click any card to open a lightbox with a larger image, print details, stats,
   and effect text.
+- Save cards to a temporary list and export it as a text file.
 
 ## Run locally
 
