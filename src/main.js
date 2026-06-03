@@ -41,6 +41,12 @@ const FALLBACK_OPTIONS = {
   ].map((value) => ({ text: titleCase(value), value })),
 };
 
+const OPTION_ALIASES = {
+  element: {
+    NORM: ["normal", "normal element"],
+  },
+};
+
 const state = {
   cards: [],
   loading: false,
@@ -302,7 +308,7 @@ function parseNaturalQuery(query, options) {
 
   const consumedPhrases = [];
   for (const field of ["element", "type", "subtype", "class"]) {
-    const matches = matchOptions(normalized, options[field] || []);
+    const matches = matchOptions(normalized, options[field] || [], field);
     parsed.filters[field] = matches.map((match) => match.value);
     parsed.matchedLabels.push(
       ...matches.map((match) => ({
@@ -337,12 +343,12 @@ function parseNaturalQuery(query, options) {
   return parsed;
 }
 
-function matchOptions(normalizedQuery, options) {
+function matchOptions(normalizedQuery, options, field) {
   const matches = [];
   const seenValues = new Set();
 
   for (const option of options) {
-    const phrases = buildOptionPhrases(option);
+    const phrases = buildOptionPhrases(option, field);
     const matchedPhrases = phrases.filter((phrase) => containsPhrase(normalizedQuery, phrase));
     if (matchedPhrases.length === 0 || seenValues.has(option.value)) {
       continue;
@@ -359,12 +365,15 @@ function matchOptions(normalizedQuery, options) {
   return matches;
 }
 
-function buildOptionPhrases(option) {
+function buildOptionPhrases(option, field) {
   const text = normalizeText(option.text);
   const value = normalizeText(option.value);
   const phrases = new Set([text, value]);
+  const aliases = OPTION_ALIASES[field]?.[option.value] || [];
 
-  for (const phrase of [text, value]) {
+  aliases.forEach((alias) => phrases.add(normalizeText(alias)));
+
+  for (const phrase of [...phrases]) {
     if (phrase && !phrase.endsWith("s")) {
       phrases.add(`${phrase}s`);
     }
