@@ -1,5 +1,3 @@
-import "./styles.css";
-
 const API_BASE = "https://api.gatcg.com";
 const PAGE_SIZE = 50;
 const EXAMPLE_QUERY = "fire spells that target units";
