@@ -27,6 +27,8 @@ const FALLBACK_OPTIONS = {
     "WATER",
     "WIND",
   ].map((value) => ({ text: titleCase(value), value })),
+  set: [{ text: "Radiant Origins", value: "RDO", display: "Radiant Origins" }],
+  rarity: [],
   subtype: [{ text: "Spell", value: "SPELL" }],
   type: [
     "ACTION",
@@ -46,6 +48,39 @@ const OPTION_ALIASES = {
     NORM: ["normal", "normal element"],
   },
 };
+
+const OPTION_FIELDS = [
+  { field: "element", optionKey: "element", label: "Element" },
+  { field: "type", optionKey: "type", label: "Type" },
+  { field: "subtype", optionKey: "subtype", label: "Subtype" },
+  { field: "class", optionKey: "class", label: "Class" },
+  { field: "prefix", optionKey: "set", label: "Set" },
+  { field: "rarity", optionKey: "rarity", label: "Rarity" },
+];
+
+const SPEED_OPTIONS = [
+  { text: "Fast", value: "fast" },
+  { text: "Slow", value: "slow" },
+  { text: "No Speed", value: "none" },
+];
+
+const STAT_DEFINITIONS = [
+  { key: "cost_reserve", label: "Reserve Cost", aliases: ["reserve cost", "reserve"] },
+  { key: "cost_memory", label: "Memory Cost", aliases: ["memory cost", "memory"] },
+  { key: "durability", label: "Durability", aliases: ["durability"] },
+  { key: "level", label: "Level", aliases: ["level"] },
+  { key: "power", label: "Power", aliases: ["power"] },
+  { key: "life", label: "Life", aliases: ["life"] },
+  { key: "cost", label: "Cost", aliases: ["cost"] },
+];
+
+const OPERATOR_PATTERNS = [
+  { operator: "<=", phrases: ["less than or equal to", "lower than or equal to", "at most", "no more than", "maximum", "max"] },
+  { operator: ">=", phrases: ["greater than or equal to", "more than or equal to", "at least", "minimum", "min"] },
+  { operator: "<", phrases: ["less than", "lower than", "under", "below"] },
+  { operator: ">", phrases: ["greater than", "more than", "higher than", "over", "above"] },
+  { operator: "=", phrases: ["equal to", "equals", "exactly", "is", "="] },
+];
 
 const state = {
   cards: [],
@@ -186,6 +221,8 @@ async function loadOptions() {
     state.options = {
       class: normalizeOptions(options.class, FALLBACK_OPTIONS.class),
       element: normalizeOptions(options.element, FALLBACK_OPTIONS.element),
+      rarity: normalizeOptions(options.rarity, FALLBACK_OPTIONS.rarity),
+      set: normalizeOptions(options.set, FALLBACK_OPTIONS.set),
       subtype: normalizeOptions(options.subtype, FALLBACK_OPTIONS.subtype),
       type: normalizeOptions(options.type, FALLBACK_OPTIONS.type),
     };
@@ -224,7 +261,7 @@ async function runSearch(query, { reset }) {
   try {
     const { cards, usedFallback } = await fetchCards(state.parsed, state.page);
     const visibleCards = cards.filter((card) => cardMatchesParsedQuery(card, state.parsed));
-    const nextCards = visibleCards.length > 0 ? visibleCards : cards;
+    const nextCards = visibleCards;
     const uniqueCards = uniqueBy(
       reset ? nextCards : [...state.cards, ...nextCards],
       (card) => card.uuid || card.slug || card.name,
@@ -281,6 +318,9 @@ function buildSearchParams(parsed, page) {
   appendAll(params, "type", parsed.filters.type);
   appendAll(params, "subtype", parsed.filters.subtype);
   appendAll(params, "class", parsed.filters.class);
+  appendAll(params, "prefix", parsed.filters.prefix);
+  appendAll(params, "speed", parsed.filters.speed);
+  appendAll(params, "rarity", parsed.filters.rarity);
 
   if (parsed.effectQuery) {
     params.set("effect", parsed.effectQuery);
@@ -298,27 +338,52 @@ function parseNaturalQuery(query, options) {
     filters: {
       class: [],
       element: [],
+      prefix: [],
+      rarity: [],
+      speed: [],
       subtype: [],
       type: [],
     },
     matchedLabels: [],
+    statFilters: [],
     nameQuery: "",
     raw: query,
   };
 
   const consumedPhrases = [];
-  for (const field of ["element", "type", "subtype", "class"]) {
-    const matches = matchOptions(normalized, options[field] || [], field);
-    parsed.filters[field] = matches.map((match) => match.value);
+  for (const config of OPTION_FIELDS) {
+    const matches = matchOptions(normalized, options[config.optionKey] || [], config.optionKey);
+    parsed.filters[config.field] = matches.map((match) => match.value);
     parsed.matchedLabels.push(
       ...matches.map((match) => ({
-        field,
+        field: config.label,
         text: match.text,
         value: match.value,
       })),
     );
     consumedPhrases.push(...matches.flatMap((match) => match.phrases));
   }
+
+  const speedMatches = matchOptions(normalized, SPEED_OPTIONS, "speed");
+  parsed.filters.speed = speedMatches.map((match) => match.value);
+  parsed.matchedLabels.push(
+    ...speedMatches.map((match) => ({
+      field: "Speed",
+      text: match.text,
+      value: match.value,
+    })),
+  );
+  consumedPhrases.push(...speedMatches.flatMap((match) => match.phrases));
+
+  parsed.statFilters = extractStatFilters(normalized);
+  parsed.matchedLabels.push(
+    ...parsed.statFilters.map((filter) => ({
+      field: "Stat",
+      text: `${filter.label} ${formatOperator(filter.operator)} ${filter.value}`,
+      value: `${filter.key}${filter.operator}${filter.value}`,
+    })),
+  );
+  consumedPhrases.push(...parsed.statFilters.map((filter) => filter.phrase));
 
   const quotedPhrases = extractQuotedPhrases(query);
   const targetPhrase = extractTargetPhrase(normalized);
@@ -368,7 +433,8 @@ function matchOptions(normalizedQuery, options, field) {
 function buildOptionPhrases(option, field) {
   const text = normalizeText(option.text);
   const value = normalizeText(option.value);
-  const phrases = new Set([text, value]);
+  const display = normalizeText(option.display);
+  const phrases = new Set([text, value, display]);
   const aliases = OPTION_ALIASES[field]?.[option.value] || [];
 
   aliases.forEach((alias) => phrases.add(normalizeText(alias)));
@@ -380,6 +446,92 @@ function buildOptionPhrases(option, field) {
   }
 
   return [...phrases].filter(Boolean).sort((a, b) => b.length - a.length);
+}
+
+function extractStatFilters(normalizedQuery) {
+  const filters = [];
+  const usedPhrases = new Set();
+
+  for (const stat of STAT_DEFINITIONS) {
+    const aliasPattern = stat.aliases
+      .map((alias) => escapeRegex(normalizeText(alias)))
+      .sort((a, b) => b.length - a.length)
+      .join("|");
+    const operatorPattern = OPERATOR_PATTERNS.flatMap((entry) => entry.phrases)
+      .map(escapeRegex)
+      .sort((a, b) => b.length - a.length)
+      .join("|");
+
+    const patterns = [
+      new RegExp(`\\b(${operatorPattern})\\s+(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+      new RegExp(`\\b(${aliasPattern})\\s+(${operatorPattern})\\s+(\\d+)\\b`, "g"),
+      new RegExp(`\\b(${aliasPattern})\\s*(?:is|are|=|:)\\s*(\\d+)\\b`, "g"),
+      new RegExp(`\\b(\\d+)\\s+(${aliasPattern})\\b`, "g"),
+    ];
+
+    for (const [index, pattern] of patterns.entries()) {
+      for (const match of normalizedQuery.matchAll(pattern)) {
+        const phrase = match[0].trim();
+        if (usedPhrases.has(phrase)) {
+          continue;
+        }
+
+        let operator = "=";
+        let value;
+        if (index === 0) {
+          operator = operatorFromPhrase(match[1]);
+          value = match[2];
+        } else if (index === 1) {
+          operator = operatorFromPhrase(match[2]);
+          value = match[3];
+        } else if (index === 2) {
+          value = match[2];
+        } else {
+          value = match[1];
+        }
+
+        usedPhrases.add(phrase);
+        filters.push({
+          key: stat.key,
+          label: stat.label,
+          operator,
+          phrase,
+          value: Number(value),
+        });
+      }
+    }
+  }
+
+  return dedupeStatFilters(filters);
+}
+
+function dedupeStatFilters(filters) {
+  const seen = new Set();
+  return filters.filter((filter) => {
+    const key = `${filter.key}:${filter.operator}:${filter.value}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function operatorFromPhrase(phrase) {
+  const normalized = normalizeText(phrase);
+  return (
+    OPERATOR_PATTERNS.find((entry) => entry.phrases.includes(normalized))?.operator || "="
+  );
+}
+
+function formatOperator(operator) {
+  return {
+    "<": "<",
+    "<=": "<=",
+    ">": ">",
+    ">=": ">=",
+    "=": "=",
+  }[operator] || "=";
 }
 
 function extractQuotedPhrases(query) {
@@ -434,7 +586,10 @@ function normalizeEffectQuery(value) {
 }
 
 function hasAnyFilter(parsed) {
-  return Object.values(parsed.filters).some((values) => values.length > 0);
+  return (
+    Object.values(parsed.filters).some((values) => values.length > 0) ||
+    parsed.statFilters.length > 0
+  );
 }
 
 function cardMatchesParsedQuery(card, parsed) {
@@ -443,6 +598,10 @@ function cardMatchesParsedQuery(card, parsed) {
     fieldMatches(card.types, parsed.filters.type) &&
     fieldMatches(card.subtypes, parsed.filters.subtype) &&
     fieldMatches(card.classes, parsed.filters.class) &&
+    setMatches(card, parsed.filters.prefix) &&
+    rarityMatches(card, parsed.filters.rarity) &&
+    speedMatches(card, parsed.filters.speed) &&
+    statFiltersMatch(card, parsed.statFilters) &&
     effectMatches(card, parsed.effectQuery)
   );
 }
@@ -453,7 +612,7 @@ function fieldMatches(cardValues = [], requiredValues = []) {
   }
 
   const normalizedValues = new Set(cardValues.map((value) => String(value).toUpperCase()));
-  return requiredValues.every((value) => normalizedValues.has(value));
+  return requiredValues.every((value) => normalizedValues.has(String(value).toUpperCase()));
 }
 
 function effectMatches(card, effectQuery) {
@@ -475,11 +634,89 @@ function effectMatches(card, effectQuery) {
   return effectText.includes(effectQuery);
 }
 
+function setMatches(card, requiredPrefixes = []) {
+  if (requiredPrefixes.length === 0) {
+    return true;
+  }
+
+  const prefixes = getEditions(card).map((edition) => edition.set?.prefix).filter(Boolean);
+  return fieldMatches(prefixes, requiredPrefixes);
+}
+
+function rarityMatches(card, requiredRarities = []) {
+  if (requiredRarities.length === 0) {
+    return true;
+  }
+
+  const rarities = getEditions(card).map((edition) => String(edition.rarity)).filter(Boolean);
+  return fieldMatches(rarities, requiredRarities.map(String));
+}
+
+function speedMatches(card, requiredSpeeds = []) {
+  if (requiredSpeeds.length === 0) {
+    return true;
+  }
+
+  return fieldMatches([String(statValue(card.speed)).toLowerCase()], requiredSpeeds);
+}
+
+function statFiltersMatch(card, statFilters = []) {
+  return statFilters.every((filter) => {
+    const value = getComparableStat(card, filter.key);
+    if (value == null) {
+      return false;
+    }
+
+    return compareNumber(value, filter.operator, filter.value);
+  });
+}
+
+function getComparableStat(card, key) {
+  if (key === "cost") {
+    return parseStatNumber(card.cost?.value);
+  }
+
+  if (key === "cost_memory" || key === "cost_reserve") {
+    return parseStatNumber(card[key]);
+  }
+
+  return parseStatNumber(statValue(card[key]));
+}
+
+function compareNumber(actual, operator, expected) {
+  const target = parseStatNumber(expected);
+  if (target == null) {
+    return false;
+  }
+
+  switch (operator) {
+    case "<":
+      return actual < target;
+    case "<=":
+      return actual <= target;
+    case ">":
+      return actual > target;
+    case ">=":
+      return actual >= target;
+    default:
+      return actual === target;
+  }
+}
+
+function parseStatNumber(value) {
+  if (value == null || String(value).toUpperCase() === "X") {
+    return null;
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function render() {
   statusEl.textContent = state.status;
   renderChips();
   renderCards();
-  loadMoreButton.classList.toggle("hidden", state.reachedEnd || state.cards.length === 0);
+  loadMoreButton.classList.toggle("hidden", !state.parsed || state.reachedEnd);
   loadMoreButton.disabled = state.loading;
   loadMoreButton.textContent = state.loading ? "Loading..." : "Load more";
 }
@@ -637,10 +874,13 @@ function addStat(list, label, value) {
 
 function buildStatus(count, parsed, usedFallback) {
   const criteria = [];
-  for (const field of ["element", "type", "subtype", "class"]) {
+  for (const field of ["element", "type", "subtype", "class", "prefix", "speed", "rarity"]) {
     if (parsed.filters[field].length > 0) {
       criteria.push(`${field} ${parsed.filters[field].join(", ")}`);
     }
+  }
+  for (const filter of parsed.statFilters) {
+    criteria.push(`${filter.label} ${formatOperator(filter.operator)} ${filter.value}`);
   }
   if (parsed.effectQuery) {
     criteria.push(`effect "${parsed.effectQuery}"`);
@@ -700,6 +940,14 @@ function getImageUrl(path) {
 
 function getPrimaryEdition(card) {
   return card.result_editions?.[0] || card.editions?.[0] || card.edition || null;
+}
+
+function getEditions(card) {
+  return [
+    ...(card.result_editions || []),
+    ...(card.editions || []),
+    card.edition,
+  ].filter(Boolean);
 }
 
 function normalizeOptions(options, fallback) {
