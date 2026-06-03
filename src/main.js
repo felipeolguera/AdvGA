@@ -393,19 +393,6 @@ lightboxAddCardButton.addEventListener("click", () => {
   }
 });
 
-resultsEl.addEventListener("click", (event) => {
-  const addButton = event.target.closest("[data-add-card]");
-  if (!addButton) {
-    return;
-  }
-
-  event.stopPropagation();
-  const card = state.cards.find((item) => getCardKey(item) === addButton.dataset.addCard);
-  if (card) {
-    addCardToDeck(card);
-  }
-});
-
 deckListEl.addEventListener("click", (event) => {
   const removeButton = event.target.closest("[data-remove-deck]");
   if (!removeButton) {
@@ -1345,17 +1332,18 @@ function renderDeck() {
   });
 }
 
-function addCardToDeck(card) {
+function addCardToDeck(card, quantityToAdd = 1) {
   const key = getCardKey(card);
+  const amount = normalizeQuantity(quantityToAdd);
   const existing = state.deck.find((item) => item.key === key);
   if (existing) {
-    existing.quantity = normalizeQuantity(existing.quantity) + 1;
+    existing.quantity = normalizeQuantity(existing.quantity) + amount;
   } else {
     state.deck.push({
       key,
       name: card.name,
       line: formatCardLine(card),
-      quantity: 1,
+      quantity: amount,
       section: defaultDeckSection(card),
     });
   }
@@ -1592,16 +1580,32 @@ function createCardButton(card) {
   const line = document.createElement("span");
   line.textContent = formatCardLine(card);
 
-  const addButton = document.createElement("span");
-  addButton.className = "add-card-button";
-  addButton.dataset.addCard = getCardKey(card);
-  addButton.textContent = state.deck.some((item) => item.key === getCardKey(card)) ? "Saved" : "Add";
-  addButton.addEventListener("click", (event) => {
+  const quantityControl = document.createElement("label");
+  quantityControl.className = "result-quantity-control";
+  quantityControl.textContent = "Add qty";
+
+  const quantitySelect = document.createElement("select");
+  quantitySelect.setAttribute("aria-label", `Add quantity for ${card.name}`);
+  quantitySelect.dataset.addCardQuantity = getCardKey(card);
+  quantitySelect.append(createOption("", "Add"));
+  [1, 2, 3, 4].forEach((quantity) => {
+    quantitySelect.append(createOption(String(quantity), String(quantity)));
+  });
+  quantitySelect.addEventListener("click", (event) => event.stopPropagation());
+  quantitySelect.addEventListener("change", (event) => {
     event.stopPropagation();
-    addCardToDeck(card);
+    const amount = Number(quantitySelect.value);
+    if (!amount) {
+      return;
+    }
+
+    addCardToDeck(card, amount);
+    quantitySelect.value = "";
   });
 
-  meta.append(name, line, addButton);
+  quantityControl.append(quantitySelect);
+
+  meta.append(name, line, quantityControl);
   button.append(imageWrap, meta);
   return button;
 }
