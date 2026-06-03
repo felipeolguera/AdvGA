@@ -333,6 +333,28 @@ h1 {
   text-transform: uppercase;
 }
 
+.scroll-top-button {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255, 204, 115, 0.65);
+  border-radius: 50%;
+  color: #000;
+  background: var(--gold-strong);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.34);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.scroll-top-button:hover {
+  transform: translateY(-2px);
+}
+
 .hidden {
   display: none !important;
 }
@@ -436,7 +458,7 @@ h1 {
 .lightbox-quantity-control select {
   min-height: 48px;
   border: 1px solid rgba(255, 204, 115, 0.65);
-  border-radius: 14px;
+  border-radius: 4px;
   padding: 0 12px;
   color: #000;
   background: var(--gold-strong);
@@ -766,7 +788,7 @@ h1 {
   width: 100%;
   min-height: 36px;
   border: 1px solid rgba(255, 204, 115, 0.5);
-  border-radius: 12px;
+  border-radius: 4px;
   padding: 0 10px;
   color: var(--gold-strong);
   background: rgba(244, 184, 93, 0.11);
