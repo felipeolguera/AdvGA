@@ -619,13 +619,20 @@ function openFullscreenDeckBuilder() {
 }
 
 function goToCardSearch() {
-  if (deckFullscreen.open) {
-    deckFullscreen.close();
-  }
-  window.requestAnimationFrame(() => {
+  const focusSearch = () => {
     cardSearchSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-    input.focus({ preventScroll: true });
-  });
+    window.setTimeout(() => {
+      input.focus({ preventScroll: true });
+    }, 50);
+  };
+
+  if (deckFullscreen.open) {
+    deckFullscreen.addEventListener("close", focusSearch, { once: true });
+    deckFullscreen.close();
+    return;
+  }
+
+  focusSearch();
 }
 
 async function loadOptions() {
