@@ -64,10 +64,28 @@ button:disabled {
 
 .hero {
   display: grid;
+  gap: 0;
+  margin-bottom: 18px;
+}
+
+.hero-body {
+  display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr);
   gap: 32px;
   align-items: end;
-  margin-bottom: 28px;
+  padding-top: 8px;
+}
+
+.hero-product-title {
+  max-width: 700px;
+  margin: 0 0 16px;
+  font-size: clamp(1.8rem, 5vw, 3.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.summary-copy {
+  margin-bottom: 0;
 }
 
 .eyebrow {
@@ -503,11 +521,65 @@ h1 {
   backdrop-filter: blur(18px);
 }
 
-.control-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 18px;
+.collapsible-section {
   margin-bottom: 18px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.section-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  list-style: none;
+  padding: 18px 20px;
+}
+
+.section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.section-summary::after {
+  content: "▾";
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: var(--gold-strong);
+  font-size: 1rem;
+  font-weight: 900;
+  transition: transform 160ms ease;
+}
+
+.collapsible-section:not([open]) > .section-summary::after {
+  transform: rotate(-90deg);
+}
+
+.section-summary h1,
+.section-summary h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.section-summary .hero-copy,
+.section-summary .summary-copy {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.section-body {
+  padding: 0 20px 20px;
+}
+
+.summary-actions,
+.summary-action {
+  position: relative;
+  z-index: 1;
+}
+
+.control-grid {
+  display: contents;
 }
 
 .deck-panel-home {
@@ -515,10 +587,12 @@ h1 {
   margin-bottom: 18px;
 }
 
+.deck-list,
 .deck-list-home {
-  max-height: none;
   display: grid;
   gap: 12px;
+  max-height: none;
+  overflow: visible;
 }
 
 .deck-toast-home {
@@ -530,8 +604,9 @@ h1 {
 .explanation-panel,
 .deck-panel,
 .recent-panel,
-.advanced-panel {
-  padding: 18px 20px;
+.advanced-panel,
+.results-panel {
+  padding: 0;
 }
 
 .panel-heading,
@@ -608,17 +683,14 @@ h1 {
   margin-bottom: 18px;
 }
 
-.advanced-panel summary {
-  cursor: pointer;
-  color: var(--gold-strong);
-  font-weight: 900;
+.advanced-panel > .section-summary {
+  color: inherit;
 }
 
 .advanced-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 16px;
 }
 
 .advanced-grid label {
@@ -797,8 +869,8 @@ h1 {
 .deck-list {
   display: grid;
   gap: 8px;
-  max-height: 360px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .deck-row {
@@ -1464,9 +1536,29 @@ h1 {
   }
 
   .hero,
+  .hero-body,
   .control-grid,
   .lightbox-card {
     grid-template-columns: 1fr;
+  }
+
+  .section-summary {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px 36px 16px 16px;
+  }
+
+  .section-summary::after {
+    position: absolute;
+    top: 18px;
+    right: 16px;
+  }
+
+  .summary-actions,
+  .button-pair.summary-actions {
+    flex-wrap: wrap;
+    width: 100%;
   }
 
   .advanced-grid {
@@ -1479,6 +1571,12 @@ h1 {
 
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .deck-list,
+  .deck-list-home {
+    max-height: none;
+    overflow: visible;
   }
 
   .results-grid {

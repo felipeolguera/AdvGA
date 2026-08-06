@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.30";
+const APP_VERSION = "0.31";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -153,128 +153,161 @@ const app = document.querySelector("#app");
 app.innerHTML = `
   <p class="app-version" aria-label="App version">v${APP_VERSION}</p>
   <main class="page-shell">
-    <section class="hero" id="card-search" aria-labelledby="app-title">
-      <div>
-        <p class="eyebrow">Grand Archive TCG Deck Builder</p>
-        <h1 id="app-title">Grand Archive Advanced Book by RPGgamerPH</h1>
-        <p class="hero-copy">
-          Search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
-        </p>
+    <details class="panel collapsible-section hero-section" id="card-search" open>
+      <summary class="section-summary">
+        <div>
+          <p class="eyebrow">Grand Archive TCG Deck Builder</p>
+          <h1 id="app-title">Card search</h1>
+          <p class="hero-copy summary-copy">
+            Search by plain English, then refine with filters and keywords.
+          </p>
+        </div>
+      </summary>
+      <div class="section-body hero-body">
+        <div class="hero-brand">
+          <p class="eyebrow">Grand Archive TCG Deck Builder</p>
+          <h2 class="hero-product-title">Grand Archive Advanced Book by RPGgamerPH</h2>
+          <p class="hero-copy">
+            Search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
+          </p>
+        </div>
+        <form class="search-card" id="search-form">
+          <label for="search-input">Search cards</label>
+          <div class="search-row">
+            <div class="search-input-wrap">
+              <input
+                id="search-input"
+                name="query"
+                autocomplete="off"
+                list="search-suggestions"
+                spellcheck="true"
+                value="${escapeHtml(state.query)}"
+                placeholder="normal ally that cost 2 in RDO"
+              />
+              <button
+                class="clear-search hidden"
+                type="button"
+                id="clear-search"
+                aria-label="Clear search text"
+              >×</button>
+            </div>
+            <button type="submit">Search</button>
+          </div>
+          <datalist id="search-suggestions"></datalist>
+          <div class="quick-searches" aria-label="Example searches">
+            <button type="button" data-example="normal ally that cost 2 in RDO">
+              normal ally that cost 2 in RDO
+            </button>
+            <button type="button" data-example="normal spells that target units in RDO set">
+              normal spells that target units in RDO set
+            </button>
+            <button type="button" data-example="standard legal fire or water attacks cost 2 or less">
+              standard legal fire or water attacks cost 2 or less
+            </button>
+          </div>
+          <div class="keyword-row" id="keyword-row" aria-label="Keyword helpers"></div>
+        </form>
       </div>
+    </details>
 
-      <form class="search-card" id="search-form">
-        <label for="search-input">Search cards</label>
-        <div class="search-row">
-          <div class="search-input-wrap">
-            <input
-              id="search-input"
-              name="query"
-              autocomplete="off"
-              list="search-suggestions"
-              spellcheck="true"
-              value="${escapeHtml(state.query)}"
-              placeholder="normal ally that cost 2 in RDO"
-            />
-            <button
-              class="clear-search hidden"
-              type="button"
-              id="clear-search"
-              aria-label="Clear search text"
-            >×</button>
-          </div>
-          <button type="submit">Search</button>
+    <details class="panel collapsible-section explanation-panel" open>
+      <summary class="section-summary">
+        <div>
+          <p class="eyebrow">Parsed search</p>
+          <h2>What the app searched</h2>
         </div>
-        <datalist id="search-suggestions"></datalist>
-        <div class="quick-searches" aria-label="Example searches">
-          <button type="button" data-example="normal ally that cost 2 in RDO">
-            normal ally that cost 2 in RDO
-          </button>
-          <button type="button" data-example="normal spells that target units in RDO set">
-            normal spells that target units in RDO set
-          </button>
-          <button type="button" data-example="standard legal fire or water attacks cost 2 or less">
-            standard legal fire or water attacks cost 2 or less
-          </button>
-        </div>
-        <div class="keyword-row" id="keyword-row" aria-label="Keyword helpers"></div>
-      </form>
-    </section>
-
-    <section class="control-grid">
-      <article class="panel explanation-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Parsed search</p>
-            <h2>What the app searched</h2>
-          </div>
-          <button class="secondary compact" type="button" id="copy-share">Copy link</button>
-        </div>
+        <button class="secondary compact summary-action" type="button" id="copy-share">Copy link</button>
+      </summary>
+      <div class="section-body">
         <p class="status" id="status"></p>
         <div class="chips" id="chips"></div>
         <p class="hint" id="search-explanation"></p>
-      </article>
-    </section>
+      </div>
+    </details>
 
-    <section class="panel deck-panel deck-panel-home" id="deck-builder" aria-labelledby="deck-builder-title">
-      <div class="panel-heading">
+    <details class="panel collapsible-section deck-panel deck-panel-home" id="deck-builder" open>
+      <summary class="section-summary">
         <div>
           <p class="eyebrow">Deck Builder</p>
           <h2 id="deck-builder-title">Deck Builder <span id="deck-count">0</span></h2>
         </div>
-        <div class="button-pair">
-          <button class="secondary compact" type="button" id="export-deck">Copy export</button>
-          <button class="secondary compact" type="button" id="import-deck">Import list</button>
-          <button class="secondary compact" type="button" id="download-deck">Download .txt</button>
-          <button class="ghost compact" type="button" id="clear-deck">Clear</button>
+        <div class="button-pair summary-actions">
+          <button class="secondary compact summary-action" type="button" id="export-deck">Copy export</button>
+          <button class="secondary compact summary-action" type="button" id="import-deck">Import list</button>
+          <button class="secondary compact summary-action" type="button" id="download-deck">Download .txt</button>
+          <button class="ghost compact summary-action" type="button" id="clear-deck">Clear</button>
         </div>
+      </summary>
+      <div class="section-body">
+        <label class="deck-name-field" for="deck-name">
+          Deck name
+          <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
+        </label>
+        <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
+        <details class="deck-validation-details deck-validation-home">
+          <summary id="deck-validation-summary-home">Deck legality</summary>
+          <div class="deck-validation" id="deck-validation" aria-live="polite"></div>
+        </details>
+        <div class="deck-list deck-list-home" id="deck-list"></div>
+        <div class="deck-toast deck-toast-home" id="deck-toast-home" role="status" aria-live="polite" hidden>Added</div>
       </div>
-      <label class="deck-name-field" for="deck-name">
-        Deck name
-        <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
-      </label>
-      <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
-      <details class="deck-validation-details deck-validation-home">
-        <summary id="deck-validation-summary-home">Deck legality</summary>
-        <div class="deck-validation" id="deck-validation" aria-live="polite"></div>
-      </details>
-      <div class="deck-list deck-list-home" id="deck-list"></div>
-      <div class="deck-toast deck-toast-home" id="deck-toast-home" role="status" aria-live="polite" hidden>Added</div>
-    </section>
-
-    <details class="panel advanced-panel" id="advanced-panel">
-      <summary>Advanced filters and sorting</summary>
-      <form class="advanced-grid" id="advanced-form">
-        <label>Element<select name="element" id="filter-element"><option value="">Any</option></select></label>
-        <label>Type<select name="type" id="filter-type"><option value="">Any</option></select></label>
-        <label>Subtype<select name="subtype" id="filter-subtype"><option value="">Any</option></select></label>
-        <label>Class<select name="class" id="filter-class"><option value="">Any</option></select></label>
-        <label>Set<select name="set" id="filter-set"><option value="">Any</option></select></label>
-        <label>Speed<select name="speed" id="filter-speed"><option value="">Any</option></select></label>
-        <label>Stat<select name="stat" id="filter-stat"><option value="">None</option></select></label>
-        <label>Compare<select name="operator" id="filter-operator"><option value="=">=</option><option value="<">&lt;</option><option value="<=">&lt;=</option><option value=">">&gt;</option><option value=">=">&gt;=</option></select></label>
-        <label>Value<input name="statValue" id="filter-stat-value" inputmode="numeric" placeholder="2" /></label>
-        <label>Format<select name="format" id="filter-format"><option value="">Any</option><option value="standard legal">Standard legal</option><option value="standard restricted">Standard restricted</option><option value="material legal">Material legal</option></select></label>
-        <label>Sort<select name="sort" id="sort-select"></select></label>
-        <div class="advanced-actions">
-          <button type="submit">Apply filters</button>
-          <button class="ghost" type="button" id="clear-filters">Clear</button>
-        </div>
-      </form>
     </details>
 
-    <section class="recent-panel panel">
-      <div class="panel-heading compact-heading">
-        <p class="eyebrow">Recent searches</p>
-        <button class="ghost compact" type="button" id="clear-recents">Clear recents</button>
+    <details class="panel collapsible-section advanced-panel" id="advanced-panel">
+      <summary class="section-summary">
+        <div>
+          <p class="eyebrow">Filters</p>
+          <h2>Advanced filters and sorting</h2>
+        </div>
+      </summary>
+      <div class="section-body">
+        <form class="advanced-grid" id="advanced-form">
+          <label>Element<select name="element" id="filter-element"><option value="">Any</option></select></label>
+          <label>Type<select name="type" id="filter-type"><option value="">Any</option></select></label>
+          <label>Subtype<select name="subtype" id="filter-subtype"><option value="">Any</option></select></label>
+          <label>Class<select name="class" id="filter-class"><option value="">Any</option></select></label>
+          <label>Set<select name="set" id="filter-set"><option value="">Any</option></select></label>
+          <label>Speed<select name="speed" id="filter-speed"><option value="">Any</option></select></label>
+          <label>Stat<select name="stat" id="filter-stat"><option value="">None</option></select></label>
+          <label>Compare<select name="operator" id="filter-operator"><option value="=">=</option><option value="<">&lt;</option><option value="<=">&lt;=</option><option value=">">&gt;</option><option value=">=">&gt;=</option></select></label>
+          <label>Value<input name="statValue" id="filter-stat-value" inputmode="numeric" placeholder="2" /></label>
+          <label>Format<select name="format" id="filter-format"><option value="">Any</option><option value="standard legal">Standard legal</option><option value="standard restricted">Standard restricted</option><option value="material legal">Material legal</option></select></label>
+          <label>Sort<select name="sort" id="sort-select"></select></label>
+          <div class="advanced-actions">
+            <button type="submit">Apply filters</button>
+            <button class="ghost" type="button" id="clear-filters">Clear</button>
+          </div>
+        </form>
       </div>
-      <div class="quick-searches" id="recent-searches"></div>
-    </section>
+    </details>
 
-    <section class="results-grid" id="results" aria-label="Search results"></section>
+    <details class="panel collapsible-section recent-panel" open>
+      <summary class="section-summary">
+        <div>
+          <p class="eyebrow">History</p>
+          <h2>Recent searches</h2>
+        </div>
+        <button class="ghost compact summary-action" type="button" id="clear-recents">Clear recents</button>
+      </summary>
+      <div class="section-body">
+        <div class="quick-searches" id="recent-searches"></div>
+      </div>
+    </details>
 
-    <div class="actions">
-      <button class="secondary hidden" type="button" id="load-more">Load more</button>
-    </div>
+    <details class="panel collapsible-section results-panel" open>
+      <summary class="section-summary">
+        <div>
+          <p class="eyebrow">Library</p>
+          <h2>Search results</h2>
+        </div>
+      </summary>
+      <div class="section-body">
+        <section class="results-grid" id="results" aria-label="Search results"></section>
+        <div class="actions">
+          <button class="secondary hidden" type="button" id="load-more">Load more</button>
+        </div>
+      </div>
+    </details>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
@@ -409,6 +442,13 @@ const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
 const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
 const lightboxAddedMessage = document.querySelector("#lightbox-added-message");
+
+document.querySelectorAll(".summary-action").forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+});
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -622,7 +662,11 @@ function openFullscreenDeckBuilder() {
 
 function goToCardSearch() {
   const focusSearch = () => {
-    cardSearchSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const section = cardSearchSection;
+    if (section && section.tagName === "DETAILS") {
+      section.open = true;
+    }
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
     window.setTimeout(() => {
       input.focus({ preventScroll: true });
     }, 50);
