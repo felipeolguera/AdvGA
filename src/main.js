@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.19";
+const APP_VERSION = "0.20";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -308,12 +308,15 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">Deck Builder</p>
           <h2 id="deck-fullscreen-title">Fullscreen Deck List</h2>
-          <p class="hint">Search cards by name to autocomplete-add them, then edit quantities and sections.</p>
+          <p class="hint">Search to add cards, then browse a minimal image grid with quantities by section.</p>
         </div>
         <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
       </header>
       <div class="deck-stats deck-stats-fullscreen" id="deck-stats-fullscreen" aria-live="polite"></div>
-      <div class="deck-validation" id="deck-validation-fullscreen" aria-live="polite"></div>
+      <details class="deck-validation-details">
+        <summary id="deck-validation-summary">Deck legality</summary>
+        <div class="deck-validation" id="deck-validation-fullscreen" aria-live="polite"></div>
+      </details>
       <form class="deck-autocomplete" id="deck-autocomplete-form" autocomplete="off">
         <label class="deck-autocomplete-label" for="deck-card-search">
           Add card by name
@@ -1470,8 +1473,25 @@ function renderDeck() {
   renderDeckStats(deckStatsFullscreenEl);
   renderDeckValidation(deckValidationEl);
   renderDeckValidation(deckValidationFullscreenEl);
+  renderDeckValidationSummary();
   renderDeckInto(deckListEl, { fullscreen: false });
   renderDeckInto(deckListFullscreenEl, { fullscreen: true });
+}
+
+function renderDeckValidationSummary() {
+  const summary = document.querySelector("#deck-validation-summary");
+  if (!summary) return;
+  if (state.deck.length === 0) {
+    summary.textContent = "Deck legality";
+    return;
+  }
+  const checks = getDeckValidation();
+  const failed = checks.filter((check) => !check.ok).length;
+  summary.textContent = failed
+    ? `Deck legality · ${failed} issue${failed === 1 ? "" : "s"}`
+    : "Deck legality · all checks passed";
+  summary.classList.toggle("has-issues", failed > 0);
+  summary.classList.toggle("all-ok", failed === 0);
 }
 
 function renderDeckStats(container) {
@@ -1536,7 +1556,7 @@ function renderDeckInto(container, { fullscreen }) {
   DECK_SECTIONS.forEach((section) => {
     const sectionCards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
     const group = document.createElement("section");
-    group.className = "deck-section-group";
+    group.className = fullscreen ? "deck-section-group deck-section-grid-group" : "deck-section-group";
 
     const heading = document.createElement("h3");
     heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
@@ -1547,16 +1567,64 @@ function renderDeckInto(container, { fullscreen }) {
       empty.className = "hint";
       empty.textContent = "No cards in this section yet.";
       group.append(empty);
+    } else if (fullscreen) {
+      const grid = document.createElement("div");
+      grid.className = "deck-card-grid";
+      sectionCards.forEach((card) => grid.append(createDeckGridCard(card)));
+      group.append(grid);
     } else {
-      sectionCards.forEach((card) => group.append(createDeckRow(card, { fullscreen })));
+      sectionCards.forEach((card) => group.append(createDeckRow(card)));
     }
     container.append(group);
   });
 }
 
-function createDeckRow(card, { fullscreen }) {
+function createDeckGridCard(card) {
+  const item = document.createElement("article");
+  item.className = "deck-grid-card";
+  item.title = card.name;
+
+  const imageWrap = document.createElement("div");
+  imageWrap.className = "deck-grid-card-image";
+  const imageUrl = getImageUrl(resolveCardImage(card));
+  if (imageUrl) {
+    const image = document.createElement("img");
+    image.loading = "lazy";
+    image.src = imageUrl;
+    image.alt = card.name;
+    image.onerror = () => {
+      image.remove();
+      imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
+    };
+    imageWrap.append(image);
+  } else {
+    imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
+  }
+
+  const maxQuantity = getMaxQuantityForCard(card);
+  const quantity = document.createElement("select");
+  quantity.className = "deck-grid-qty";
+  quantity.dataset.deckQuantity = card.key;
+  quantity.setAttribute("aria-label", `Quantity for ${card.name}`);
+  for (let amount = 1; amount <= maxQuantity; amount += 1) {
+    quantity.append(createOption(String(amount), String(amount)));
+  }
+  quantity.value = String(Math.min(maxQuantity, normalizeQuantity(card.quantity)));
+
+  const remove = document.createElement("button");
+  remove.className = "deck-grid-remove";
+  remove.type = "button";
+  remove.dataset.removeDeck = card.key;
+  remove.setAttribute("aria-label", `Remove ${card.name}`);
+  remove.textContent = "×";
+
+  item.append(imageWrap, quantity, remove);
+  return item;
+}
+
+function createDeckRow(card) {
   const row = document.createElement("div");
-  row.className = fullscreen ? "deck-row deck-row-fullscreen" : "deck-row deck-row-with-thumb";
+  row.className = "deck-row deck-row-with-thumb";
 
   const name = document.createElement("span");
   name.className = "deck-card-name";
