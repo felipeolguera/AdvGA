@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.18";
+const APP_VERSION = "0.19";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -551,11 +551,18 @@ deckAutocompleteForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await addDeckAutocompleteSelection();
 });
+deckAutocompleteList.addEventListener("mousedown", (event) => {
+  // Keep the search input focused so the suggestion list stays usable for multi-add.
+  if (event.target.closest("[data-autocomplete-index]")) {
+    event.preventDefault();
+  }
+});
 deckAutocompleteList.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-autocomplete-index]");
   if (!button) {
     return;
   }
+  event.preventDefault();
   state.deckAutocomplete.activeIndex = Number(button.dataset.autocompleteIndex);
   await addDeckAutocompleteSelection();
 });
@@ -1549,15 +1556,13 @@ function renderDeckInto(container, { fullscreen }) {
 
 function createDeckRow(card, { fullscreen }) {
   const row = document.createElement("div");
-  row.className = fullscreen ? "deck-row deck-row-fullscreen" : "deck-row";
+  row.className = fullscreen ? "deck-row deck-row-fullscreen" : "deck-row deck-row-with-thumb";
 
   const name = document.createElement("span");
   name.className = "deck-card-name";
   name.textContent = card.name;
 
-  if (fullscreen) {
-    row.append(createDeckThumbnail(card));
-  }
+  row.append(createDeckThumbnail(card));
 
   const maxQuantity = getMaxQuantityForCard(card);
   const quantityLabel = document.createElement("label");
@@ -1586,7 +1591,7 @@ function createDeckRow(card, { fullscreen }) {
 function createDeckThumbnail(card) {
   const thumbnail = document.createElement("span");
   thumbnail.className = "deck-card-thumbnail";
-  const imageUrl = getImageUrl(card.image);
+  const imageUrl = getImageUrl(resolveCardImage(card));
   if (imageUrl) {
     const image = document.createElement("img");
     image.loading = "lazy";
@@ -1678,14 +1683,18 @@ function addCardToDeck(card, quantityToAdd = 1) {
   const existing = state.deck.find((item) => item.key === key);
   const section = existing ? normalizeDeckSection(existing.section) : defaultDeckSection(card);
   const maxQuantity = getMaxQuantityForSection(section, card);
+  const image = resolveCardImage(card);
   if (existing) {
     existing.quantity = Math.min(maxQuantity, normalizeQuantity(existing.quantity) + amount);
     Object.assign(existing, deckCardMetadata(card));
+    existing.image = image || existing.image || "";
+    existing.line = formatCardLine(card) || existing.line || "";
+    existing.name = card.name || existing.name;
   } else {
     state.deck.push({
       key,
       name: card.name,
-      image: getPrimaryEdition(card)?.image || "",
+      image,
       line: formatCardLine(card),
       quantity: Math.min(maxQuantity, amount),
       section,
@@ -1814,7 +1823,7 @@ async function importDeckFromText(rawText) {
         nextDeck.push({
           key,
           name: card.name,
-          image: getPrimaryEdition(card)?.image || "",
+          image: resolveCardImage(card),
           line: formatCardLine(card),
           quantity: Math.min(maxQuantity, entry.quantity),
           section: entry.section,
@@ -2029,6 +2038,23 @@ function renderDeckAutocompleteList() {
     button.type = "button";
     button.dataset.autocompleteIndex = String(index);
 
+    const thumb = document.createElement("span");
+    thumb.className = "deck-autocomplete-thumb";
+    const imageUrl = getImageUrl(resolveCardImage(card));
+    if (imageUrl) {
+      const image = document.createElement("img");
+      image.loading = "lazy";
+      image.src = imageUrl;
+      image.alt = "";
+      image.onerror = () => {
+        image.remove();
+        thumb.textContent = card.name.slice(0, 2).toUpperCase();
+      };
+      thumb.append(image);
+    } else {
+      thumb.textContent = card.name.slice(0, 2).toUpperCase();
+    }
+
     const name = document.createElement("strong");
     name.textContent = card.name;
 
@@ -2038,7 +2064,7 @@ function renderDeckAutocompleteList() {
     const section = document.createElement("em");
     section.textContent = shortSectionLabel(defaultDeckSection(card));
 
-    button.append(name, meta, section);
+    button.append(thumb, name, meta, section);
     item.append(button);
     deckAutocompleteList.append(item);
   });
@@ -2101,12 +2127,15 @@ async function addDeckAutocompleteSelection() {
   const entry = state.deck.find((item) => item.key === getCardKey(card));
   const sectionTitle =
     DECK_SECTIONS.find((section) => section.key === normalizeDeckSection(entry?.section))?.title || "deck";
-  deckCardSearchInput.value = "";
-  state.deckAutocomplete.query = "";
-  state.deckAutocomplete.results = [];
-  state.deckAutocomplete.activeIndex = -1;
+
+  // Keep the current query + suggestion list open so more cards can be added quickly.
+  if (!results.length && query) {
+    state.deckAutocomplete.query = query;
+    state.deckAutocomplete.results = [card];
+    state.deckAutocomplete.activeIndex = 0;
+  }
   renderDeckAutocompleteList();
-  deckAutocompleteStatus.textContent = `Added ${card.name} to ${sectionTitle}.`;
+  deckAutocompleteStatus.textContent = `Added ${card.name} to ${sectionTitle}. Tap another suggestion to keep adding.`;
   deckCardSearchInput.focus();
 }
 
@@ -2643,6 +2672,18 @@ function getImageUrl(path) {
   }
 
   return `${API_BASE}${path}`;
+}
+
+function resolveCardImage(card) {
+  if (!card) {
+    return "";
+  }
+  if (card.image) {
+    return card.image;
+  }
+
+  const editionWithImage = getEditions(card).find((edition) => edition?.image);
+  return editionWithImage?.image || getPrimaryEdition(card)?.image || "";
 }
 
 function getPrimaryEdition(card) {
