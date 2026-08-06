@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.22";
+const APP_VERSION = "0.23";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -1624,7 +1624,7 @@ function createSectionAutocomplete(section) {
   label.append(row);
 
   const list = document.createElement("ul");
-  list.className = "deck-autocomplete-list";
+  list.className = "deck-autocomplete-list deck-autocomplete-grid";
   list.id = "deck-autocomplete-list";
   list.setAttribute("role", "listbox");
   list.hidden = state.deckAutocomplete.results.length === 0;
@@ -1636,7 +1636,7 @@ function createSectionAutocomplete(section) {
   status.textContent = state.deckAutocomplete.loading
     ? "Searching cards…"
     : state.deckAutocomplete.results.length
-      ? `${state.deckAutocomplete.results.length} match${state.deckAutocomplete.results.length === 1 ? "" : "es"}. Tap one to add.`
+      ? `${state.deckAutocomplete.results.length} match${state.deckAutocomplete.results.length === 1 ? "" : "es"}. Tap a card image to add.`
       : "Type a card name to autocomplete.";
 
   form.append(label, list, status);
@@ -2165,7 +2165,7 @@ async function runDeckAutocomplete(query) {
     renderDeckAutocompleteList();
     if (statusEl) {
       statusEl.textContent = results.length
-        ? `${results.length} match${results.length === 1 ? "" : "es"}. Tap one to add.`
+        ? `${results.length} match${results.length === 1 ? "" : "es"}. Tap a card image to add.`
         : `No cards matched “${query}”.`;
     }
   } catch {
@@ -2189,8 +2189,8 @@ function renderDeckAutocompleteList() {
     return;
   }
 
-  const { results, activeIndex, section } = state.deckAutocomplete;
-  const sectionLabel = shortSectionLabel(section);
+  const { results, activeIndex } = state.deckAutocomplete;
+  listEl.classList.add("deck-autocomplete-grid");
   listEl.replaceChildren();
 
   if (!results.length) {
@@ -2203,7 +2203,7 @@ function renderDeckAutocompleteList() {
     const item = document.createElement("li");
     item.setAttribute("role", "option");
     item.id = `deck-autocomplete-option-${index}`;
-    item.className = "deck-autocomplete-option";
+    item.className = "deck-autocomplete-option deck-autocomplete-card";
     if (index === activeIndex) {
       item.classList.add("active");
       item.setAttribute("aria-selected", "true");
@@ -2213,35 +2213,26 @@ function renderDeckAutocompleteList() {
 
     const button = document.createElement("button");
     button.type = "button";
+    button.className = "deck-autocomplete-card-button";
     button.dataset.autocompleteIndex = String(index);
+    button.title = card.name;
+    button.setAttribute("aria-label", `Add ${card.name}`);
 
-    const thumb = document.createElement("span");
-    thumb.className = "deck-autocomplete-thumb";
     const imageUrl = getImageUrl(resolveCardImage(card));
     if (imageUrl) {
       const image = document.createElement("img");
       image.loading = "lazy";
       image.src = imageUrl;
-      image.alt = "";
+      image.alt = card.name;
       image.onerror = () => {
         image.remove();
-        thumb.textContent = card.name.slice(0, 2).toUpperCase();
+        button.textContent = card.name;
       };
-      thumb.append(image);
+      button.append(image);
     } else {
-      thumb.textContent = card.name.slice(0, 2).toUpperCase();
+      button.textContent = card.name;
     }
 
-    const name = document.createElement("strong");
-    name.textContent = card.name;
-
-    const meta = document.createElement("span");
-    meta.textContent = formatCardLine(card);
-
-    const badge = document.createElement("em");
-    badge.textContent = sectionLabel;
-
-    button.append(thumb, name, meta, badge);
     item.append(button);
     listEl.append(item);
   });
