@@ -2,14 +2,18 @@ const API_BASE = "https://api.gatcg.com";
 const PAGE_SIZE = 50;
 const EXAMPLE_QUERY = "fire spells that target units";
 const DECK_STORAGE_KEY = "advga.deck";
+const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
+const APP_VERSION = "0.17";
 
 const DECK_SECTIONS = [
-  { key: "material", title: "Material Deck" },
-  { key: "main", title: "Main Deck" },
-  { key: "sideboard", title: "Sideboard" },
+  { key: "material", title: "Material Deck", target: 12, mode: "max" },
+  { key: "main", title: "Main Deck", target: 60, mode: "min" },
+  { key: "sideboard", title: "Sideboard", target: 15, mode: "max" },
 ];
+
+const SIDEBOARD_POINT_LIMIT = 15;
 
 const KEYWORD_SEARCHES = [
   "foster",
@@ -41,6 +45,7 @@ const FALLBACK_OPTIONS = {
     "GUARDIAN",
     "MAGE",
     "RANGER",
+    "SPIRIT",
     "TAMER",
     "WARRIOR",
   ].map((value) => ({ text: titleCase(value), value })),
@@ -116,7 +121,8 @@ const OPERATOR_PATTERNS = [
 
 const state = {
   cards: [],
-  deck: loadStoredJson(DECK_STORAGE_KEY, []),
+  deck: normalizeStoredDeck(loadStoredJson(DECK_STORAGE_KEY, [])),
+  deckName: loadStoredJson(DECK_NAME_STORAGE_KEY, "Untitled Deck") || "Untitled Deck",
   loading: false,
   options: FALLBACK_OPTIONS,
   page: 1,
@@ -138,10 +144,10 @@ app.innerHTML = `
   <main class="page-shell">
     <section class="hero" aria-labelledby="app-title">
       <div>
-        <p class="eyebrow">Grand Archive TCG</p>
+        <p class="eyebrow">Grand Archive TCG Deck Builder</p>
         <h1 id="app-title">Grand Archive Advanced Book by RPGgamerPH</h1>
         <p class="hero-copy">
-          Search by plain English, refine with filters, save cards to a list, and share exact searches.
+          Search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
         </p>
       </div>
 
@@ -209,7 +215,17 @@ app.innerHTML = `
             <button class="ghost compact" type="button" id="clear-deck">Clear</button>
           </div>
         </div>
+        <label class="deck-name-field" for="deck-name">
+          Deck name
+          <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
+        </label>
+        <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
+        <div class="deck-validation" id="deck-validation" aria-live="polite"></div>
         <div class="deck-list" id="deck-list"></div>
+        <div class="deck-toolbar">
+          <button class="secondary compact" type="button" id="import-deck">Import list</button>
+          <button class="secondary compact" type="button" id="download-deck">Download .txt</button>
+        </div>
       </article>
     </section>
 
@@ -248,7 +264,7 @@ app.innerHTML = `
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
 
-    <footer class="app-version" aria-label="App version">v0.16</footer>
+    <footer class="app-version" aria-label="App version">v${APP_VERSION}</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
@@ -288,12 +304,38 @@ app.innerHTML = `
         </div>
         <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
       </header>
+      <div class="deck-stats deck-stats-fullscreen" id="deck-stats-fullscreen" aria-live="polite"></div>
+      <div class="deck-validation" id="deck-validation-fullscreen" aria-live="polite"></div>
       <div class="deck-fullscreen-actions">
         <button class="secondary compact" type="button" id="export-deck-fullscreen">Copy export</button>
+        <button class="secondary compact" type="button" id="import-deck-fullscreen">Import list</button>
+        <button class="secondary compact" type="button" id="download-deck-fullscreen">Download .txt</button>
         <button class="ghost compact" type="button" id="clear-deck-fullscreen">Clear</button>
       </div>
       <div class="deck-list deck-list-fullscreen" id="deck-list-fullscreen"></div>
     </div>
+  </dialog>
+
+  <dialog class="import-dialog" id="import-dialog" aria-labelledby="import-dialog-title">
+    <form class="import-dialog-shell" id="import-form" method="dialog">
+      <header class="import-dialog-header">
+        <div>
+          <p class="eyebrow">Import</p>
+          <h2 id="import-dialog-title">Paste a deck list</h2>
+          <p class="hint">Use lines like <code>4 Backstep</code> under <code># Material Deck</code>, <code># Main Deck</code>, or <code># Sideboard</code>.</p>
+        </div>
+        <button class="icon-button" type="button" id="close-import-dialog" aria-label="Close import dialog">×</button>
+      </header>
+      <label class="import-label" for="import-text">
+        Deck list
+        <textarea id="import-text" name="importText" rows="14" spellcheck="false" placeholder="# Material Deck&#10;1 Spirit of Fire&#10;&#10;# Main Deck&#10;4 Backstep"></textarea>
+      </label>
+      <p class="hint" id="import-status"></p>
+      <div class="import-actions">
+        <button class="ghost compact" type="button" id="cancel-import">Cancel</button>
+        <button type="submit" id="confirm-import">Import into deck</button>
+      </div>
+    </form>
   </dialog>
 
   <button class="scroll-top-button" type="button" id="scroll-top" aria-label="Move to top">↑</button>
@@ -319,13 +361,29 @@ const copyShareButton = document.querySelector("#copy-share");
 const deckListEl = document.querySelector("#deck-list");
 const deckListFullscreenEl = document.querySelector("#deck-list-fullscreen");
 const deckCountEl = document.querySelector("#deck-count");
+const deckNameInput = document.querySelector("#deck-name");
+const deckStatsEl = document.querySelector("#deck-stats");
+const deckStatsFullscreenEl = document.querySelector("#deck-stats-fullscreen");
+const deckValidationEl = document.querySelector("#deck-validation");
+const deckValidationFullscreenEl = document.querySelector("#deck-validation-fullscreen");
 const exportDeckButton = document.querySelector("#export-deck");
 const exportDeckFullscreenButton = document.querySelector("#export-deck-fullscreen");
+const downloadDeckButton = document.querySelector("#download-deck");
+const downloadDeckFullscreenButton = document.querySelector("#download-deck-fullscreen");
+const importDeckButton = document.querySelector("#import-deck");
+const importDeckFullscreenButton = document.querySelector("#import-deck-fullscreen");
 const clearDeckButton = document.querySelector("#clear-deck");
 const clearDeckFullscreenButton = document.querySelector("#clear-deck-fullscreen");
 const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen");
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
+const importDialog = document.querySelector("#import-dialog");
+const importForm = document.querySelector("#import-form");
+const importText = document.querySelector("#import-text");
+const importStatusEl = document.querySelector("#import-status");
+const closeImportDialogButton = document.querySelector("#close-import-dialog");
+const cancelImportButton = document.querySelector("#cancel-import");
+const confirmImportButton = document.querySelector("#confirm-import");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
 const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
@@ -426,8 +484,16 @@ loadMoreButton.addEventListener("click", () => {
 
 exportDeckButton.addEventListener("click", () => exportDeck(exportDeckButton));
 exportDeckFullscreenButton.addEventListener("click", () => exportDeck(exportDeckFullscreenButton));
+downloadDeckButton.addEventListener("click", downloadDeck);
+downloadDeckFullscreenButton.addEventListener("click", downloadDeck);
+importDeckButton.addEventListener("click", openImportDialog);
+importDeckFullscreenButton.addEventListener("click", openImportDialog);
 clearDeckButton.addEventListener("click", clearDeck);
 clearDeckFullscreenButton.addEventListener("click", clearDeck);
+deckNameInput.addEventListener("input", () => {
+  state.deckName = deckNameInput.value.trim() || "Untitled Deck";
+  saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
+});
 openDeckFullscreenButton.addEventListener("click", () => {
   renderDeck();
   deckFullscreen.showModal();
@@ -437,6 +503,17 @@ deckFullscreen.addEventListener("click", (event) => {
   if (event.target === deckFullscreen) {
     deckFullscreen.close();
   }
+});
+closeImportDialogButton.addEventListener("click", () => importDialog.close());
+cancelImportButton.addEventListener("click", () => importDialog.close());
+importDialog.addEventListener("click", (event) => {
+  if (event.target === importDialog) {
+    importDialog.close();
+  }
+});
+importForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await importDeckFromText(importText.value);
 });
 scrollTopButton.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1325,9 +1402,63 @@ function rememberSearch(query) {
 }
 
 function renderDeck() {
-  deckCountEl.textContent = String(state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0));
+  const totalCards = getDeckTotal();
+  deckCountEl.textContent = String(totalCards);
+  renderDeckStats(deckStatsEl);
+  renderDeckStats(deckStatsFullscreenEl);
+  renderDeckValidation(deckValidationEl);
+  renderDeckValidation(deckValidationFullscreenEl);
   renderDeckInto(deckListEl, { fullscreen: false });
   renderDeckInto(deckListFullscreenEl, { fullscreen: true });
+}
+
+function renderDeckStats(container) {
+  if (!container) return;
+  container.replaceChildren();
+
+  DECK_SECTIONS.forEach((section) => {
+    const count = getSectionTotal(section.key);
+    const chip = document.createElement("div");
+    chip.className = "deck-stat-chip";
+    const met =
+      section.mode === "min" ? count >= section.target : count <= section.target;
+    chip.classList.toggle("ok", met && count > 0);
+    chip.classList.toggle("warn", !met && count > 0);
+    chip.innerHTML = `<strong>${count}</strong><span>${section.title}${section.mode === "min" ? ` / ${section.target}+` : ` / ${section.target}`}</span>`;
+    container.append(chip);
+  });
+
+  const sidePoints = getSideboardPoints();
+  const sideChip = document.createElement("div");
+  sideChip.className = "deck-stat-chip";
+  sideChip.classList.toggle("ok", sidePoints <= SIDEBOARD_POINT_LIMIT && sidePoints > 0);
+  sideChip.classList.toggle("warn", sidePoints > SIDEBOARD_POINT_LIMIT);
+  sideChip.innerHTML = `<strong>${sidePoints}</strong><span>Sideboard pts / ${SIDEBOARD_POINT_LIMIT}</span>`;
+  container.append(sideChip);
+}
+
+function renderDeckValidation(container) {
+  if (!container) return;
+  container.replaceChildren();
+  const checks = getDeckValidation();
+
+  if (state.deck.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Standard constructed: Material ≤12 (unique, Level 0 champion), Main ≥60 (max 4), Sideboard ≤15 cards / 15 points.";
+    container.append(empty);
+    return;
+  }
+
+  const list = document.createElement("ul");
+  list.className = "deck-validation-list";
+  checks.forEach((check) => {
+    const item = document.createElement("li");
+    item.className = check.ok ? "ok" : "fail";
+    item.textContent = check.message;
+    list.append(item);
+  });
+  container.append(list);
 }
 
 function renderDeckInto(container, { fullscreen }) {
@@ -1335,35 +1466,30 @@ function renderDeckInto(container, { fullscreen }) {
   if (state.deck.length === 0) {
     const empty = document.createElement("p");
     empty.className = "hint";
-    empty.textContent = "Add cards from results or the lightbox, set quantities, choose a deck section, then copy the export.";
+    empty.textContent = "Add cards from results or the lightbox, set quantities, choose a deck section, then copy or download the export.";
     container.append(empty);
     return;
   }
 
-  if (fullscreen) {
-    DECK_SECTIONS.forEach((section) => {
-      const sectionCards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
-      const group = document.createElement("section");
-      group.className = "deck-section-group";
+  DECK_SECTIONS.forEach((section) => {
+    const sectionCards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
+    const group = document.createElement("section");
+    group.className = "deck-section-group";
 
-      const heading = document.createElement("h3");
-      heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
-      group.append(heading);
+    const heading = document.createElement("h3");
+    heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
+    group.append(heading);
 
-      if (sectionCards.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "hint";
-        empty.textContent = "No cards in this section yet.";
-        group.append(empty);
-      } else {
-        sectionCards.forEach((card) => group.append(createDeckRow(card, { fullscreen: true })));
-      }
-      container.append(group);
-    });
-    return;
-  }
-
-  state.deck.forEach((card) => container.append(createDeckRow(card, { fullscreen: false })));
+    if (sectionCards.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "No cards in this section yet.";
+      group.append(empty);
+    } else {
+      sectionCards.forEach((card) => group.append(createDeckRow(card, { fullscreen })));
+    }
+    container.append(group);
+  });
 }
 
 function createDeckRow(card, { fullscreen }) {
@@ -1378,15 +1504,16 @@ function createDeckRow(card, { fullscreen }) {
     row.append(createDeckThumbnail(card));
   }
 
+  const maxQuantity = getMaxQuantityForCard(card);
   const quantityLabel = document.createElement("label");
   quantityLabel.className = "deck-field deck-quantity-field";
   quantityLabel.textContent = "Qty";
   const quantity = document.createElement("select");
   quantity.dataset.deckQuantity = card.key;
-  [1, 2, 3, 4].forEach((amount) => {
+  for (let amount = 1; amount <= maxQuantity; amount += 1) {
     quantity.append(createOption(String(amount), String(amount)));
-  });
-  quantity.value = String(Math.min(4, normalizeQuantity(card.quantity)));
+  }
+  quantity.value = String(Math.min(maxQuantity, normalizeQuantity(card.quantity)));
   quantityLabel.append(quantity);
 
   const sectionPicker = createSectionPicker(card);
@@ -1464,6 +1591,7 @@ function handleDeckListClick(event) {
   if (sectionButton) {
     updateDeckCard(sectionButton.dataset.deckSection, { section: sectionButton.dataset.section });
     renderDeck();
+    renderCards();
   }
 }
 
@@ -1493,16 +1621,20 @@ function addCardToDeck(card, quantityToAdd = 1) {
   const key = getCardKey(card);
   const amount = normalizeQuantity(quantityToAdd);
   const existing = state.deck.find((item) => item.key === key);
+  const section = existing ? normalizeDeckSection(existing.section) : defaultDeckSection(card);
+  const maxQuantity = getMaxQuantityForSection(section, card);
   if (existing) {
-    existing.quantity = normalizeQuantity(existing.quantity) + amount;
+    existing.quantity = Math.min(maxQuantity, normalizeQuantity(existing.quantity) + amount);
+    Object.assign(existing, deckCardMetadata(card));
   } else {
     state.deck.push({
       key,
       name: card.name,
       image: getPrimaryEdition(card)?.image || "",
       line: formatCardLine(card),
-      quantity: amount,
-      section: defaultDeckSection(card),
+      quantity: Math.min(maxQuantity, amount),
+      section,
+      ...deckCardMetadata(card),
     });
   }
   saveDeck();
@@ -1517,8 +1649,11 @@ function updateDeckCard(key, updates) {
   }
 
   Object.assign(card, updates);
-  card.quantity = normalizeQuantity(card.quantity);
   card.section = normalizeDeckSection(card.section);
+  card.quantity = Math.min(
+    getMaxQuantityForCard(card),
+    normalizeQuantity(card.quantity),
+  );
   saveDeck();
 }
 
@@ -1529,6 +1664,9 @@ function saveDeck() {
       ...card,
       quantity: normalizeQuantity(card.quantity),
       section: normalizeDeckSection(card.section),
+      types: Array.isArray(card.types) ? card.types : [],
+      level: card.level ?? null,
+      costType: card.costType || "",
     })),
   );
 }
@@ -1540,25 +1678,196 @@ async function exportDeck(button = exportDeckButton) {
     return;
   }
 
+  const original = button.textContent;
   try {
     await navigator.clipboard.writeText(text);
-    button.textContent = "Coppied. Ready to paste.";
+    button.textContent = "Copied. Ready to paste.";
   } catch {
     window.prompt("Copy this decklist", text);
-    button.textContent = "Coppied. Ready to paste.";
+    button.textContent = "Copied. Ready to paste.";
   } finally {
     window.setTimeout(() => {
-      button.textContent = "Copy export";
+      button.textContent = original;
     }, 1800);
   }
 }
 
+function downloadDeck() {
+  const text = formatDeckExport();
+  if (!text.trim()) {
+    window.alert("Add cards to your deck before downloading.");
+    return;
+  }
+
+  const slug = state.deckName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "grand-archive-deck";
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slug}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function formatDeckExport() {
-  return DECK_SECTIONS.map((section) => {
+  const header = [`// ${state.deckName}`, `// Built with AdvGA v${APP_VERSION}`, ""].join("\n");
+  const body = DECK_SECTIONS.map((section) => {
     const cards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
     const lines = cards.map((card) => `${normalizeQuantity(card.quantity)} ${card.name}`);
     return [`# ${section.title}`, "", ...lines].join("\n").trimEnd();
   }).join("\n\n");
+  return `${header}${body}`;
+}
+
+function openImportDialog() {
+  importStatusEl.textContent = "";
+  importText.value = state.deck.length ? formatDeckExport() : "";
+  confirmImportButton.disabled = false;
+  importDialog.showModal();
+  importText.focus();
+}
+
+async function importDeckFromText(rawText) {
+  const parsed = parseDeckImport(rawText);
+  if (parsed.entries.length === 0) {
+    importStatusEl.textContent = "No card lines found. Use formats like “4 Backstep” under a section heading.";
+    return;
+  }
+
+  confirmImportButton.disabled = true;
+  importStatusEl.textContent = `Looking up ${parsed.entries.length} card line${parsed.entries.length === 1 ? "" : "s"}...`;
+
+  const nextDeck = [];
+  const missing = [];
+
+  for (const entry of parsed.entries) {
+    try {
+      const card = await lookupCardByName(entry.name);
+      if (!card) {
+        missing.push(entry.name);
+        continue;
+      }
+      const key = getCardKey(card);
+      const existing = nextDeck.find((item) => item.key === key && item.section === entry.section);
+      const maxQuantity = getMaxQuantityForSection(entry.section, card);
+      if (existing) {
+        existing.quantity = Math.min(maxQuantity, existing.quantity + entry.quantity);
+      } else {
+        nextDeck.push({
+          key,
+          name: card.name,
+          image: getPrimaryEdition(card)?.image || "",
+          line: formatCardLine(card),
+          quantity: Math.min(maxQuantity, entry.quantity),
+          section: entry.section,
+          ...deckCardMetadata(card),
+        });
+      }
+    } catch {
+      missing.push(entry.name);
+    }
+  }
+
+  state.deck = nextDeck;
+  if (parsed.deckName) {
+    state.deckName = parsed.deckName;
+    deckNameInput.value = state.deckName;
+    saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
+  }
+  saveDeck();
+  renderDeck();
+  renderCards();
+
+  if (missing.length) {
+    importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}. Missing: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}`;
+    confirmImportButton.disabled = false;
+    return;
+  }
+
+  importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}.`;
+  window.setTimeout(() => importDialog.close(), 700);
+}
+
+function parseDeckImport(rawText) {
+  let section = "main";
+  let deckName = "";
+  const entries = [];
+
+  String(rawText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      if (line.startsWith("//")) {
+        if (!deckName) {
+          deckName = line.replace(/^\/\/\s*/, "").replace(/\s*Built with AdvGA.*$/i, "").trim();
+        }
+        return;
+      }
+
+      const heading = line.replace(/^#+\s*/, "").toLowerCase();
+      if (heading.startsWith("material")) {
+        section = "material";
+        return;
+      }
+      if (heading.startsWith("main")) {
+        section = "main";
+        return;
+      }
+      if (heading.startsWith("side")) {
+        section = "sideboard";
+        return;
+      }
+      if (line.startsWith("#")) {
+        return;
+      }
+
+      const match = line.match(/^(\d+)\s*[xX]?\s+(.+)$/) || line.match(/^(.+)$/);
+      if (!match) {
+        return;
+      }
+
+      let quantity = 1;
+      let name = "";
+      if (match.length === 3 && /^\d+$/.test(match[1])) {
+        quantity = normalizeQuantity(match[1]);
+        name = match[2].trim();
+      } else {
+        name = (match[1] || match[0]).trim();
+      }
+
+      name = name.replace(/\s+\(.*\)$/, "").trim();
+      if (!name) {
+        return;
+      }
+
+      entries.push({
+        quantity,
+        name,
+        section: normalizeDeckSection(section),
+      });
+    });
+
+  return { entries, deckName };
+}
+
+async function lookupCardByName(name) {
+  const params = new URLSearchParams({
+    name,
+    page: "1",
+    page_size: "8",
+  });
+  const response = await fetch(`${API_BASE}/cards/search?${params}`);
+  if (!response.ok) {
+    throw new Error(`Lookup failed for ${name}`);
+  }
+  const payload = await response.json();
+  const cards = payload.data || [];
+  const exact = cards.find((card) => card.name.toLowerCase() === name.toLowerCase());
+  return exact || cards[0] || null;
 }
 
 function normalizeQuantity(value) {
@@ -1569,9 +1878,141 @@ function normalizeDeckSection(section) {
   return DECK_SECTIONS.some((item) => item.key === section) ? section : "main";
 }
 
+function normalizeStoredDeck(deck) {
+  if (!Array.isArray(deck)) {
+    return [];
+  }
+  return deck.map((card) => ({
+    ...card,
+    quantity: normalizeQuantity(card.quantity),
+    section: normalizeDeckSection(card.section),
+    types: Array.isArray(card.types) ? card.types : [],
+    level: card.level ?? null,
+    costType: card.costType || "",
+  }));
+}
+
+function deckCardMetadata(card) {
+  return {
+    types: Array.isArray(card.types) ? card.types.map((type) => String(type).toUpperCase()) : [],
+    level: card.level ?? null,
+    costType: String(card.cost?.type || card.costType || "").toLowerCase(),
+  };
+}
+
 function defaultDeckSection(card) {
   const types = new Set((card.types || []).map((type) => String(type).toUpperCase()));
-  return types.has("CHAMPION") || types.has("REGALIA") || types.has("WEAPON") ? "material" : "main";
+  const costType = String(card.cost?.type || card.costType || "").toLowerCase();
+  if (types.has("CHAMPION") || types.has("REGALIA") || costType === "memory") {
+    return "material";
+  }
+  return "main";
+}
+
+function getMaxQuantityForCard(card) {
+  return getMaxQuantityForSection(normalizeDeckSection(card.section), card);
+}
+
+function getMaxQuantityForSection(section, card) {
+  if (section === "material") {
+    return 1;
+  }
+  if (section === "sideboard" && isMaterialCard(card)) {
+    return 1;
+  }
+  return 4;
+}
+
+function isMaterialCard(card) {
+  const types = new Set((card.types || []).map((type) => String(type).toUpperCase()));
+  const costType = String(card.costType || card.cost?.type || "").toLowerCase();
+  return types.has("CHAMPION") || types.has("REGALIA") || costType === "memory";
+}
+
+function isChampionCard(card) {
+  return (card.types || []).some((type) => String(type).toUpperCase() === "CHAMPION");
+}
+
+function getDeckTotal() {
+  return state.deck.reduce((total, card) => total + normalizeQuantity(card.quantity), 0);
+}
+
+function getSectionTotal(sectionKey) {
+  return state.deck
+    .filter((card) => normalizeDeckSection(card.section) === sectionKey)
+    .reduce((total, card) => total + normalizeQuantity(card.quantity), 0);
+}
+
+function getSideboardPoints() {
+  return state.deck
+    .filter((card) => normalizeDeckSection(card.section) === "sideboard")
+    .reduce((total, card) => {
+      const pointsEach = isMaterialCard(card) ? 3 : 1;
+      return total + pointsEach * normalizeQuantity(card.quantity);
+    }, 0);
+}
+
+function getDeckValidation() {
+  const materialTotal = getSectionTotal("material");
+  const mainTotal = getSectionTotal("main");
+  const sideTotal = getSectionTotal("sideboard");
+  const sidePoints = getSideboardPoints();
+  const materialCards = state.deck.filter((card) => normalizeDeckSection(card.section) === "material");
+  const hasLevelZeroChampion = materialCards.some(
+    (card) => isChampionCard(card) && Number(card.level) === 0,
+  );
+  const materialOvercopies = materialCards.filter((card) => normalizeQuantity(card.quantity) > 1);
+  const mainOvercopies = state.deck.filter(
+    (card) => normalizeDeckSection(card.section) === "main" && normalizeQuantity(card.quantity) > 4,
+  );
+
+  return [
+    {
+      ok: materialTotal > 0 && materialTotal <= 12,
+      message:
+        materialTotal === 0
+          ? "Material deck needs cards (max 12)."
+          : materialTotal <= 12
+            ? `Material deck size OK (${materialTotal}/12).`
+            : `Material deck is over limit (${materialTotal}/12).`,
+    },
+    {
+      ok: hasLevelZeroChampion,
+      message: hasLevelZeroChampion
+        ? "Material deck includes a Level 0 champion."
+        : "Material deck needs at least one Level 0 champion.",
+    },
+    {
+      ok: materialOvercopies.length === 0,
+      message:
+        materialOvercopies.length === 0
+          ? "Material copies OK (max 1 each)."
+          : `Material copy limit exceeded: ${materialOvercopies.map((card) => card.name).join(", ")}.`,
+    },
+    {
+      ok: mainTotal >= 60,
+      message:
+        mainTotal >= 60
+          ? `Main deck size OK (${mainTotal}/60+).`
+          : `Main deck needs ${60 - mainTotal} more card${60 - mainTotal === 1 ? "" : "s"} (currently ${mainTotal}).`,
+    },
+    {
+      ok: mainOvercopies.length === 0,
+      message:
+        mainOvercopies.length === 0
+          ? "Main copies OK (max 4 each)."
+          : `Main copy limit exceeded: ${mainOvercopies.map((card) => card.name).join(", ")}.`,
+    },
+    {
+      ok: sideTotal <= 15 && sidePoints <= SIDEBOARD_POINT_LIMIT,
+      message:
+        sideTotal === 0 && sidePoints === 0
+          ? "Sideboard empty (optional, max 15 cards / 15 points)."
+          : sideTotal <= 15 && sidePoints <= SIDEBOARD_POINT_LIMIT
+            ? `Sideboard OK (${sideTotal} cards, ${sidePoints} points).`
+            : `Sideboard over limit (${sideTotal} cards, ${sidePoints} points; max 15 / ${SIDEBOARD_POINT_LIMIT}).`,
+    },
+  ];
 }
 
 function buildShareUrl() {

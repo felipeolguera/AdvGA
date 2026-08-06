@@ -628,10 +628,112 @@ h1 {
   font-weight: 900;
 }
 
+.deck-name-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.deck-name-field input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0 14px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.deck-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.deck-stat-chip {
+  display: grid;
+  gap: 2px;
+  min-width: 108px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.deck-stat-chip strong {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.deck-stat-chip span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.deck-stat-chip.ok {
+  border-color: rgba(120, 210, 150, 0.45);
+  background: rgba(80, 170, 120, 0.14);
+}
+
+.deck-stat-chip.warn {
+  border-color: rgba(227, 100, 93, 0.5);
+  background: rgba(227, 100, 93, 0.12);
+}
+
+.deck-validation {
+  margin-bottom: 12px;
+}
+
+.deck-validation-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-validation-list li {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.86rem;
+}
+
+.deck-validation-list li.ok {
+  border-color: rgba(120, 210, 150, 0.35);
+  color: #d7f5e3;
+}
+
+.deck-validation-list li.fail {
+  border-color: rgba(227, 100, 93, 0.45);
+  color: #ffd0cd;
+}
+
+.deck-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .deck-list {
   display: grid;
   gap: 8px;
-  max-height: 230px;
+  max-height: 360px;
   overflow: auto;
 }
 
@@ -801,6 +903,83 @@ h1 {
 
 .deck-quantity-field select {
   width: 64px;
+}
+
+.import-dialog {
+  width: min(720px, calc(100% - 18px));
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 0;
+  color: var(--text);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.import-dialog::backdrop {
+  background: rgba(6, 5, 10, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.import-dialog-shell {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+}
+
+.import-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.import-dialog-header h2 {
+  margin-bottom: 6px;
+}
+
+.import-label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.import-label textarea {
+  width: 100%;
+  min-height: 240px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  resize: vertical;
+}
+
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.import-actions button[type="submit"] {
+  min-height: 42px;
+  border: 0;
+  border-radius: 13px;
+  padding: 0 16px;
+  color: #170f0b;
+  background: linear-gradient(135deg, var(--gold-strong), var(--gold));
+  font-weight: 900;
+}
+
+.import-dialog code {
+  color: var(--gold-strong);
 }
 
 .result-quantity-control {
