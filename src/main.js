@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.29";
+const APP_VERSION = "0.30";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -151,6 +151,7 @@ const state = {
 const app = document.querySelector("#app");
 
 app.innerHTML = `
+  <p class="app-version" aria-label="App version">v${APP_VERSION}</p>
   <main class="page-shell">
     <section class="hero" id="card-search" aria-labelledby="app-title">
       <div>
@@ -274,8 +275,6 @@ app.innerHTML = `
     <div class="actions">
       <button class="secondary hidden" type="button" id="load-more">Load more</button>
     </div>
-
-    <footer class="app-version" aria-label="App version">v${APP_VERSION}</footer>
   </main>
 
   <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
