@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.26";
+const APP_VERSION = "0.27";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -2296,7 +2296,7 @@ function handleSectionDeckClick(event) {
   if (suggestion) {
     event.preventDefault();
     state.deckAutocomplete.activeIndex = Number(suggestion.dataset.autocompleteIndex);
-    addDeckAutocompleteSelection();
+    addDeckAutocompleteSelection({ sourceButton: suggestion });
   }
 }
 
@@ -2346,7 +2346,7 @@ async function handleSectionDeckSubmit(event) {
   await addDeckAutocompleteSelection();
 }
 
-async function addDeckAutocompleteSelection() {
+async function addDeckAutocompleteSelection({ sourceButton = null } = {}) {
   const searchInput = getSectionSearchInput();
   const statusEl = getSectionSearchStatus();
   const query = (searchInput?.value || state.deckAutocomplete.query || "").trim();
@@ -2375,6 +2375,13 @@ async function addDeckAutocompleteSelection() {
     state.deckAutocomplete.activeIndex = 0;
   }
 
+  const animatedButton =
+    sourceButton ||
+    getActiveDeckList().querySelector(`[data-autocomplete-index="${activeIndex}"]`);
+  if (animatedButton) {
+    await playCardAddedAnimation(animatedButton);
+  }
+
   addCardToDeck(card, 1, targetSection);
   showDeckToast("Added");
 
@@ -2383,6 +2390,42 @@ async function addDeckAutocompleteSelection() {
     freshStatus.textContent = `Added ${card.name}. Tap another suggestion to keep adding.`;
   }
   getSectionSearchInput()?.focus();
+}
+
+function playCardAddedAnimation(button) {
+  return new Promise((resolve) => {
+    const card = button.closest(".deck-autocomplete-card") || button;
+    const host = button.classList?.contains("deck-autocomplete-card-button")
+      ? button
+      : card.querySelector(".deck-autocomplete-card-button") || button;
+
+    card.classList.remove("card-added-pop");
+    host.querySelector(".card-added-overlay")?.remove();
+
+    const overlay = document.createElement("span");
+    overlay.className = "card-added-overlay";
+    overlay.innerHTML = `<span class="card-added-check" aria-hidden="true">✓</span><span>Added</span>`;
+    host.append(overlay);
+
+    // Force reflow so the animation retriggers on rapid multi-adds.
+    void card.offsetWidth;
+    card.classList.add("card-added-pop");
+
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      card.removeEventListener("animationend", onEnd);
+      resolve();
+    };
+    const onEnd = (event) => {
+      if (event.target === card || event.target === overlay) {
+        done();
+      }
+    };
+    card.addEventListener("animationend", onEnd);
+    window.setTimeout(done, 520);
+  });
 }
 
 function showDeckToast(message = "Added") {
@@ -2398,6 +2441,8 @@ function showDeckToast(message = "Added") {
   });
   toast.textContent = message;
   toast.hidden = false;
+  // Retrigger toast entrance animation.
+  void toast.offsetWidth;
   toast.classList.add("show");
   state.deckToastTimer = window.setTimeout(() => {
     hideDeckToast();
