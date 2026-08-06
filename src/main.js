@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.25";
+const APP_VERSION = "0.26";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -212,31 +212,33 @@ app.innerHTML = `
         <div class="chips" id="chips"></div>
         <p class="hint" id="search-explanation"></p>
       </article>
+    </section>
 
-      <article class="panel deck-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Deck Builder</p>
-            <h2>Deck Builder <span id="deck-count">0</span></h2>
-          </div>
-          <div class="button-pair">
-            <button class="secondary compact" type="button" id="open-deck-fullscreen">Fullscreen</button>
-            <button class="secondary compact" type="button" id="export-deck">Copy export</button>
-            <button class="ghost compact" type="button" id="clear-deck">Clear</button>
-          </div>
+    <section class="panel deck-panel deck-panel-home" id="deck-builder" aria-labelledby="deck-builder-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Deck Builder</p>
+          <h2 id="deck-builder-title">Deck Builder <span id="deck-count">0</span></h2>
         </div>
-        <label class="deck-name-field" for="deck-name">
-          Deck name
-          <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
-        </label>
-        <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
-        <div class="deck-validation" id="deck-validation" aria-live="polite"></div>
-        <div class="deck-list" id="deck-list"></div>
-        <div class="deck-toolbar">
+        <div class="button-pair">
+          <button class="secondary compact" type="button" id="open-deck-fullscreen">Fullscreen</button>
+          <button class="secondary compact" type="button" id="export-deck">Copy export</button>
           <button class="secondary compact" type="button" id="import-deck">Import list</button>
           <button class="secondary compact" type="button" id="download-deck">Download .txt</button>
+          <button class="ghost compact" type="button" id="clear-deck">Clear</button>
         </div>
-      </article>
+      </div>
+      <label class="deck-name-field" for="deck-name">
+        Deck name
+        <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
+      </label>
+      <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
+      <details class="deck-validation-details deck-validation-home">
+        <summary id="deck-validation-summary-home">Deck legality</summary>
+        <div class="deck-validation" id="deck-validation" aria-live="polite"></div>
+      </details>
+      <div class="deck-list deck-list-home" id="deck-list"></div>
+      <div class="deck-toast deck-toast-home" id="deck-toast-home" role="status" aria-live="polite" hidden>Added</div>
     </section>
 
     <details class="panel advanced-panel" id="advanced-panel">
@@ -396,7 +398,9 @@ const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen
 const goCardSearchButton = document.querySelector("#go-card-search");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
 const deckToastEl = document.querySelector("#deck-toast");
+const deckToastHomeEl = document.querySelector("#deck-toast-home");
 const cardSearchSection = document.querySelector("#card-search");
+const deckBuilderSection = document.querySelector("#deck-builder");
 const importDialog = document.querySelector("#import-dialog");
 const importForm = document.querySelector("#import-form");
 const importText = document.querySelector("#import-text");
@@ -525,15 +529,18 @@ deckFullscreen.addEventListener("click", (event) => {
 deckFullscreen.addEventListener("close", () => {
   resetDeckAutocomplete();
   hideDeckToast();
+  renderDeck();
 });
-deckListFullscreenEl.addEventListener("click", handleFullscreenDeckClick);
-deckListFullscreenEl.addEventListener("input", handleFullscreenDeckInput);
-deckListFullscreenEl.addEventListener("keydown", handleFullscreenDeckKeydown);
-deckListFullscreenEl.addEventListener("submit", handleFullscreenDeckSubmit);
-deckListFullscreenEl.addEventListener("mousedown", (event) => {
-  if (event.target.closest("[data-autocomplete-index]")) {
-    event.preventDefault();
-  }
+[deckListEl, deckListFullscreenEl].forEach((deckList) => {
+  deckList.addEventListener("click", handleSectionDeckClick);
+  deckList.addEventListener("input", handleSectionDeckInput);
+  deckList.addEventListener("keydown", handleSectionDeckKeydown);
+  deckList.addEventListener("submit", handleSectionDeckSubmit);
+  deckList.addEventListener("mousedown", (event) => {
+    if (event.target.closest("[data-autocomplete-index]")) {
+      event.preventDefault();
+    }
+  });
 });
 closeImportDialogButton.addEventListener("click", () => importDialog.close());
 cancelImportButton.addEventListener("click", () => importDialog.close());
@@ -603,7 +610,6 @@ renderSortOptions();
 renderRecentSearches();
 renderDeck();
 updateScrollTopVisibility();
-openFullscreenDeckBuilder();
 
 loadOptions().then(() => {
   input.value = state.query;
@@ -612,10 +618,10 @@ loadOptions().then(() => {
 });
 
 function openFullscreenDeckBuilder() {
-  renderDeck();
   if (!deckFullscreen.open) {
     deckFullscreen.showModal();
   }
+  renderDeck();
 }
 
 function goToCardSearch() {
@@ -633,6 +639,14 @@ function goToCardSearch() {
   }
 
   focusSearch();
+}
+
+function getActiveDeckList() {
+  return deckFullscreen.open ? deckListFullscreenEl : deckListEl;
+}
+
+function getActiveDeckToast() {
+  return deckFullscreen.open ? deckToastEl : deckToastHomeEl;
 }
 
 async function loadOptions() {
@@ -1465,24 +1479,26 @@ function renderDeck() {
   renderDeckValidation(deckValidationEl);
   renderDeckValidation(deckValidationFullscreenEl);
   renderDeckValidationSummary();
-  renderDeckInto(deckListEl, { fullscreen: false });
-  renderDeckInto(deckListFullscreenEl, { fullscreen: true });
+  renderDeckInto(deckListEl, { grid: true, showSearch: !deckFullscreen.open });
+  renderDeckInto(deckListFullscreenEl, { grid: true, showSearch: deckFullscreen.open });
 }
 
 function renderDeckValidationSummary() {
-  const summary = document.querySelector("#deck-validation-summary");
-  if (!summary) return;
-  if (state.deck.length === 0) {
-    summary.textContent = "Deck legality";
-    return;
-  }
   const checks = getDeckValidation();
-  const failed = checks.filter((check) => !check.ok).length;
-  summary.textContent = failed
-    ? `Deck legality · ${failed} issue${failed === 1 ? "" : "s"}`
-    : "Deck legality · all checks passed";
-  summary.classList.toggle("has-issues", failed > 0);
-  summary.classList.toggle("all-ok", failed === 0);
+  const failed = state.deck.length === 0 ? 0 : checks.filter((check) => !check.ok).length;
+  const label = state.deck.length === 0
+    ? "Deck legality"
+    : failed
+      ? `Deck legality · ${failed} issue${failed === 1 ? "" : "s"}`
+      : "Deck legality · all checks passed";
+
+  ["#deck-validation-summary", "#deck-validation-summary-home"].forEach((selector) => {
+    const summary = document.querySelector(selector);
+    if (!summary) return;
+    summary.textContent = label;
+    summary.classList.toggle("has-issues", state.deck.length > 0 && failed > 0);
+    summary.classList.toggle("all-ok", state.deck.length > 0 && failed === 0);
+  });
 }
 
 function renderDeckStats(container) {
@@ -1534,26 +1550,18 @@ function renderDeckValidation(container) {
   container.append(list);
 }
 
-function renderDeckInto(container, { fullscreen }) {
+function renderDeckInto(container, { grid = true, showSearch = false } = {}) {
   container.replaceChildren();
-
-  if (!fullscreen && state.deck.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "hint";
-    empty.textContent = "Add cards from results or the lightbox, set quantities, choose a deck section, then copy or download the export.";
-    container.append(empty);
-    return;
-  }
 
   DECK_SECTIONS.forEach((section) => {
     const sectionCards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
     const group = document.createElement("section");
-    group.className = fullscreen ? "deck-section-group deck-section-grid-group" : "deck-section-group";
+    group.className = grid ? "deck-section-group deck-section-grid-group" : "deck-section-group";
     group.dataset.deckSectionGroup = section.key;
 
-    if (fullscreen) {
+    if (grid) {
       group.append(createFullscreenSectionHeader(section, sectionCards));
-      if (state.deckAutocomplete.section === section.key) {
+      if (showSearch && state.deckAutocomplete.section === section.key) {
         group.append(createSectionAutocomplete(section));
       }
       if (sectionCards.length === 0) {
@@ -1562,10 +1570,10 @@ function renderDeckInto(container, { fullscreen }) {
         empty.textContent = "No cards in this section yet.";
         group.append(empty);
       } else {
-        const grid = document.createElement("div");
-        grid.className = "deck-card-grid";
-        sectionCards.forEach((card) => grid.append(createDeckGridCard(card)));
-        group.append(grid);
+        const gridEl = document.createElement("div");
+        gridEl.className = "deck-card-grid";
+        sectionCards.forEach((card) => gridEl.append(createDeckGridCard(card)));
+        group.append(gridEl);
       }
     } else {
       const heading = document.createElement("h3");
@@ -1585,7 +1593,7 @@ function renderDeckInto(container, { fullscreen }) {
     container.append(group);
   });
 
-  if (fullscreen && state.deckAutocomplete.section) {
+  if (showSearch && state.deckAutocomplete.section) {
     renderDeckAutocompleteList();
     window.setTimeout(() => {
       const searchInput = getSectionSearchInput();
@@ -1631,6 +1639,7 @@ function createSectionAutocomplete(section) {
 
   const searchInput = document.createElement("input");
   searchInput.id = "deck-card-search";
+  searchInput.dataset.deckCardSearch = "true";
   searchInput.name = "deckCardSearch";
   searchInput.type = "search";
   searchInput.enterKeyHint = "search";
@@ -1654,12 +1663,14 @@ function createSectionAutocomplete(section) {
   const list = document.createElement("ul");
   list.className = "deck-autocomplete-list deck-autocomplete-grid";
   list.id = "deck-autocomplete-list";
+  list.dataset.deckAutocompleteList = "true";
   list.setAttribute("role", "listbox");
   list.hidden = state.deckAutocomplete.results.length === 0;
 
   const status = document.createElement("p");
   status.className = "hint deck-autocomplete-status";
   status.id = "deck-autocomplete-status";
+  status.dataset.deckAutocompleteStatus = "true";
   status.setAttribute("aria-live", "polite");
   status.textContent = state.deckAutocomplete.loading
     ? "Searching cards…"
@@ -2105,15 +2116,15 @@ async function searchCardsByName(name, pageSize = 8) {
 }
 
 function getSectionSearchInput() {
-  return deckListFullscreenEl.querySelector("#deck-card-search");
+  return getActiveDeckList().querySelector("[data-deck-card-search]");
 }
 
 function getSectionSearchList() {
-  return deckListFullscreenEl.querySelector("#deck-autocomplete-list");
+  return getActiveDeckList().querySelector("[data-deck-autocomplete-list]");
 }
 
 function getSectionSearchStatus() {
-  return deckListFullscreenEl.querySelector("#deck-autocomplete-status");
+  return getActiveDeckList().querySelector("[data-deck-autocomplete-status]");
 }
 
 function resetDeckAutocomplete() {
@@ -2274,7 +2285,7 @@ function renderDeckAutocompleteList() {
   }
 }
 
-function handleFullscreenDeckClick(event) {
+function handleSectionDeckClick(event) {
   const openButton = event.target.closest("[data-open-section-search]");
   if (openButton) {
     openSectionSearch(openButton.dataset.openSectionSearch);
@@ -2289,14 +2300,14 @@ function handleFullscreenDeckClick(event) {
   }
 }
 
-function handleFullscreenDeckInput(event) {
-  if (event.target.id === "deck-card-search") {
+function handleSectionDeckInput(event) {
+  if (event.target.matches("[data-deck-card-search]")) {
     scheduleDeckAutocomplete(event.target.value);
   }
 }
 
-function handleFullscreenDeckKeydown(event) {
-  if (event.target.id !== "deck-card-search") {
+function handleSectionDeckKeydown(event) {
+  if (!event.target.matches("[data-deck-card-search]")) {
     return;
   }
 
@@ -2326,7 +2337,7 @@ function handleFullscreenDeckKeydown(event) {
   }
 }
 
-async function handleFullscreenDeckSubmit(event) {
+async function handleSectionDeckSubmit(event) {
   const form = event.target.closest("[data-section-search]");
   if (!form) {
     return;
@@ -2375,25 +2386,31 @@ async function addDeckAutocompleteSelection() {
 }
 
 function showDeckToast(message = "Added") {
-  if (!deckToastEl) {
+  const toast = getActiveDeckToast();
+  if (!toast) {
     return;
   }
   window.clearTimeout(state.deckToastTimer);
-  deckToastEl.textContent = message;
-  deckToastEl.hidden = false;
-  deckToastEl.classList.add("show");
+  [deckToastEl, deckToastHomeEl].forEach((el) => {
+    if (!el) return;
+    el.classList.remove("show");
+    el.hidden = true;
+  });
+  toast.textContent = message;
+  toast.hidden = false;
+  toast.classList.add("show");
   state.deckToastTimer = window.setTimeout(() => {
     hideDeckToast();
   }, 1400);
 }
 
 function hideDeckToast() {
-  if (!deckToastEl) {
-    return;
-  }
   window.clearTimeout(state.deckToastTimer);
-  deckToastEl.classList.remove("show");
-  deckToastEl.hidden = true;
+  [deckToastEl, deckToastHomeEl].forEach((el) => {
+    if (!el) return;
+    el.classList.remove("show");
+    el.hidden = true;
+  });
 }
 
 function normalizeQuantity(value) {
