@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.34";
+const APP_VERSION = "0.35";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -341,7 +341,7 @@ app.innerHTML = `
       </div>
     </details>
 
-    <details class="panel collapsible-section results-panel" open>
+    <details class="panel collapsible-section results-panel" id="library" open>
       <summary class="section-summary">
         <div>
           <p class="eyebrow">Library</p>
@@ -510,7 +510,7 @@ document.querySelectorAll(".summary-action").forEach((button) => {
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  runSearch(input.value.trim(), { reset: true, remember: true });
+  runSearch(input.value.trim(), { reset: true, remember: true, scrollToLibrary: true });
 });
 
 toggleSearchFiltersButton.addEventListener("click", () => {
@@ -522,7 +522,11 @@ toggleSearchFiltersButton.addEventListener("click", () => {
 });
 
 applySearchFiltersButton.addEventListener("click", () => {
-  runSearch(input.value.trim(), { reset: true, remember: Boolean(input.value.trim()) });
+  runSearch(input.value.trim(), {
+    reset: true,
+    remember: Boolean(input.value.trim()),
+    scrollToLibrary: true,
+  });
 });
 
 clearSearchFiltersButton.addEventListener("click", () => {
@@ -531,7 +535,7 @@ clearSearchFiltersButton.addEventListener("click", () => {
   quickFilterType.value = "";
   quickFilterSubtype.value = "";
   updateSearchFiltersButtonState();
-  runSearch(input.value.trim(), { reset: true, remember: false });
+  runSearch(input.value.trim(), { reset: true, remember: false, scrollToLibrary: true });
 });
 
 [quickFilterEffect, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
@@ -542,7 +546,11 @@ clearSearchFiltersButton.addEventListener("click", () => {
 quickFilterEffect.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
-    runSearch(input.value.trim(), { reset: true, remember: Boolean(input.value.trim()) });
+    runSearch(input.value.trim(), {
+      reset: true,
+      remember: Boolean(input.value.trim()),
+      scrollToLibrary: true,
+    });
   }
 });
 
@@ -564,7 +572,7 @@ clearSearchButton.addEventListener("click", () => {
 document.querySelectorAll("[data-example]").forEach((button) => {
   button.addEventListener("click", () => {
     input.value = button.dataset.example;
-    runSearch(input.value, { reset: true, remember: true });
+    runSearch(input.value, { reset: true, remember: true, scrollToLibrary: true });
   });
 });
 
@@ -779,6 +787,17 @@ function goToCardSearch() {
   focusSearch();
 }
 
+function scrollLibraryIntoView() {
+  const library = document.querySelector("#library");
+  if (!library) {
+    return;
+  }
+  if (library.tagName === "DETAILS") {
+    library.open = true;
+  }
+  library.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function getActiveDeckList() {
   return deckFullscreen.open ? deckListFullscreenEl : deckListEl;
 }
@@ -814,7 +833,7 @@ async function loadOptions() {
   render();
 }
 
-async function runSearch(query, { reset, remember = false }) {
+async function runSearch(query, { reset, remember = false, scrollToLibrary = false } = {}) {
   const hasQuickFilters = hasActiveQuickFilters();
   if (!query && !hasQuickFilters) {
     state.cards = [];
@@ -845,6 +864,9 @@ async function runSearch(query, { reset, remember = false }) {
   state.parsed = applyQuickFilters(parseNaturalQuery(query, state.options));
   state.status = reset ? "Searching cards..." : "Loading more cards...";
   render();
+  if (scrollToLibrary) {
+    scrollLibraryIntoView();
+  }
 
   try {
     const { cards, usedFallback } = await fetchCards(state.parsed, state.page);
