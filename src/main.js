@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.23";
+const APP_VERSION = "0.24";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -509,10 +509,7 @@ deckNameInput.addEventListener("input", () => {
   state.deckName = deckNameInput.value.trim() || "Untitled Deck";
   saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
 });
-openDeckFullscreenButton.addEventListener("click", () => {
-  renderDeck();
-  deckFullscreen.showModal();
-});
+openDeckFullscreenButton.addEventListener("click", openFullscreenDeckBuilder);
 closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
 deckFullscreen.addEventListener("click", (event) => {
   if (event.target === deckFullscreen) {
@@ -600,12 +597,20 @@ renderSortOptions();
 renderRecentSearches();
 renderDeck();
 updateScrollTopVisibility();
+openFullscreenDeckBuilder();
 
 loadOptions().then(() => {
   input.value = state.query;
   updateClearSearchVisibility();
   runSearch(state.query, { reset: true, remember: false });
 });
+
+function openFullscreenDeckBuilder() {
+  renderDeck();
+  if (!deckFullscreen.open) {
+    deckFullscreen.showModal();
+  }
+}
 
 async function loadOptions() {
   try {
