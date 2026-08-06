@@ -132,6 +132,8 @@ h1 {
 }
 
 .search-card {
+  width: 100%;
+  max-width: none;
   padding: 22px;
 }
 
@@ -329,6 +331,31 @@ h1 {
   align-items: center;
   color: #ffe3b0;
   background: rgba(244, 184, 93, 0.12);
+}
+
+.library-sort {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.library-sort select {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .results-grid {

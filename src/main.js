@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.37";
+const APP_VERSION = "0.38";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -25,6 +25,14 @@ const KEYWORD_SEARCHES = [
   "draw a card",
   "deal damage",
   "target unit",
+];
+
+const LIBRARY_SORT_OPTIONS = [
+  { value: "default", label: "Default" },
+  { value: "cost-asc", label: "Cost low → high" },
+  { value: "cost-desc", label: "Cost high → low" },
+  { value: "element-asc", label: "Element A → Z" },
+  { value: "element-desc", label: "Element Z → A" },
 ];
 
 const SORT_OPTIONS = [
@@ -131,6 +139,7 @@ const state = {
   reachedEnd: false,
   recentSearches: loadStoredJson(RECENT_SEARCHES_KEY, []),
   sort: SORT_OPTIONS[0],
+  librarySort: "default",
   activeLightboxCard: null,
   resultAddedMessages: {},
   resultFeedbackTimers: {},
@@ -347,6 +356,16 @@ app.innerHTML = `
           <p class="eyebrow">Library</p>
           <h2>Search results</h2>
         </div>
+        <label class="library-sort summary-action" for="library-sort">
+          Sort
+          <select id="library-sort" class="summary-action" aria-label="Sort library results">
+            <option value="default">Default</option>
+            <option value="cost-asc">Cost low → high</option>
+            <option value="cost-desc">Cost high → low</option>
+            <option value="element-asc">Element A → Z</option>
+            <option value="element-desc">Element Z → A</option>
+          </select>
+        </label>
       </summary>
       <div class="section-body">
         <section class="results-grid" id="results" aria-label="Search results"></section>
@@ -454,6 +473,7 @@ const statusEl = document.querySelector("#status");
 const chipsEl = document.querySelector("#chips");
 const explanationEl = document.querySelector("#search-explanation");
 const resultsEl = document.querySelector("#results");
+const librarySortSelect = document.querySelector("#library-sort");
 const loadMoreButton = document.querySelector("#load-more");
 const lightbox = document.querySelector("#lightbox");
 const closeLightboxButton = document.querySelector("#close-lightbox");
@@ -501,12 +521,32 @@ const scrollTopButton = document.querySelector("#scroll-top");
 const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
 const lightboxAddedMessage = document.querySelector("#lightbox-added-message");
 
-document.querySelectorAll(".summary-action").forEach((button) => {
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
+document.querySelectorAll(".summary-action").forEach((element) => {
+  element.addEventListener("click", (event) => {
     event.stopPropagation();
+    if (element.matches("button")) {
+      event.preventDefault();
+    }
   });
 });
+
+librarySortSelect?.addEventListener("mousedown", (event) => {
+  event.stopPropagation();
+});
+librarySortSelect?.addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+librarySortSelect?.addEventListener("change", (event) => {
+  event.stopPropagation();
+  const nextSort = librarySortSelect.value;
+  state.librarySort = LIBRARY_SORT_OPTIONS.some((option) => option.value === nextSort)
+    ? nextSort
+    : "default";
+  renderCards();
+});
+if (librarySortSelect) {
+  librarySortSelect.value = state.librarySort;
+}
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -3041,10 +3081,47 @@ function renderCards() {
   }
 
   const fragment = document.createDocumentFragment();
-  for (const card of state.cards) {
+  for (const card of getSortedLibraryCards(state.cards)) {
     fragment.append(createCardButton(card));
   }
   resultsEl.append(fragment);
+}
+
+function getSortedLibraryCards(cards) {
+  const sorted = [...cards];
+  const mode = state.librarySort;
+
+  sorted.sort((left, right) => {
+    let comparison = 0;
+    if (mode === "cost-asc" || mode === "cost-desc") {
+      comparison = getCardSortCost(left) - getCardSortCost(right);
+      if (mode === "cost-desc") {
+        comparison *= -1;
+      }
+    } else if (mode === "element-asc" || mode === "element-desc") {
+      comparison = getCardSortElement(left).localeCompare(getCardSortElement(right));
+      if (mode === "element-desc") {
+        comparison *= -1;
+      }
+    }
+
+    if (comparison !== 0) {
+      return comparison;
+    }
+    return String(left.name || "").localeCompare(String(right.name || ""));
+  });
+
+  return sorted;
+}
+
+function getCardSortCost(card) {
+  const value = parseStatNumber(card.cost?.value);
+  return value == null || Number.isNaN(value) ? Number.POSITIVE_INFINITY : value;
+}
+
+function getCardSortElement(card) {
+  const elements = (card.elements || []).map((element) => normalizeText(element)).filter(Boolean);
+  return elements.sort().join(" ") || "zzz";
 }
 
 function createCardButton(card) {
