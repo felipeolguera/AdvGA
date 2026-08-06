@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.33";
+const APP_VERSION = "0.34";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -146,6 +146,7 @@ const state = {
   },
   deckToastTimer: null,
   deckShowIndividually: false,
+  searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
 };
 
@@ -192,7 +193,49 @@ app.innerHTML = `
                 aria-label="Clear search text"
               >×</button>
             </div>
+            <button type="button" class="secondary" id="toggle-search-filters" aria-expanded="false" aria-controls="search-filters">
+              Filters
+            </button>
             <button type="submit">Search</button>
+          </div>
+          <div class="search-filters" id="search-filters" hidden>
+            <div class="search-filters-grid">
+              <label class="search-filter-effect">
+                Effect
+                <input
+                  id="quick-filter-effect"
+                  name="effect"
+                  autocomplete="off"
+                  spellcheck="true"
+                  placeholder="hand AND memory"
+                />
+              </label>
+              <label>
+                Element
+                <select id="quick-filter-element" name="element">
+                  <option value="">Any</option>
+                </select>
+              </label>
+              <label>
+                Type
+                <select id="quick-filter-type" name="type">
+                  <option value="">Any</option>
+                </select>
+              </label>
+              <label>
+                Subtype
+                <select id="quick-filter-subtype" name="subtype">
+                  <option value="">Any</option>
+                </select>
+              </label>
+            </div>
+            <p class="hint search-filter-hint">
+              Use <strong>AND</strong> in Effect to require multiple words (example: <code>hand AND memory</code>).
+            </p>
+            <div class="search-filter-actions">
+              <button type="button" id="apply-search-filters">Apply filters</button>
+              <button class="ghost" type="button" id="clear-search-filters">Clear filters</button>
+            </div>
           </div>
           <datalist id="search-suggestions"></datalist>
           <div class="quick-searches" aria-label="Example searches">
@@ -399,6 +442,14 @@ app.innerHTML = `
 const form = document.querySelector("#search-form");
 const input = document.querySelector("#search-input");
 const clearSearchButton = document.querySelector("#clear-search");
+const toggleSearchFiltersButton = document.querySelector("#toggle-search-filters");
+const searchFiltersEl = document.querySelector("#search-filters");
+const quickFilterEffect = document.querySelector("#quick-filter-effect");
+const quickFilterElement = document.querySelector("#quick-filter-element");
+const quickFilterType = document.querySelector("#quick-filter-type");
+const quickFilterSubtype = document.querySelector("#quick-filter-subtype");
+const applySearchFiltersButton = document.querySelector("#apply-search-filters");
+const clearSearchFiltersButton = document.querySelector("#clear-search-filters");
 const statusEl = document.querySelector("#status");
 const chipsEl = document.querySelector("#chips");
 const explanationEl = document.querySelector("#search-explanation");
@@ -460,6 +511,39 @@ document.querySelectorAll(".summary-action").forEach((button) => {
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   runSearch(input.value.trim(), { reset: true, remember: true });
+});
+
+toggleSearchFiltersButton.addEventListener("click", () => {
+  state.searchFiltersOpen = !state.searchFiltersOpen;
+  updateSearchFiltersVisibility();
+  if (state.searchFiltersOpen) {
+    quickFilterEffect.focus();
+  }
+});
+
+applySearchFiltersButton.addEventListener("click", () => {
+  runSearch(input.value.trim(), { reset: true, remember: Boolean(input.value.trim()) });
+});
+
+clearSearchFiltersButton.addEventListener("click", () => {
+  quickFilterEffect.value = "";
+  quickFilterElement.value = "";
+  quickFilterType.value = "";
+  quickFilterSubtype.value = "";
+  updateSearchFiltersButtonState();
+  runSearch(input.value.trim(), { reset: true, remember: false });
+});
+
+[quickFilterEffect, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
+  field?.addEventListener("change", updateSearchFiltersButtonState);
+  field?.addEventListener("input", updateSearchFiltersButtonState);
+});
+
+quickFilterEffect.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    runSearch(input.value.trim(), { reset: true, remember: Boolean(input.value.trim()) });
+  }
 });
 
 input.addEventListener("input", updateClearSearchVisibility);
@@ -663,6 +747,7 @@ updateScrollTopVisibility();
 loadOptions().then(() => {
   input.value = state.query;
   updateClearSearchVisibility();
+  updateSearchFiltersVisibility();
   runSearch(state.query, { reset: true, remember: false });
 });
 
@@ -730,7 +815,8 @@ async function loadOptions() {
 }
 
 async function runSearch(query, { reset, remember = false }) {
-  if (!query) {
+  const hasQuickFilters = hasActiveQuickFilters();
+  if (!query && !hasQuickFilters) {
     state.cards = [];
     state.parsed = null;
     state.query = "";
@@ -741,7 +827,7 @@ async function runSearch(query, { reset, remember = false }) {
     return;
   }
 
-  if (remember) {
+  if (remember && query) {
     rememberSearch(query);
   }
   if (reset) {
@@ -756,7 +842,7 @@ async function runSearch(query, { reset, remember = false }) {
 
   state.loading = true;
   state.query = query;
-  state.parsed = parseNaturalQuery(query, state.options);
+  state.parsed = applyQuickFilters(parseNaturalQuery(query, state.options));
   state.status = reset ? "Searching cards..." : "Loading more cards...";
   render();
 
@@ -831,7 +917,8 @@ function buildSearchParams(parsed, page) {
   }
 
   if (parsed.effectQuery) {
-    params.set("effect", parsed.effectQuery);
+    const apiEffect = (parsed.effectTerms && parsed.effectTerms[0]) || parsed.effectQuery;
+    params.set("effect", apiEffect);
   } else if (parsed.nameQuery) {
     params.set("name", parsed.nameQuery);
   }
@@ -843,6 +930,7 @@ function parseNaturalQuery(query, options) {
   const normalized = normalizeText(query);
   const parsed = {
     effectQuery: "",
+    effectTerms: [],
     filters: {
       class: [],
       element: [],
@@ -961,6 +1049,7 @@ function parseNaturalQuery(query, options) {
   }
 
   parsed.effectQuery = normalizeEffectQuery(cleanRemainder(parsed.effectQuery, consumedPhrases));
+  parsed.effectTerms = parseEffectAndTerms(parsed.effectQuery);
   return parsed;
 }
 
@@ -1241,7 +1330,7 @@ function cardMatchesParsedQuery(card, parsed) {
     speedMatches(card, parsed.filters.speed) &&
     excludedFiltersMatch(card, parsed.excludeFilters) &&
     statFiltersMatch(card, parsed.statFilters) &&
-    effectMatches(card, parsed.effectQuery)
+    effectMatches(card, parsed.effectQuery, parsed.effectTerms)
   );
 }
 
@@ -1270,8 +1359,17 @@ function hasExcludedMatch(cardValues, excludedValues) {
   return excludedValues.length > 0 && fieldMatches(cardValues, excludedValues);
 }
 
-function effectMatches(card, effectQuery) {
-  if (!effectQuery) {
+function effectMatches(card, effectQuery, effectTerms = []) {
+  const terms = (effectTerms && effectTerms.length > 0
+    ? effectTerms
+    : effectQuery
+      ? [effectQuery]
+      : []
+  )
+    .map((term) => normalizeEffectQuery(term))
+    .filter(Boolean);
+
+  if (terms.length === 0) {
     return true;
   }
 
@@ -1286,7 +1384,81 @@ function effectMatches(card, effectQuery) {
       .join(" "),
   );
 
-  return effectText.includes(effectQuery);
+  return terms.every((term) => effectText.includes(term));
+}
+
+function parseEffectAndTerms(effectValue) {
+  const raw = String(effectValue || "").trim();
+  if (!raw) {
+    return [];
+  }
+
+  const parts = raw
+    .split(/\s+(?:AND|&&)\s+/i)
+    .map((part) => normalizeEffectQuery(part))
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts : [];
+}
+
+function hasActiveQuickFilters() {
+  return Boolean(
+    quickFilterEffect?.value.trim() ||
+      quickFilterElement?.value ||
+      quickFilterType?.value ||
+      quickFilterSubtype?.value,
+  );
+}
+
+function applyQuickFilters(parsed) {
+  const effectValue = quickFilterEffect?.value.trim() || "";
+  const element = quickFilterElement?.value || "";
+  const type = quickFilterType?.value || "";
+  const subtype = quickFilterSubtype?.value || "";
+
+  if (effectValue) {
+    const terms = parseEffectAndTerms(effectValue);
+    parsed.effectTerms = terms;
+    parsed.effectQuery = terms.length > 1 ? terms.join(" AND ") : terms[0] || normalizeEffectQuery(effectValue);
+    parsed.nameQuery = "";
+  } else if (parsed.effectQuery) {
+    parsed.effectTerms = parseEffectAndTerms(parsed.effectQuery);
+  } else {
+    parsed.effectTerms = [];
+  }
+
+  if (element) {
+    parsed.filters.element = [element];
+  }
+  if (type) {
+    parsed.filters.type = [type];
+  }
+  if (subtype) {
+    parsed.filters.subtype = [subtype];
+  }
+
+  return parsed;
+}
+
+function updateSearchFiltersVisibility() {
+  if (!searchFiltersEl || !toggleSearchFiltersButton) {
+    return;
+  }
+
+  searchFiltersEl.hidden = !state.searchFiltersOpen;
+  toggleSearchFiltersButton.setAttribute("aria-expanded", state.searchFiltersOpen ? "true" : "false");
+  toggleSearchFiltersButton.classList.toggle("active-filter-toggle", state.searchFiltersOpen || hasActiveQuickFilters());
+  updateSearchFiltersButtonState();
+}
+
+function updateSearchFiltersButtonState() {
+  if (!toggleSearchFiltersButton) {
+    return;
+  }
+
+  const active = hasActiveQuickFilters();
+  toggleSearchFiltersButton.classList.toggle("has-active-filters", active);
+  toggleSearchFiltersButton.textContent = active ? "Filters •" : "Filters";
 }
 
 function setMatches(card, requiredPrefixes = []) {
@@ -1415,6 +1587,9 @@ function renderAdvancedOptions() {
     STAT_DEFINITIONS.map((stat) => ({ text: stat.label, value: stat.key })),
     "No stat filter",
   );
+  fillSelect("#quick-filter-element", state.options.element, "Any");
+  fillSelect("#quick-filter-type", state.options.type, "Any");
+  fillSelect("#quick-filter-subtype", state.options.subtype, "Any");
 }
 
 function renderSearchSuggestions() {
@@ -2779,7 +2954,13 @@ function buildExplanation(parsed) {
   for (const match of parsed.matchedLabels) {
     parts.push(`${match.field}: ${match.text}`);
   }
-  if (parsed.effectQuery) parts.push(`Effect contains: ${parsed.effectQuery}`);
+  if (parsed.effectQuery) {
+    const effectLabel =
+      parsed.effectTerms?.length > 1
+        ? parsed.effectTerms.join(" AND ")
+        : parsed.effectQuery;
+    parts.push(`Effect contains: ${effectLabel}`);
+  }
   if (parsed.nameQuery) parts.push(`Name like: ${parsed.nameQuery}`);
   if (parts.length === 0) return "No structured filters detected; searching by card name or effect text.";
   return `Interpreted as ${parts.join("; ")}.`;
@@ -2808,7 +2989,11 @@ function renderChips() {
   }
 
   if (state.parsed.effectQuery) {
-    chipsEl.append(createChip(`Effect: ${state.parsed.effectQuery}`, [state.parsed.effectQuery]));
+    const effectLabel =
+      state.parsed.effectTerms?.length > 1
+        ? state.parsed.effectTerms.join(" AND ")
+        : state.parsed.effectQuery;
+    chipsEl.append(createChip(`Effect: ${effectLabel}`, [state.parsed.effectQuery, ...(state.parsed.effectTerms || [])]));
   } else if (state.parsed.nameQuery) {
     chipsEl.append(createChip(`Name: ${state.parsed.nameQuery}`));
   }
@@ -3030,7 +3215,11 @@ function buildStatus(count, parsed, usedFallback) {
     criteria.push(`${parsed.legality.format} ${parsed.legality.state}`);
   }
   if (parsed.effectQuery) {
-    criteria.push(`effect "${parsed.effectQuery}"`);
+    const effectLabel =
+      parsed.effectTerms?.length > 1
+        ? parsed.effectTerms.join(" AND ")
+        : parsed.effectQuery;
+    criteria.push(`effect "${effectLabel}"`);
   } else if (parsed.nameQuery) {
     criteria.push(`name "${parsed.nameQuery}"`);
   }
