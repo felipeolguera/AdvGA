@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.27";
+const APP_VERSION = "0.28";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -221,7 +221,6 @@ app.innerHTML = `
           <h2 id="deck-builder-title">Deck Builder <span id="deck-count">0</span></h2>
         </div>
         <div class="button-pair">
-          <button class="secondary compact" type="button" id="open-deck-fullscreen">Fullscreen</button>
           <button class="secondary compact" type="button" id="export-deck">Copy export</button>
           <button class="secondary compact" type="button" id="import-deck">Import list</button>
           <button class="secondary compact" type="button" id="download-deck">Download .txt</button>
