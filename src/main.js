@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.24";
+const APP_VERSION = "0.25";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -152,7 +152,7 @@ const app = document.querySelector("#app");
 
 app.innerHTML = `
   <main class="page-shell">
-    <section class="hero" aria-labelledby="app-title">
+    <section class="hero" id="card-search" aria-labelledby="app-title">
       <div>
         <p class="eyebrow">Grand Archive TCG Deck Builder</p>
         <h1 id="app-title">Grand Archive Advanced Book by RPGgamerPH</h1>
@@ -312,7 +312,10 @@ app.innerHTML = `
           <h2 id="deck-fullscreen-title">Fullscreen Deck List</h2>
           <p class="hint">Use Add card in Material, Main Deck, or Sideboard, then browse the image grid.</p>
         </div>
-        <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
+        <div class="deck-fullscreen-header-actions">
+          <button class="secondary compact" type="button" id="go-card-search">Card search</button>
+          <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
+        </div>
       </header>
       <div class="deck-stats deck-stats-fullscreen" id="deck-stats-fullscreen" aria-live="polite"></div>
       <details class="deck-validation-details">
@@ -390,8 +393,10 @@ const clearDeckButton = document.querySelector("#clear-deck");
 const clearDeckFullscreenButton = document.querySelector("#clear-deck-fullscreen");
 const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen");
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
+const goCardSearchButton = document.querySelector("#go-card-search");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
 const deckToastEl = document.querySelector("#deck-toast");
+const cardSearchSection = document.querySelector("#card-search");
 const importDialog = document.querySelector("#import-dialog");
 const importForm = document.querySelector("#import-form");
 const importText = document.querySelector("#import-text");
@@ -511,6 +516,7 @@ deckNameInput.addEventListener("input", () => {
 });
 openDeckFullscreenButton.addEventListener("click", openFullscreenDeckBuilder);
 closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
+goCardSearchButton.addEventListener("click", goToCardSearch);
 deckFullscreen.addEventListener("click", (event) => {
   if (event.target === deckFullscreen) {
     deckFullscreen.close();
@@ -610,6 +616,16 @@ function openFullscreenDeckBuilder() {
   if (!deckFullscreen.open) {
     deckFullscreen.showModal();
   }
+}
+
+function goToCardSearch() {
+  if (deckFullscreen.open) {
+    deckFullscreen.close();
+  }
+  window.requestAnimationFrame(() => {
+    cardSearchSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+    input.focus({ preventScroll: true });
+  });
 }
 
 async function loadOptions() {

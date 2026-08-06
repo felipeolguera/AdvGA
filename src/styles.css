@@ -1039,6 +1039,13 @@ h1 {
   margin-bottom: 6px;
 }
 
+.deck-fullscreen-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .deck-close {
   position: static !important;
   flex: 0 0 auto;
