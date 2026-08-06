@@ -252,38 +252,60 @@ h1 {
 
 .results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
 }
 
-.card-tile {
+.card-tile,
+.result-grid-card {
+  position: relative;
   display: grid;
-  gap: 12px;
+  gap: 0;
   width: 100%;
+  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 24px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 0;
   color: inherit;
   text-align: left;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  aspect-ratio: 0.716;
   transition:
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
 }
 
-.card-tile:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.1);
+.card-tile:hover,
+.result-grid-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 204, 115, 0.45);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.card-tile.in-deck {
+.card-tile.in-deck,
+.result-grid-card.in-deck {
   border-color: rgba(255, 204, 115, 0.72);
-  background: rgba(244, 184, 93, 0.12);
-  box-shadow:
-    0 14px 40px rgba(0, 0, 0, 0.18),
-    inset 0 0 0 1px rgba(255, 204, 115, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 204, 115, 0.18);
+}
+
+.result-grid-card-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.result-grid-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .card-image-wrap {
@@ -299,6 +321,10 @@ h1 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.result-grid-qty {
+  z-index: 3;
 }
 
 .placeholder-card {
@@ -1448,33 +1474,11 @@ h1 {
   color: var(--gold-strong);
 }
 
-.result-quantity-control {
-  position: relative;
-  display: grid;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.result-quantity-control select {
-  width: 100%;
-  min-height: 36px;
-  border: 1px solid rgba(255, 204, 115, 0.5);
-  border-radius: 4px;
-  padding: 0 10px;
-  color: var(--gold-strong);
-  background: rgba(244, 184, 93, 0.11);
-  font-weight: 900;
-}
-
 .result-added-message {
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 6px);
-  z-index: 3;
+  top: 8px;
+  left: 50%;
+  z-index: 4;
   border: 1px solid rgba(255, 204, 115, 0.65);
   border-radius: 999px;
   padding: 5px 9px;
@@ -1487,32 +1491,14 @@ h1 {
   opacity: 0;
   pointer-events: none;
   text-transform: none;
-  transform: translateY(4px);
+  transform: translate(-50%, 4px);
   transition: opacity 160ms ease, transform 160ms ease;
   white-space: nowrap;
 }
 
 .result-added-message.show {
   opacity: 1;
-  transform: translateY(0);
-}
-
-.result-deck-indicator {
-  display: inline-flex;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  padding: 5px 8px;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 0.76rem;
-  font-weight: 900;
-}
-
-.card-tile.in-deck .result-deck-indicator {
-  border-color: rgba(255, 204, 115, 0.55);
-  color: #ffe3b0;
-  background: rgba(244, 184, 93, 0.16);
+  transform: translate(-50%, 0);
 }
 
 .skeleton-card {
@@ -1580,8 +1566,8 @@ h1 {
   }
 
   .results-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px;
   }
 
   .deck-row,
