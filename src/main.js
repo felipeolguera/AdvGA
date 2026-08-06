@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.17";
+const APP_VERSION = "0.18";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -135,6 +135,14 @@ const state = {
   resultAddedMessages: {},
   resultFeedbackTimers: {},
   resultSelectedQuantities: {},
+  deckAutocomplete: {
+    query: "",
+    results: [],
+    loading: false,
+    activeIndex: -1,
+    requestId: 0,
+    timer: null,
+  },
   status: "Loading Grand Archive card terms...",
 };
 
@@ -300,12 +308,35 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">Deck Builder</p>
           <h2 id="deck-fullscreen-title">Fullscreen Deck List</h2>
-          <p class="hint">Edit quantities and sections with larger mobile-friendly controls.</p>
+          <p class="hint">Search cards by name to autocomplete-add them, then edit quantities and sections.</p>
         </div>
         <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
       </header>
       <div class="deck-stats deck-stats-fullscreen" id="deck-stats-fullscreen" aria-live="polite"></div>
       <div class="deck-validation" id="deck-validation-fullscreen" aria-live="polite"></div>
+      <form class="deck-autocomplete" id="deck-autocomplete-form" autocomplete="off">
+        <label class="deck-autocomplete-label" for="deck-card-search">
+          Add card by name
+          <div class="deck-autocomplete-row">
+            <input
+              id="deck-card-search"
+              name="deckCardSearch"
+              type="search"
+              enterkeyhint="search"
+              spellcheck="false"
+              autocomplete="off"
+              autocapitalize="off"
+              placeholder="Start typing a card name…"
+              aria-autocomplete="list"
+              aria-controls="deck-autocomplete-list"
+              aria-expanded="false"
+            />
+            <button class="secondary compact" type="submit">Add</button>
+          </div>
+        </label>
+        <ul class="deck-autocomplete-list" id="deck-autocomplete-list" role="listbox" hidden></ul>
+        <p class="hint deck-autocomplete-status" id="deck-autocomplete-status" aria-live="polite"></p>
+      </form>
       <div class="deck-fullscreen-actions">
         <button class="secondary compact" type="button" id="export-deck-fullscreen">Copy export</button>
         <button class="secondary compact" type="button" id="import-deck-fullscreen">Import list</button>
@@ -377,6 +408,10 @@ const clearDeckFullscreenButton = document.querySelector("#clear-deck-fullscreen
 const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen");
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
+const deckAutocompleteForm = document.querySelector("#deck-autocomplete-form");
+const deckCardSearchInput = document.querySelector("#deck-card-search");
+const deckAutocompleteList = document.querySelector("#deck-autocomplete-list");
+const deckAutocompleteStatus = document.querySelector("#deck-autocomplete-status");
 const importDialog = document.querySelector("#import-dialog");
 const importForm = document.querySelector("#import-form");
 const importText = document.querySelector("#import-text");
@@ -497,12 +532,32 @@ deckNameInput.addEventListener("input", () => {
 openDeckFullscreenButton.addEventListener("click", () => {
   renderDeck();
   deckFullscreen.showModal();
+  resetDeckAutocomplete({ focus: true });
 });
 closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
 deckFullscreen.addEventListener("click", (event) => {
   if (event.target === deckFullscreen) {
     deckFullscreen.close();
   }
+});
+deckFullscreen.addEventListener("close", () => {
+  resetDeckAutocomplete();
+});
+deckCardSearchInput.addEventListener("input", () => {
+  scheduleDeckAutocomplete(deckCardSearchInput.value);
+});
+deckCardSearchInput.addEventListener("keydown", handleDeckAutocompleteKeydown);
+deckAutocompleteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await addDeckAutocompleteSelection();
+});
+deckAutocompleteList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-autocomplete-index]");
+  if (!button) {
+    return;
+  }
+  state.deckAutocomplete.activeIndex = Number(button.dataset.autocompleteIndex);
+  await addDeckAutocompleteSelection();
 });
 closeImportDialogButton.addEventListener("click", () => importDialog.close());
 cancelImportButton.addEventListener("click", () => importDialog.close());
@@ -1855,19 +1910,204 @@ function parseDeckImport(rawText) {
 }
 
 async function lookupCardByName(name) {
+  const cards = await searchCardsByName(name, 8);
+  const exact = cards.find((card) => card.name.toLowerCase() === name.toLowerCase());
+  return exact || cards[0] || null;
+}
+
+async function searchCardsByName(name, pageSize = 8) {
   const params = new URLSearchParams({
     name,
     page: "1",
-    page_size: "8",
+    page_size: String(pageSize),
+    sort: "name",
+    order: "ASC",
   });
   const response = await fetch(`${API_BASE}/cards/search?${params}`);
   if (!response.ok) {
     throw new Error(`Lookup failed for ${name}`);
   }
   const payload = await response.json();
-  const cards = payload.data || [];
-  const exact = cards.find((card) => card.name.toLowerCase() === name.toLowerCase());
-  return exact || cards[0] || null;
+  return payload.data || [];
+}
+
+function resetDeckAutocomplete({ focus = false } = {}) {
+  window.clearTimeout(state.deckAutocomplete.timer);
+  state.deckAutocomplete = {
+    query: "",
+    results: [],
+    loading: false,
+    activeIndex: -1,
+    requestId: state.deckAutocomplete.requestId + 1,
+    timer: null,
+  };
+  deckCardSearchInput.value = "";
+  deckCardSearchInput.setAttribute("aria-expanded", "false");
+  deckAutocompleteList.hidden = true;
+  deckAutocompleteList.replaceChildren();
+  deckAutocompleteStatus.textContent = "Type a card name to autocomplete and add it to your deck.";
+  if (focus) {
+    window.setTimeout(() => deckCardSearchInput.focus(), 30);
+  }
+}
+
+function scheduleDeckAutocomplete(rawQuery) {
+  const query = rawQuery.trim();
+  state.deckAutocomplete.query = query;
+  window.clearTimeout(state.deckAutocomplete.timer);
+
+  if (query.length < 2) {
+    state.deckAutocomplete.results = [];
+    state.deckAutocomplete.activeIndex = -1;
+    state.deckAutocomplete.loading = false;
+    renderDeckAutocompleteList();
+    deckAutocompleteStatus.textContent =
+      query.length === 0
+        ? "Type a card name to autocomplete and add it to your deck."
+        : "Keep typing — enter at least 2 characters.";
+    return;
+  }
+
+  state.deckAutocomplete.loading = true;
+  deckAutocompleteStatus.textContent = "Searching cards…";
+  state.deckAutocomplete.timer = window.setTimeout(() => {
+    runDeckAutocomplete(query);
+  }, 220);
+}
+
+async function runDeckAutocomplete(query) {
+  const requestId = state.deckAutocomplete.requestId + 1;
+  state.deckAutocomplete.requestId = requestId;
+
+  try {
+    const results = await searchCardsByName(query, 10);
+    if (requestId !== state.deckAutocomplete.requestId || state.deckAutocomplete.query !== query) {
+      return;
+    }
+    state.deckAutocomplete.results = results;
+    state.deckAutocomplete.activeIndex = results.length ? 0 : -1;
+    state.deckAutocomplete.loading = false;
+    renderDeckAutocompleteList();
+    deckAutocompleteStatus.textContent = results.length
+      ? `${results.length} match${results.length === 1 ? "" : "es"}. Tap one or press Enter to add.`
+      : `No cards matched “${query}”.`;
+  } catch {
+    if (requestId !== state.deckAutocomplete.requestId) {
+      return;
+    }
+    state.deckAutocomplete.results = [];
+    state.deckAutocomplete.activeIndex = -1;
+    state.deckAutocomplete.loading = false;
+    renderDeckAutocompleteList();
+    deckAutocompleteStatus.textContent = "Could not load card suggestions. Try again.";
+  }
+}
+
+function renderDeckAutocompleteList() {
+  const { results, activeIndex } = state.deckAutocomplete;
+  deckAutocompleteList.replaceChildren();
+
+  if (!results.length) {
+    deckAutocompleteList.hidden = true;
+    deckCardSearchInput.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  results.forEach((card, index) => {
+    const item = document.createElement("li");
+    item.setAttribute("role", "option");
+    item.id = `deck-autocomplete-option-${index}`;
+    item.className = "deck-autocomplete-option";
+    if (index === activeIndex) {
+      item.classList.add("active");
+      item.setAttribute("aria-selected", "true");
+    } else {
+      item.setAttribute("aria-selected", "false");
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.autocompleteIndex = String(index);
+
+    const name = document.createElement("strong");
+    name.textContent = card.name;
+
+    const meta = document.createElement("span");
+    meta.textContent = formatCardLine(card);
+
+    const section = document.createElement("em");
+    section.textContent = shortSectionLabel(defaultDeckSection(card));
+
+    button.append(name, meta, section);
+    item.append(button);
+    deckAutocompleteList.append(item);
+  });
+
+  deckAutocompleteList.hidden = false;
+  deckCardSearchInput.setAttribute("aria-expanded", "true");
+  if (activeIndex >= 0) {
+    deckCardSearchInput.setAttribute("aria-activedescendant", `deck-autocomplete-option-${activeIndex}`);
+  } else {
+    deckCardSearchInput.removeAttribute("aria-activedescendant");
+  }
+}
+
+function handleDeckAutocompleteKeydown(event) {
+  const { results, activeIndex } = state.deckAutocomplete;
+  if (!results.length) {
+    return;
+  }
+
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    state.deckAutocomplete.activeIndex = (activeIndex + 1) % results.length;
+    renderDeckAutocompleteList();
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    state.deckAutocomplete.activeIndex = activeIndex <= 0 ? results.length - 1 : activeIndex - 1;
+    renderDeckAutocompleteList();
+    return;
+  }
+
+  if (event.key === "Escape") {
+    state.deckAutocomplete.results = [];
+    state.deckAutocomplete.activeIndex = -1;
+    renderDeckAutocompleteList();
+    deckAutocompleteStatus.textContent = "Suggestions closed.";
+  }
+}
+
+async function addDeckAutocompleteSelection() {
+  const query = deckCardSearchInput.value.trim();
+  const { results, activeIndex } = state.deckAutocomplete;
+  let card = activeIndex >= 0 ? results[activeIndex] : null;
+
+  if (!card && query) {
+    deckAutocompleteStatus.textContent = "Looking up card…";
+    card = await lookupCardByName(query);
+  }
+
+  if (!card) {
+    deckAutocompleteStatus.textContent = query
+      ? `No card found for “${query}”.`
+      : "Type a card name first.";
+    return;
+  }
+
+  addCardToDeck(card, 1);
+  const entry = state.deck.find((item) => item.key === getCardKey(card));
+  const sectionTitle =
+    DECK_SECTIONS.find((section) => section.key === normalizeDeckSection(entry?.section))?.title || "deck";
+  deckCardSearchInput.value = "";
+  state.deckAutocomplete.query = "";
+  state.deckAutocomplete.results = [];
+  state.deckAutocomplete.activeIndex = -1;
+  renderDeckAutocompleteList();
+  deckAutocompleteStatus.textContent = `Added ${card.name} to ${sectionTitle}.`;
+  deckCardSearchInput.focus();
 }
 
 function normalizeQuantity(value) {
