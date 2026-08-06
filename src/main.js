@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.21";
+const APP_VERSION = "0.22";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -142,7 +142,9 @@ const state = {
     activeIndex: -1,
     requestId: 0,
     timer: null,
+    section: null,
   },
+  deckToastTimer: null,
   status: "Loading Grand Archive card terms...",
 };
 
@@ -308,7 +310,7 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">Deck Builder</p>
           <h2 id="deck-fullscreen-title">Fullscreen Deck List</h2>
-          <p class="hint">Search to add cards, then browse a minimal image grid with quantities by section.</p>
+          <p class="hint">Use Add card in Material, Main Deck, or Sideboard, then browse the image grid.</p>
         </div>
         <button class="icon-button deck-close" id="close-deck-fullscreen" aria-label="Close fullscreen deck builder">×</button>
       </header>
@@ -317,29 +319,6 @@ app.innerHTML = `
         <summary id="deck-validation-summary">Deck legality</summary>
         <div class="deck-validation" id="deck-validation-fullscreen" aria-live="polite"></div>
       </details>
-      <form class="deck-autocomplete" id="deck-autocomplete-form" autocomplete="off">
-        <label class="deck-autocomplete-label" for="deck-card-search">
-          Add card by name
-          <div class="deck-autocomplete-row">
-            <input
-              id="deck-card-search"
-              name="deckCardSearch"
-              type="search"
-              enterkeyhint="search"
-              spellcheck="false"
-              autocomplete="off"
-              autocapitalize="off"
-              placeholder="Start typing a card name…"
-              aria-autocomplete="list"
-              aria-controls="deck-autocomplete-list"
-              aria-expanded="false"
-            />
-            <button class="secondary compact" type="submit">Add</button>
-          </div>
-        </label>
-        <ul class="deck-autocomplete-list" id="deck-autocomplete-list" role="listbox" hidden></ul>
-        <p class="hint deck-autocomplete-status" id="deck-autocomplete-status" aria-live="polite"></p>
-      </form>
       <div class="deck-fullscreen-actions">
         <button class="secondary compact" type="button" id="export-deck-fullscreen">Copy export</button>
         <button class="secondary compact" type="button" id="import-deck-fullscreen">Import list</button>
@@ -347,6 +326,7 @@ app.innerHTML = `
         <button class="ghost compact" type="button" id="clear-deck-fullscreen">Clear</button>
       </div>
       <div class="deck-list deck-list-fullscreen" id="deck-list-fullscreen"></div>
+      <div class="deck-toast" id="deck-toast" role="status" aria-live="polite" hidden>Added</div>
     </div>
   </dialog>
 
@@ -411,10 +391,7 @@ const clearDeckFullscreenButton = document.querySelector("#clear-deck-fullscreen
 const openDeckFullscreenButton = document.querySelector("#open-deck-fullscreen");
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
-const deckAutocompleteForm = document.querySelector("#deck-autocomplete-form");
-const deckCardSearchInput = document.querySelector("#deck-card-search");
-const deckAutocompleteList = document.querySelector("#deck-autocomplete-list");
-const deckAutocompleteStatus = document.querySelector("#deck-autocomplete-status");
+const deckToastEl = document.querySelector("#deck-toast");
 const importDialog = document.querySelector("#import-dialog");
 const importForm = document.querySelector("#import-form");
 const importText = document.querySelector("#import-text");
@@ -535,7 +512,6 @@ deckNameInput.addEventListener("input", () => {
 openDeckFullscreenButton.addEventListener("click", () => {
   renderDeck();
   deckFullscreen.showModal();
-  resetDeckAutocomplete({ focus: true });
 });
 closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
 deckFullscreen.addEventListener("click", (event) => {
@@ -545,29 +521,16 @@ deckFullscreen.addEventListener("click", (event) => {
 });
 deckFullscreen.addEventListener("close", () => {
   resetDeckAutocomplete();
+  hideDeckToast();
 });
-deckCardSearchInput.addEventListener("input", () => {
-  scheduleDeckAutocomplete(deckCardSearchInput.value);
-});
-deckCardSearchInput.addEventListener("keydown", handleDeckAutocompleteKeydown);
-deckAutocompleteForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await addDeckAutocompleteSelection();
-});
-deckAutocompleteList.addEventListener("mousedown", (event) => {
-  // Keep the search input focused so the suggestion list stays usable for multi-add.
+deckListFullscreenEl.addEventListener("click", handleFullscreenDeckClick);
+deckListFullscreenEl.addEventListener("input", handleFullscreenDeckInput);
+deckListFullscreenEl.addEventListener("keydown", handleFullscreenDeckKeydown);
+deckListFullscreenEl.addEventListener("submit", handleFullscreenDeckSubmit);
+deckListFullscreenEl.addEventListener("mousedown", (event) => {
   if (event.target.closest("[data-autocomplete-index]")) {
     event.preventDefault();
   }
-});
-deckAutocompleteList.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-autocomplete-index]");
-  if (!button) {
-    return;
-  }
-  event.preventDefault();
-  state.deckAutocomplete.activeIndex = Number(button.dataset.autocompleteIndex);
-  await addDeckAutocompleteSelection();
 });
 closeImportDialogButton.addEventListener("click", () => importDialog.close());
 cancelImportButton.addEventListener("click", () => importDialog.close());
@@ -1545,7 +1508,8 @@ function renderDeckValidation(container) {
 
 function renderDeckInto(container, { fullscreen }) {
   container.replaceChildren();
-  if (state.deck.length === 0) {
+
+  if (!fullscreen && state.deck.length === 0) {
     const empty = document.createElement("p");
     empty.className = "hint";
     empty.textContent = "Add cards from results or the lightbox, set quantities, choose a deck section, then copy or download the export.";
@@ -1557,26 +1521,126 @@ function renderDeckInto(container, { fullscreen }) {
     const sectionCards = state.deck.filter((card) => normalizeDeckSection(card.section) === section.key);
     const group = document.createElement("section");
     group.className = fullscreen ? "deck-section-group deck-section-grid-group" : "deck-section-group";
+    group.dataset.deckSectionGroup = section.key;
 
-    const heading = document.createElement("h3");
-    heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
-    group.append(heading);
-
-    if (sectionCards.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "hint";
-      empty.textContent = "No cards in this section yet.";
-      group.append(empty);
-    } else if (fullscreen) {
-      const grid = document.createElement("div");
-      grid.className = "deck-card-grid";
-      sectionCards.forEach((card) => grid.append(createDeckGridCard(card)));
-      group.append(grid);
+    if (fullscreen) {
+      group.append(createFullscreenSectionHeader(section, sectionCards));
+      if (state.deckAutocomplete.section === section.key) {
+        group.append(createSectionAutocomplete(section));
+      }
+      if (sectionCards.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "No cards in this section yet.";
+        group.append(empty);
+      } else {
+        const grid = document.createElement("div");
+        grid.className = "deck-card-grid";
+        sectionCards.forEach((card) => grid.append(createDeckGridCard(card)));
+        group.append(grid);
+      }
     } else {
-      sectionCards.forEach((card) => group.append(createDeckRow(card)));
+      const heading = document.createElement("h3");
+      heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
+      group.append(heading);
+
+      if (sectionCards.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "No cards in this section yet.";
+        group.append(empty);
+      } else {
+        sectionCards.forEach((card) => group.append(createDeckRow(card)));
+      }
     }
+
     container.append(group);
   });
+
+  if (fullscreen && state.deckAutocomplete.section) {
+    renderDeckAutocompleteList();
+    window.setTimeout(() => {
+      const searchInput = getSectionSearchInput();
+      if (searchInput) {
+        searchInput.focus();
+        const value = searchInput.value;
+        searchInput.setSelectionRange(value.length, value.length);
+      }
+    }, 0);
+  }
+}
+
+function createFullscreenSectionHeader(section, sectionCards) {
+  const header = document.createElement("div");
+  header.className = "deck-section-header";
+
+  const heading = document.createElement("h3");
+  heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
+
+  const addButton = document.createElement("button");
+  addButton.className = "secondary compact";
+  addButton.type = "button";
+  addButton.dataset.openSectionSearch = section.key;
+  addButton.textContent = state.deckAutocomplete.section === section.key ? "Close search" : "Add card";
+
+  header.append(heading, addButton);
+  return header;
+}
+
+function createSectionAutocomplete(section) {
+  const form = document.createElement("form");
+  form.className = "deck-autocomplete deck-section-autocomplete";
+  form.dataset.sectionSearch = section.key;
+  form.autocomplete = "off";
+
+  const label = document.createElement("label");
+  label.className = "deck-autocomplete-label";
+  label.setAttribute("for", "deck-card-search");
+  label.append(`Add to ${section.title}`);
+
+  const row = document.createElement("div");
+  row.className = "deck-autocomplete-row";
+
+  const searchInput = document.createElement("input");
+  searchInput.id = "deck-card-search";
+  searchInput.name = "deckCardSearch";
+  searchInput.type = "search";
+  searchInput.enterKeyHint = "search";
+  searchInput.spellcheck = false;
+  searchInput.autocomplete = "off";
+  searchInput.autocapitalize = "off";
+  searchInput.placeholder = `Search cards for ${section.title}…`;
+  searchInput.setAttribute("aria-autocomplete", "list");
+  searchInput.setAttribute("aria-controls", "deck-autocomplete-list");
+  searchInput.setAttribute("aria-expanded", state.deckAutocomplete.results.length ? "true" : "false");
+  searchInput.value = state.deckAutocomplete.query;
+
+  const submit = document.createElement("button");
+  submit.className = "secondary compact";
+  submit.type = "submit";
+  submit.textContent = "Add";
+
+  row.append(searchInput, submit);
+  label.append(row);
+
+  const list = document.createElement("ul");
+  list.className = "deck-autocomplete-list";
+  list.id = "deck-autocomplete-list";
+  list.setAttribute("role", "listbox");
+  list.hidden = state.deckAutocomplete.results.length === 0;
+
+  const status = document.createElement("p");
+  status.className = "hint deck-autocomplete-status";
+  status.id = "deck-autocomplete-status";
+  status.setAttribute("aria-live", "polite");
+  status.textContent = state.deckAutocomplete.loading
+    ? "Searching cards…"
+    : state.deckAutocomplete.results.length
+      ? `${state.deckAutocomplete.results.length} match${state.deckAutocomplete.results.length === 1 ? "" : "es"}. Tap one to add.`
+      : "Type a card name to autocomplete.";
+
+  form.append(label, list, status);
+  return form;
 }
 
 function createDeckGridCard(card) {
@@ -1745,11 +1809,15 @@ function clearDeck() {
   renderCards();
 }
 
-function addCardToDeck(card, quantityToAdd = 1) {
+function addCardToDeck(card, quantityToAdd = 1, sectionOverride = null) {
   const key = getCardKey(card);
   const amount = normalizeQuantity(quantityToAdd);
   const existing = state.deck.find((item) => item.key === key);
-  const section = existing ? normalizeDeckSection(existing.section) : defaultDeckSection(card);
+  const section = existing
+    ? normalizeDeckSection(existing.section)
+    : sectionOverride
+      ? normalizeDeckSection(sectionOverride)
+      : defaultDeckSection(card);
   const maxQuantity = getMaxQuantityForSection(section, card);
   const image = resolveCardImage(card);
   if (existing) {
@@ -2008,7 +2076,19 @@ async function searchCardsByName(name, pageSize = 8) {
   return payload.data || [];
 }
 
-function resetDeckAutocomplete({ focus = false } = {}) {
+function getSectionSearchInput() {
+  return deckListFullscreenEl.querySelector("#deck-card-search");
+}
+
+function getSectionSearchList() {
+  return deckListFullscreenEl.querySelector("#deck-autocomplete-list");
+}
+
+function getSectionSearchStatus() {
+  return deckListFullscreenEl.querySelector("#deck-autocomplete-status");
+}
+
+function resetDeckAutocomplete() {
   window.clearTimeout(state.deckAutocomplete.timer);
   state.deckAutocomplete = {
     query: "",
@@ -2017,15 +2097,27 @@ function resetDeckAutocomplete({ focus = false } = {}) {
     activeIndex: -1,
     requestId: state.deckAutocomplete.requestId + 1,
     timer: null,
+    section: null,
   };
-  deckCardSearchInput.value = "";
-  deckCardSearchInput.setAttribute("aria-expanded", "false");
-  deckAutocompleteList.hidden = true;
-  deckAutocompleteList.replaceChildren();
-  deckAutocompleteStatus.textContent = "Type a card name to autocomplete and add it to your deck.";
-  if (focus) {
-    window.setTimeout(() => deckCardSearchInput.focus(), 30);
+}
+
+function openSectionSearch(sectionKey) {
+  const section = normalizeDeckSection(sectionKey);
+  if (state.deckAutocomplete.section === section) {
+    resetDeckAutocomplete();
+  } else {
+    window.clearTimeout(state.deckAutocomplete.timer);
+    state.deckAutocomplete = {
+      query: "",
+      results: [],
+      loading: false,
+      activeIndex: -1,
+      requestId: state.deckAutocomplete.requestId + 1,
+      timer: null,
+      section,
+    };
   }
+  renderDeck();
 }
 
 function scheduleDeckAutocomplete(rawQuery) {
@@ -2033,20 +2125,25 @@ function scheduleDeckAutocomplete(rawQuery) {
   state.deckAutocomplete.query = query;
   window.clearTimeout(state.deckAutocomplete.timer);
 
+  const statusEl = getSectionSearchStatus();
   if (query.length < 2) {
     state.deckAutocomplete.results = [];
     state.deckAutocomplete.activeIndex = -1;
     state.deckAutocomplete.loading = false;
     renderDeckAutocompleteList();
-    deckAutocompleteStatus.textContent =
-      query.length === 0
-        ? "Type a card name to autocomplete and add it to your deck."
-        : "Keep typing — enter at least 2 characters.";
+    if (statusEl) {
+      statusEl.textContent =
+        query.length === 0
+          ? "Type a card name to autocomplete."
+          : "Keep typing — enter at least 2 characters.";
+    }
     return;
   }
 
   state.deckAutocomplete.loading = true;
-  deckAutocompleteStatus.textContent = "Searching cards…";
+  if (statusEl) {
+    statusEl.textContent = "Searching cards…";
+  }
   state.deckAutocomplete.timer = window.setTimeout(() => {
     runDeckAutocomplete(query);
   }, 220);
@@ -2055,6 +2152,7 @@ function scheduleDeckAutocomplete(rawQuery) {
 async function runDeckAutocomplete(query) {
   const requestId = state.deckAutocomplete.requestId + 1;
   state.deckAutocomplete.requestId = requestId;
+  const statusEl = getSectionSearchStatus();
 
   try {
     const results = await searchCardsByName(query, 10);
@@ -2065,9 +2163,11 @@ async function runDeckAutocomplete(query) {
     state.deckAutocomplete.activeIndex = results.length ? 0 : -1;
     state.deckAutocomplete.loading = false;
     renderDeckAutocompleteList();
-    deckAutocompleteStatus.textContent = results.length
-      ? `${results.length} match${results.length === 1 ? "" : "es"}. Tap one or press Enter to add.`
-      : `No cards matched “${query}”.`;
+    if (statusEl) {
+      statusEl.textContent = results.length
+        ? `${results.length} match${results.length === 1 ? "" : "es"}. Tap one to add.`
+        : `No cards matched “${query}”.`;
+    }
   } catch {
     if (requestId !== state.deckAutocomplete.requestId) {
       return;
@@ -2076,17 +2176,26 @@ async function runDeckAutocomplete(query) {
     state.deckAutocomplete.activeIndex = -1;
     state.deckAutocomplete.loading = false;
     renderDeckAutocompleteList();
-    deckAutocompleteStatus.textContent = "Could not load card suggestions. Try again.";
+    if (statusEl) {
+      statusEl.textContent = "Could not load card suggestions. Try again.";
+    }
   }
 }
 
 function renderDeckAutocompleteList() {
-  const { results, activeIndex } = state.deckAutocomplete;
-  deckAutocompleteList.replaceChildren();
+  const listEl = getSectionSearchList();
+  const searchInput = getSectionSearchInput();
+  if (!listEl || !searchInput) {
+    return;
+  }
+
+  const { results, activeIndex, section } = state.deckAutocomplete;
+  const sectionLabel = shortSectionLabel(section);
+  listEl.replaceChildren();
 
   if (!results.length) {
-    deckAutocompleteList.hidden = true;
-    deckCardSearchInput.setAttribute("aria-expanded", "false");
+    listEl.hidden = true;
+    searchInput.setAttribute("aria-expanded", "false");
     return;
   }
 
@@ -2129,25 +2238,57 @@ function renderDeckAutocompleteList() {
     const meta = document.createElement("span");
     meta.textContent = formatCardLine(card);
 
-    const section = document.createElement("em");
-    section.textContent = shortSectionLabel(defaultDeckSection(card));
+    const badge = document.createElement("em");
+    badge.textContent = sectionLabel;
 
-    button.append(thumb, name, meta, section);
+    button.append(thumb, name, meta, badge);
     item.append(button);
-    deckAutocompleteList.append(item);
+    listEl.append(item);
   });
 
-  deckAutocompleteList.hidden = false;
-  deckCardSearchInput.setAttribute("aria-expanded", "true");
+  listEl.hidden = false;
+  searchInput.setAttribute("aria-expanded", "true");
   if (activeIndex >= 0) {
-    deckCardSearchInput.setAttribute("aria-activedescendant", `deck-autocomplete-option-${activeIndex}`);
+    searchInput.setAttribute("aria-activedescendant", `deck-autocomplete-option-${activeIndex}`);
   } else {
-    deckCardSearchInput.removeAttribute("aria-activedescendant");
+    searchInput.removeAttribute("aria-activedescendant");
   }
 }
 
-function handleDeckAutocompleteKeydown(event) {
+function handleFullscreenDeckClick(event) {
+  const openButton = event.target.closest("[data-open-section-search]");
+  if (openButton) {
+    openSectionSearch(openButton.dataset.openSectionSearch);
+    return;
+  }
+
+  const suggestion = event.target.closest("[data-autocomplete-index]");
+  if (suggestion) {
+    event.preventDefault();
+    state.deckAutocomplete.activeIndex = Number(suggestion.dataset.autocompleteIndex);
+    addDeckAutocompleteSelection();
+  }
+}
+
+function handleFullscreenDeckInput(event) {
+  if (event.target.id === "deck-card-search") {
+    scheduleDeckAutocomplete(event.target.value);
+  }
+}
+
+function handleFullscreenDeckKeydown(event) {
+  if (event.target.id !== "deck-card-search") {
+    return;
+  }
+
   const { results, activeIndex } = state.deckAutocomplete;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    resetDeckAutocomplete();
+    renderDeck();
+    return;
+  }
+
   if (!results.length) {
     return;
   }
@@ -2163,48 +2304,77 @@ function handleDeckAutocompleteKeydown(event) {
     event.preventDefault();
     state.deckAutocomplete.activeIndex = activeIndex <= 0 ? results.length - 1 : activeIndex - 1;
     renderDeckAutocompleteList();
-    return;
-  }
-
-  if (event.key === "Escape") {
-    state.deckAutocomplete.results = [];
-    state.deckAutocomplete.activeIndex = -1;
-    renderDeckAutocompleteList();
-    deckAutocompleteStatus.textContent = "Suggestions closed.";
   }
 }
 
+async function handleFullscreenDeckSubmit(event) {
+  const form = event.target.closest("[data-section-search]");
+  if (!form) {
+    return;
+  }
+  event.preventDefault();
+  await addDeckAutocompleteSelection();
+}
+
 async function addDeckAutocompleteSelection() {
-  const query = deckCardSearchInput.value.trim();
-  const { results, activeIndex } = state.deckAutocomplete;
+  const searchInput = getSectionSearchInput();
+  const statusEl = getSectionSearchStatus();
+  const query = (searchInput?.value || state.deckAutocomplete.query || "").trim();
+  const { results, activeIndex, section } = state.deckAutocomplete;
   let card = activeIndex >= 0 ? results[activeIndex] : null;
 
   if (!card && query) {
-    deckAutocompleteStatus.textContent = "Looking up card…";
+    if (statusEl) {
+      statusEl.textContent = "Looking up card…";
+    }
     card = await lookupCardByName(query);
   }
 
   if (!card) {
-    deckAutocompleteStatus.textContent = query
-      ? `No card found for “${query}”.`
-      : "Type a card name first.";
+    if (statusEl) {
+      statusEl.textContent = query ? `No card found for “${query}”.` : "Type a card name first.";
+    }
     return;
   }
 
-  addCardToDeck(card, 1);
-  const entry = state.deck.find((item) => item.key === getCardKey(card));
-  const sectionTitle =
-    DECK_SECTIONS.find((section) => section.key === normalizeDeckSection(entry?.section))?.title || "deck";
-
-  // Keep the current query + suggestion list open so more cards can be added quickly.
-  if (!results.length && query) {
-    state.deckAutocomplete.query = query;
+  const targetSection = normalizeDeckSection(section);
+  state.deckAutocomplete.section = targetSection;
+  state.deckAutocomplete.query = query || state.deckAutocomplete.query;
+  if (!results.length) {
     state.deckAutocomplete.results = [card];
     state.deckAutocomplete.activeIndex = 0;
   }
-  renderDeckAutocompleteList();
-  deckAutocompleteStatus.textContent = `Added ${card.name} to ${sectionTitle}. Tap another suggestion to keep adding.`;
-  deckCardSearchInput.focus();
+
+  addCardToDeck(card, 1, targetSection);
+  showDeckToast("Added");
+
+  const freshStatus = getSectionSearchStatus();
+  if (freshStatus) {
+    freshStatus.textContent = `Added ${card.name}. Tap another suggestion to keep adding.`;
+  }
+  getSectionSearchInput()?.focus();
+}
+
+function showDeckToast(message = "Added") {
+  if (!deckToastEl) {
+    return;
+  }
+  window.clearTimeout(state.deckToastTimer);
+  deckToastEl.textContent = message;
+  deckToastEl.hidden = false;
+  deckToastEl.classList.add("show");
+  state.deckToastTimer = window.setTimeout(() => {
+    hideDeckToast();
+  }, 1400);
+}
+
+function hideDeckToast() {
+  if (!deckToastEl) {
+    return;
+  }
+  window.clearTimeout(state.deckToastTimer);
+  deckToastEl.classList.remove("show");
+  deckToastEl.hidden = true;
 }
 
 function normalizeQuantity(value) {
