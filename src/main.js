@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.31";
+const APP_VERSION = "0.32";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -604,7 +604,7 @@ lightboxQuantitySelect.addEventListener("change", () => {
   state.resultSelectedQuantities[cardKey] = String(amount);
   state.resultAddedMessages[cardKey] = `${amount} Added`;
   window.clearTimeout(state.resultFeedbackTimers[cardKey]);
-  addCardToDeck(state.activeLightboxCard, amount);
+  addCardToDeck(state.activeLightboxCard, amount, "main");
   showLightboxAddedMessage(`${amount} Added`);
   state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
     delete state.resultAddedMessages[cardKey];
@@ -2776,13 +2776,20 @@ function renderCards() {
 function createCardButton(card) {
   const edition = getPrimaryEdition(card);
   const imageUrl = getImageUrl(edition?.image);
-  const button = document.createElement("button");
-  button.className = "card-tile";
-  button.type = "button";
-  button.addEventListener("click", () => openLightbox(card));
+  const cardKey = getCardKey(card);
+  const deckEntry = state.deck.find((item) => item.key === cardKey);
+  const maxQuantity = getMaxQuantityForSection("main", card);
 
-  const imageWrap = document.createElement("span");
-  imageWrap.className = "card-image-wrap";
+  const item = document.createElement("article");
+  item.className = "card-tile result-grid-card";
+  item.title = card.name;
+  item.classList.toggle("in-deck", Boolean(deckEntry));
+
+  const imageButton = document.createElement("button");
+  imageButton.className = "result-grid-card-image";
+  imageButton.type = "button";
+  imageButton.setAttribute("aria-label", `Open details for ${card.name}`);
+  imageButton.addEventListener("click", () => openLightbox(card));
 
   if (imageUrl) {
     const image = document.createElement("img");
@@ -2791,37 +2798,21 @@ function createCardButton(card) {
     image.alt = card.name;
     image.onerror = () => {
       image.remove();
-      imageWrap.append(createPlaceholder(card.name));
+      imageButton.append(createPlaceholder(card.name));
     };
-    imageWrap.append(image);
+    imageButton.append(image);
   } else {
-    imageWrap.append(createPlaceholder(card.name));
+    imageButton.append(createPlaceholder(card.name));
   }
 
-  const meta = document.createElement("span");
-  meta.className = "card-meta";
-
-  const name = document.createElement("strong");
-  name.textContent = card.name;
-
-  const line = document.createElement("span");
-  line.textContent = formatCardLine(card);
-
-  const cardKey = getCardKey(card);
-  const deckEntry = state.deck.find((item) => item.key === cardKey);
-  button.classList.toggle("in-deck", Boolean(deckEntry));
-
-  const quantityControl = document.createElement("label");
-  quantityControl.className = "result-quantity-control";
-  quantityControl.textContent = "Add qty";
-
   const quantitySelect = document.createElement("select");
-  quantitySelect.setAttribute("aria-label", `Add quantity for ${card.name}`);
+  quantitySelect.className = "deck-grid-qty result-grid-qty";
+  quantitySelect.setAttribute("aria-label", `Add ${card.name} to Main Deck`);
   quantitySelect.dataset.addCardQuantity = cardKey;
-  quantitySelect.append(createOption("", "Add"));
-  [1, 2, 3, 4].forEach((quantity) => {
+  quantitySelect.append(createOption("", "+"));
+  for (let quantity = 1; quantity <= maxQuantity; quantity += 1) {
     quantitySelect.append(createOption(String(quantity), String(quantity)));
-  });
+  }
   quantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
 
   const addedMessage = document.createElement("span");
@@ -2843,22 +2834,16 @@ function createCardButton(card) {
     state.resultSelectedQuantities[cardKey] = String(amount);
     state.resultAddedMessages[cardKey] = `${amount} Added`;
     window.clearTimeout(state.resultFeedbackTimers[cardKey]);
-    addCardToDeck(card, amount);
+    addCardToDeck(card, amount, "main");
     state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
       delete state.resultAddedMessages[cardKey];
+      delete state.resultSelectedQuantities[cardKey];
       renderCards();
     }, 1300);
   });
 
-  quantityControl.append(quantitySelect, addedMessage);
-
-  const deckIndicator = document.createElement("span");
-  deckIndicator.className = "result-deck-indicator";
-  deckIndicator.textContent = deckEntry ? `In deck: ${normalizeQuantity(deckEntry.quantity)}` : "Not in deck";
-
-  meta.append(name, line, quantityControl, deckIndicator);
-  button.append(imageWrap, meta);
-  return button;
+  item.append(imageButton, quantitySelect, addedMessage);
+  return item;
 }
 
 function createEmptyState(message) {
