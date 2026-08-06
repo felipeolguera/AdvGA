@@ -70,14 +70,18 @@ button:disabled {
 
 .hero-body {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr);
-  gap: 32px;
-  align-items: end;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: stretch;
   padding-top: 8px;
 }
 
+.hero-brand {
+  max-width: none;
+}
+
 .hero-product-title {
-  max-width: 700px;
+  max-width: none;
   margin: 0 0 16px;
   font-size: clamp(1.8rem, 5vw, 3.4rem);
   line-height: 0.95;
