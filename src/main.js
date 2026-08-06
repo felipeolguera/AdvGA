@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.38";
+const APP_VERSION = "0.39";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -263,7 +263,7 @@ app.innerHTML = `
       </div>
     </details>
 
-    <details class="panel collapsible-section explanation-panel" open>
+    <details class="panel collapsible-section explanation-panel">
       <summary class="section-summary">
         <div>
           <p class="eyebrow">Parsed search</p>
@@ -278,7 +278,7 @@ app.innerHTML = `
       </div>
     </details>
 
-    <details class="panel collapsible-section deck-panel deck-panel-home" id="deck-builder" open>
+    <details class="panel collapsible-section deck-panel deck-panel-home" id="deck-builder">
       <summary class="section-summary">
         <div>
           <p class="eyebrow">Deck Builder</p>
@@ -337,7 +337,7 @@ app.innerHTML = `
       </div>
     </details>
 
-    <details class="panel collapsible-section recent-panel" open>
+    <details class="panel collapsible-section recent-panel">
       <summary class="section-summary">
         <div>
           <p class="eyebrow">History</p>
@@ -350,7 +350,7 @@ app.innerHTML = `
       </div>
     </details>
 
-    <details class="panel collapsible-section results-panel" id="library" open>
+    <details class="panel collapsible-section results-panel" id="library">
       <summary class="section-summary">
         <div>
           <p class="eyebrow">Library</p>
@@ -796,7 +796,12 @@ loadOptions().then(() => {
   input.value = state.query;
   updateClearSearchVisibility();
   updateSearchFiltersVisibility();
-  runSearch(state.query, { reset: true, remember: false });
+  if (state.query.trim()) {
+    runSearch(state.query, { reset: true, remember: false });
+  } else {
+    state.status = `Enter a search such as “${EXAMPLE_QUERY}”.`;
+    render();
+  }
 });
 
 function openFullscreenDeckBuilder() {
@@ -2968,7 +2973,7 @@ function updateShareUrl(query) {
 }
 
 function getInitialQuery() {
-  return new URLSearchParams(window.location.search).get("q") || EXAMPLE_QUERY;
+  return new URLSearchParams(window.location.search).get("q") || "";
 }
 
 function appendQueryToken(query, token) {
