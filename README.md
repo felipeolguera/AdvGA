@@ -14,6 +14,7 @@ a constructed deck list.
   keyword helpers, recent searches, and shareable search URLs.
 - Deck Builder with named decks, Material / Main / Sideboard sections, quantity
   controls, live constructed legality checks, and composition totals.
+- Fullscreen Deck Builder card-name search with live autocomplete and one-tap add.
 - Import pasted deck lists, copy export text, or download a `.txt` deck file.
 - Responsive card grid with result badges, loading skeletons, lightbox details,
   and in-deck quantity indicators.
