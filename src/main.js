@@ -5,7 +5,7 @@ const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.32";
+const APP_VERSION = "0.33";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -145,6 +145,7 @@ const state = {
     section: null,
   },
   deckToastTimer: null,
+  deckShowIndividually: false,
   status: "Loading Grand Archive card terms...",
 };
 
@@ -248,6 +249,9 @@ app.innerHTML = `
           <summary id="deck-validation-summary-home">Deck legality</summary>
           <div class="deck-validation" id="deck-validation" aria-live="polite"></div>
         </details>
+        <div class="deck-view-toolbar">
+          <button class="secondary compact" type="button" id="toggle-deck-individual">Show individually</button>
+        </div>
         <div class="deck-list deck-list-home" id="deck-list"></div>
         <div class="deck-toast deck-toast-home" id="deck-toast-home" role="status" aria-live="polite" hidden>Added</div>
       </div>
@@ -356,6 +360,7 @@ app.innerHTML = `
         <div class="deck-validation" id="deck-validation-fullscreen" aria-live="polite"></div>
       </details>
       <div class="deck-fullscreen-actions">
+        <button class="secondary compact" type="button" id="toggle-deck-individual-fullscreen">Show individually</button>
         <button class="secondary compact" type="button" id="export-deck-fullscreen">Copy export</button>
         <button class="secondary compact" type="button" id="import-deck-fullscreen">Import list</button>
         <button class="secondary compact" type="button" id="download-deck-fullscreen">Download .txt</button>
@@ -424,6 +429,8 @@ const importDeckButton = document.querySelector("#import-deck");
 const importDeckFullscreenButton = document.querySelector("#import-deck-fullscreen");
 const clearDeckButton = document.querySelector("#clear-deck");
 const clearDeckFullscreenButton = document.querySelector("#clear-deck-fullscreen");
+const toggleDeckIndividualButton = document.querySelector("#toggle-deck-individual");
+const toggleDeckIndividualFullscreenButton = document.querySelector("#toggle-deck-individual-fullscreen");
 const closeDeckFullscreenButton = document.querySelector("#close-deck-fullscreen");
 const goCardSearchButton = document.querySelector("#go-card-search");
 const deckFullscreen = document.querySelector("#deck-fullscreen");
@@ -551,6 +558,12 @@ importDeckButton.addEventListener("click", openImportDialog);
 importDeckFullscreenButton.addEventListener("click", openImportDialog);
 clearDeckButton.addEventListener("click", clearDeck);
 clearDeckFullscreenButton.addEventListener("click", clearDeck);
+[toggleDeckIndividualButton, toggleDeckIndividualFullscreenButton].forEach((button) => {
+  button?.addEventListener("click", () => {
+    state.deckShowIndividually = !state.deckShowIndividually;
+    renderDeck();
+  });
+});
 deckNameInput.addEventListener("input", () => {
   state.deckName = deckNameInput.value.trim() || "Untitled Deck";
   saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
@@ -1514,6 +1527,7 @@ function rememberSearch(query) {
 function renderDeck() {
   const totalCards = getDeckTotal();
   deckCountEl.textContent = String(totalCards);
+  updateDeckIndividualToggleButtons();
   renderDeckStats(deckStatsEl);
   renderDeckStats(deckStatsFullscreenEl);
   renderDeckValidation(deckValidationEl);
@@ -1521,6 +1535,15 @@ function renderDeck() {
   renderDeckValidationSummary();
   renderDeckInto(deckListEl, { grid: true, showSearch: !deckFullscreen.open });
   renderDeckInto(deckListFullscreenEl, { grid: true, showSearch: deckFullscreen.open });
+}
+
+function updateDeckIndividualToggleButtons() {
+  const label = state.deckShowIndividually ? "Stack copies" : "Show individually";
+  [toggleDeckIndividualButton, toggleDeckIndividualFullscreenButton].forEach((button) => {
+    if (!button) return;
+    button.textContent = label;
+    button.setAttribute("aria-pressed", state.deckShowIndividually ? "true" : "false");
+  });
 }
 
 function renderDeckValidationSummary() {
@@ -1612,7 +1635,19 @@ function renderDeckInto(container, { grid = true, showSearch = false } = {}) {
       } else {
         const gridEl = document.createElement("div");
         gridEl.className = "deck-card-grid";
-        sectionCards.forEach((card) => gridEl.append(createDeckGridCard(card)));
+        if (state.deckShowIndividually) {
+          gridEl.classList.add("deck-card-grid-individual");
+        }
+        sectionCards.forEach((card) => {
+          if (state.deckShowIndividually) {
+            const copies = normalizeQuantity(card.quantity);
+            for (let index = 0; index < copies; index += 1) {
+              gridEl.append(createDeckGridCard(card, { individual: true }));
+            }
+          } else {
+            gridEl.append(createDeckGridCard(card));
+          }
+        });
         group.append(gridEl);
       }
     } else {
@@ -1722,9 +1757,9 @@ function createSectionAutocomplete(section) {
   return form;
 }
 
-function createDeckGridCard(card) {
+function createDeckGridCard(card, { individual = false } = {}) {
   const item = document.createElement("article");
-  item.className = "deck-grid-card";
+  item.className = individual ? "deck-grid-card deck-grid-card-individual" : "deck-grid-card";
   item.title = card.name;
 
   const imageWrap = document.createElement("div");
@@ -1744,6 +1779,18 @@ function createDeckGridCard(card) {
     imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
   }
 
+  const remove = document.createElement("button");
+  remove.className = "deck-grid-remove";
+  remove.type = "button";
+
+  if (individual) {
+    remove.dataset.removeOneDeck = card.key;
+    remove.setAttribute("aria-label", `Remove one ${card.name}`);
+    remove.textContent = "×";
+    item.append(imageWrap, remove);
+    return item;
+  }
+
   const maxQuantity = getMaxQuantityForCard(card);
   const quantity = document.createElement("select");
   quantity.className = "deck-grid-qty";
@@ -1754,9 +1801,6 @@ function createDeckGridCard(card) {
   }
   quantity.value = String(Math.min(maxQuantity, normalizeQuantity(card.quantity)));
 
-  const remove = document.createElement("button");
-  remove.className = "deck-grid-remove";
-  remove.type = "button";
   remove.dataset.removeDeck = card.key;
   remove.setAttribute("aria-label", `Remove ${card.name}`);
   remove.textContent = "×";
@@ -1849,6 +1893,12 @@ function shortSectionLabel(section) {
 }
 
 function handleDeckListClick(event) {
+  const removeOneButton = event.target.closest("[data-remove-one-deck]");
+  if (removeOneButton) {
+    removeOneDeckCopy(removeOneButton.dataset.removeOneDeck);
+    return;
+  }
+
   const removeButton = event.target.closest("[data-remove-deck]");
   if (removeButton) {
     state.deck = state.deck.filter((card) => card.key !== removeButton.dataset.removeDeck);
@@ -1864,6 +1914,23 @@ function handleDeckListClick(event) {
     renderDeck();
     renderCards();
   }
+}
+
+function removeOneDeckCopy(key) {
+  const card = state.deck.find((item) => item.key === key);
+  if (!card) {
+    return;
+  }
+
+  const quantity = normalizeQuantity(card.quantity);
+  if (quantity <= 1) {
+    state.deck = state.deck.filter((item) => item.key !== key);
+  } else {
+    card.quantity = quantity - 1;
+  }
+  saveDeck();
+  renderDeck();
+  renderCards();
 }
 
 function handleDeckListInput(event) {

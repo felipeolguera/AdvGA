@@ -627,6 +627,17 @@ h1 {
   margin: 12px auto 0;
 }
 
+.deck-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 10px;
+}
+
+.deck-grid-card-individual .deck-grid-qty {
+  display: none;
+}
+
 .explanation-panel,
 .deck-panel,
 .recent-panel,
