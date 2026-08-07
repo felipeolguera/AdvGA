@@ -2002,6 +2002,35 @@ h1 {
   border-color: rgba(120, 190, 255, 0.35);
 }
 
+.opening-hand-card.is-face-flipping {
+  z-index: 40;
+  pointer-events: none;
+}
+
+.opening-hand-card .deck-grid-card-image {
+  transform-origin: center center;
+}
+
+.opening-hand-card .deck-grid-card-image.is-face-flipping {
+  will-change: transform;
+  animation: oh-face-flip 280ms ease-in-out;
+}
+
+@keyframes oh-face-flip {
+  0% {
+    transform: scaleX(1);
+  }
+  45% {
+    transform: scaleX(0.04);
+  }
+  55% {
+    transform: scaleX(0.04);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
 .opening-hand-card.is-facedown .deck-grid-card-image {
   background-color: #0a0a0b;
   background-image: var(--card-back-image);

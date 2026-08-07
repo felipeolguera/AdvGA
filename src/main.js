@@ -6,10 +6,11 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.72";
+const APP_VERSION = "0.73";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
+const OPENING_HAND_FACE_FLIP_MS = 280;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
@@ -3422,8 +3423,26 @@ function toggleOpeningHandCardFace(cardEl, entry) {
   if (zone !== "field" && zone !== "memory") {
     return;
   }
-  entry.facedown = !entry.facedown;
-  applyOpeningHandCardFace(cardEl, entry);
+  if (cardEl.classList.contains("is-face-flipping")) {
+    return;
+  }
+
+  const nextFacedown = !entry.facedown;
+  const imageWrap = cardEl.querySelector(".deck-grid-card-image");
+  const halfMs = Math.round(OPENING_HAND_FACE_FLIP_MS / 2);
+
+  cardEl.classList.add("is-face-flipping");
+  imageWrap?.classList.add("is-face-flipping");
+
+  window.setTimeout(() => {
+    entry.facedown = nextFacedown;
+    applyOpeningHandCardFace(cardEl, entry);
+  }, halfMs);
+
+  window.setTimeout(() => {
+    cardEl.classList.remove("is-face-flipping");
+    imageWrap?.classList.remove("is-face-flipping");
+  }, OPENING_HAND_FACE_FLIP_MS);
 }
 
 function applyOpeningHandCardRotation(cardEl, entry) {
