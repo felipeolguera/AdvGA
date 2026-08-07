@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.41";
+const APP_VERSION = "0.42";
 const FREEHAND_CARD_WIDTH = 96;
 const FREEHAND_CARD_HEIGHT = 134;
 const FREEHAND_GAP_X = 14;
@@ -1955,6 +1955,15 @@ function createFullscreenSectionHeader(section, sectionCards) {
     freehandButton.textContent = state.mainDeckFreehand ? "Normal mode" : "Freehand mode";
     freehandButton.setAttribute("aria-pressed", state.mainDeckFreehand ? "true" : "false");
     actions.append(freehandButton);
+
+    if (state.mainDeckFreehand) {
+      const resetButton = document.createElement("button");
+      resetButton.className = "ghost compact";
+      resetButton.type = "button";
+      resetButton.dataset.resetMainFreehand = "true";
+      resetButton.textContent = "Reset positions";
+      actions.append(resetButton);
+    }
   }
 
   const addButton = document.createElement("button");
@@ -2123,6 +2132,14 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   item.dataset.freehandIndex = String(layoutIndex);
   item.title = card.name;
 
+  // Provisional grid slot so cards are never stacked at 0,0 before measured layout.
+  const provisional = estimateFreehandSlot(layoutIndex);
+  item.style.left = `${provisional.x}px`;
+  item.style.top = `${provisional.y}px`;
+  item.style.zIndex = String(provisional.z);
+  item.style.width = `${FREEHAND_CARD_WIDTH}px`;
+  item.style.height = `${FREEHAND_CARD_HEIGHT}px`;
+
   const imageWrap = document.createElement("div");
   imageWrap.className = "deck-grid-card-image";
   const imageUrl = getImageUrl(resolveCardImage(card));
@@ -2151,6 +2168,16 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   item.append(imageWrap, remove);
   enableFreehandDrag(item, instanceId);
   return item;
+}
+
+function estimateFreehandSlot(index, cols = 5) {
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  return {
+    x: FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X),
+    y: FREEHAND_HINT_SPACE + FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y),
+    z: index + 1,
+  };
 }
 
 function layoutFreehandBoard(board, { force = false } = {}) {
@@ -2260,11 +2287,19 @@ function enableFreehandDrag(cardEl, instanceId) {
     let nextY = startY + dy;
 
     const boardWidth = board.clientWidth;
-    const boardHeight = board.clientHeight;
+    let boardHeight = board.clientHeight;
     const maxX = Math.max(0, boardWidth - FREEHAND_CARD_WIDTH);
-    const maxY = Math.max(0, boardHeight - FREEHAND_CARD_HEIGHT);
     nextX = Math.min(maxX, Math.max(0, nextX));
-    nextY = Math.min(maxY, Math.max(0, nextY));
+    nextY = Math.max(0, nextY);
+
+    // Grow the board when dragging downward so cards are never clipped away.
+    const neededHeight = nextY + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING;
+    if (neededHeight > boardHeight) {
+      board.style.minHeight = `${neededHeight}px`;
+      boardHeight = neededHeight;
+    }
+    const maxY = Math.max(0, boardHeight - FREEHAND_CARD_HEIGHT);
+    nextY = Math.min(maxY, nextY);
 
     cardEl.style.left = `${nextX}px`;
     cardEl.style.top = `${nextY}px`;
@@ -2380,6 +2415,18 @@ function toggleMainDeckFreehand() {
   renderDeck();
 }
 
+function resetMainDeckFreehandPositions() {
+  state.mainDeckFreehandPositions = {};
+  state.mainDeckFreehandZ = 1;
+  saveMainDeckFreehandState();
+  const boards = document.querySelectorAll("[data-main-freehand-board]");
+  if (boards.length === 0) {
+    renderDeck();
+    return;
+  }
+  boards.forEach((board) => layoutFreehandBoard(board, { force: true }));
+}
+
 function createDeckRow(card) {
   const row = document.createElement("div");
   row.className = "deck-row deck-row-with-thumb";
@@ -2467,6 +2514,12 @@ function handleDeckListClick(event) {
   const freehandButton = event.target.closest("[data-toggle-main-freehand]");
   if (freehandButton) {
     toggleMainDeckFreehand();
+    return;
+  }
+
+  const resetFreehandButton = event.target.closest("[data-reset-main-freehand]");
+  if (resetFreehandButton) {
+    resetMainDeckFreehandPositions();
     return;
   }
 
