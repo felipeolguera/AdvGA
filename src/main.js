@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.58";
+const APP_VERSION = "0.59";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -1998,6 +1998,14 @@ function createFullscreenSectionHeader(section, sectionCards) {
       recollectButton.textContent = "Recollect";
       recollectButton.title = "Move all Memory cards back to Hand";
       actions.append(recollectButton);
+
+      const banishButton = document.createElement("button");
+      banishButton.className = "ghost compact";
+      banishButton.type = "button";
+      banishButton.dataset.banishOpeningHand = "true";
+      banishButton.textContent = "Banish random";
+      banishButton.title = "Banish 1 random card from Memory";
+      actions.append(banishButton);
     } else {
       const freehandButton = document.createElement("button");
       freehandButton.className = "secondary compact";
@@ -2889,8 +2897,16 @@ function renderOpeningHandContents(board) {
   count.textContent = String(state.openingHandLibrary.length);
 
   pile.append(stack, count);
-  field.append(pile);
+
+  const handCount = document.createElement("span");
+  handCount.className = "opening-hand-hand-count";
+  handCount.dataset.ohHandCount = "true";
+  handCount.setAttribute("aria-label", "Cards in hand");
+
+  field.append(pile, handCount);
   positionOpeningHandDeckPile(board);
+  positionOpeningHandHandCount(board);
+  updateOpeningHandCounts(board);
   enableOpeningHandDeckDrag(pile, board);
 }
 
@@ -2904,6 +2920,39 @@ function positionOpeningHandDeckPile(board) {
   const anchor = getOpeningHandDeckAnchor(field);
   pile.style.left = `${anchor.x}px`;
   pile.style.top = `${anchor.y}px`;
+}
+
+function countOpeningHandZoneCards(zoneName = "hand") {
+  return state.openingHandHand.filter((entry) => (entry.zone || "hand") === zoneName)
+    .length;
+}
+
+function positionOpeningHandHandCount(board) {
+  const field = board?.querySelector("[data-oh-field]");
+  const countEl = board?.querySelector("[data-oh-hand-count]");
+  if (!field || !countEl) {
+    return;
+  }
+  const zones = getOpeningHandZones(field);
+  countEl.style.left = `${zones.mainLeft + 10}px`;
+  countEl.style.top = `${zones.handBottom - 34}px`;
+}
+
+function updateOpeningHandCounts(board) {
+  if (!board) {
+    return;
+  }
+  const deckCount = board.querySelector(".opening-hand-deck-count");
+  if (deckCount) {
+    deckCount.textContent = String(state.openingHandLibrary.length);
+  }
+  const handCount = board.querySelector("[data-oh-hand-count]");
+  if (handCount) {
+    const total = countOpeningHandZoneCards("hand");
+    handCount.textContent = String(total);
+    handCount.setAttribute("aria-label", `${total} card${total === 1 ? "" : "s"} in hand`);
+  }
+  positionOpeningHandHandCount(board);
 }
 
 function createOpeningHandCard(entry, index, field = null) {
@@ -2969,7 +3018,7 @@ function getOpeningHandRowCardTop(zoneTop, zoneBottom) {
   return zoneTop + Math.max(0, (zoneBottom - zoneTop - FREEHAND_CARD_HEIGHT) / 2);
 }
 
-function getOpeningHandRowLayout(field, count) {
+function getOpeningHandRowLayout(field, count, { mode = "spread" } = {}) {
   const zones = getOpeningHandZones(field);
   const pad = OPENING_HAND_ROW_PAD / 2;
   const column = getOpeningHandMainColumnBounds(field);
@@ -2985,7 +3034,26 @@ function getOpeningHandRowLayout(field, count) {
       y,
     };
   }
-  // Spread evenly across the full Hand width (horizontal + shared vertical row).
+
+  if (mode === "snap") {
+    // Cards touch left/right edges. Center the row; overlap only if they can't fit.
+    const packedWidth = safeCount * FREEHAND_CARD_WIDTH;
+    if (packedWidth <= usable) {
+      return {
+        startX: innerLeft + (usable - packedWidth) / 2,
+        step: FREEHAND_CARD_WIDTH,
+        y,
+      };
+    }
+    const overlapStep = (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1);
+    return {
+      startX: innerLeft,
+      step: Number.isFinite(overlapStep) ? Math.max(0, overlapStep) : 0,
+      y,
+    };
+  }
+
+  // Spread evenly across the full Hand width.
   const step = (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1);
   return {
     startX: innerLeft,
@@ -3029,6 +3097,7 @@ function resizeOpeningHandField(board) {
 
   layoutOpeningHandZones(field);
   positionOpeningHandDeckPile(board);
+  updateOpeningHandCounts(board);
 }
 
 function delay(ms) {
@@ -3044,7 +3113,7 @@ function applyOpeningHandCardPosition(cardEl, entry) {
   cardEl.style.zIndex = String(entry.position.z || 1);
 }
 
-function reflowOpeningHandZoneCards(board, zoneName = "hand") {
+function reflowOpeningHandZoneCards(board, zoneName = "hand", { mode = "spread" } = {}) {
   const field = board?.querySelector("[data-oh-field]");
   if (!field) {
     return;
@@ -3056,7 +3125,7 @@ function reflowOpeningHandZoneCards(board, zoneName = "hand") {
   if (entries.length === 0) {
     return;
   }
-  const layout = getOpeningHandRowLayout(field, entries.length);
+  const layout = getOpeningHandRowLayout(field, entries.length, { mode });
   entries.forEach((entry, index) => {
     entry.zone = zoneName;
     entry.facedown = zoneName === "memory" ? Boolean(entry.facedown) : false;
@@ -3074,6 +3143,7 @@ function reflowOpeningHandZoneCards(board, zoneName = "hand") {
       applyOpeningHandCardFace(cardEl, entry);
     }
   });
+  updateOpeningHandCounts(board);
 }
 
 async function dealOpeningHandCards(board, token) {
@@ -3249,18 +3319,66 @@ function organizeOpeningHandCards(board = null) {
   state.openingHandHand.forEach((entry) => {
     entry.zone = resolveOpeningHandEntryZone(entry, field);
   });
-  // Force a clean even row: same Y, equal X gaps across the Hand width.
-  reflowOpeningHandZoneCards(playBoard, "hand");
+  // Snap cards side-to-side (left/right edges touching), centered in Hand.
+  reflowOpeningHandZoneCards(playBoard, "hand", { mode: "snap" });
   const handEntries = state.openingHandHand.filter((entry) => entry.zone === "hand");
   handEntries.forEach((entry) => {
     const cardEl = findOpeningHandCardElement(field, entry.instanceId);
     if (!cardEl || !entry.position) {
       return;
     }
-    // Retrigger horizontal transition even if a prior left matched.
     cardEl.style.transition = "left 220ms ease, top 220ms ease";
     applyOpeningHandCardPosition(cardEl, entry);
   });
+  resizeOpeningHandField(playBoard);
+}
+
+function getOpeningHandBanishmentSlot(field, index = 0) {
+  const zones = getOpeningHandZones(field);
+  return {
+    x: zones.railLeft + Math.max(0, (zones.railWidth - FREEHAND_CARD_WIDTH) / 2) + index * 2,
+    y:
+      zones.banishmentTop +
+      Math.max(0, (zones.banishmentBottom - zones.banishmentTop - FREEHAND_CARD_HEIGHT) / 2),
+    z: 40 + index,
+  };
+}
+
+async function banishRandomMemoryCard(board = null) {
+  const playBoard =
+    board || document.querySelector("[data-opening-hand-board]");
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field) {
+    return;
+  }
+
+  layoutOpeningHandZones(field);
+  state.openingHandHand.forEach((entry) => {
+    entry.zone = resolveOpeningHandEntryZone(entry, field);
+  });
+
+  const memoryEntries = state.openingHandHand.filter((entry) => entry.zone === "memory");
+  if (memoryEntries.length === 0) {
+    return;
+  }
+
+  const pick = memoryEntries[Math.floor(Math.random() * memoryEntries.length)];
+  const banishedCount = state.openingHandHand.filter((entry) => entry.zone === "banishment")
+    .length;
+  const cardEl = findOpeningHandCardElement(field, pick.instanceId);
+  pick.zone = "banishment";
+  pick.facedown = false;
+  pick.position = getOpeningHandBanishmentSlot(field, banishedCount);
+
+  if (cardEl) {
+    cardEl.classList.add("opening-hand-card-dealing");
+    applyOpeningHandCardFace(cardEl, pick);
+    applyOpeningHandCardPosition(cardEl, pick);
+    await delay(220);
+    cardEl.classList.remove("opening-hand-card-dealing");
+  }
+
+  updateOpeningHandCounts(playBoard);
   resizeOpeningHandField(playBoard);
 }
 
@@ -3286,7 +3404,7 @@ async function recollectOpeningHandMemory(board = null) {
 
   const handEntries = state.openingHandHand.filter((entry) => entry.zone === "hand");
   const totalHand = handEntries.length + memoryEntries.length;
-  const layout = getOpeningHandRowLayout(field, totalHand);
+  const layout = getOpeningHandRowLayout(field, totalHand, { mode: "snap" });
   const startIndex = handEntries.length;
 
   for (let index = 0; index < memoryEntries.length; index += 1) {
@@ -3310,7 +3428,7 @@ async function recollectOpeningHandMemory(board = null) {
     }
   }
 
-  reflowOpeningHandZoneCards(playBoard, "hand");
+  reflowOpeningHandZoneCards(playBoard, "hand", { mode: "snap" });
   resizeOpeningHandField(playBoard);
 }
 
@@ -3619,6 +3737,12 @@ function handleDeckListClick(event) {
   const recollectButton = event.target.closest("[data-recollect-opening-hand]");
   if (recollectButton) {
     recollectOpeningHandMemory();
+    return;
+  }
+
+  const banishButton = event.target.closest("[data-banish-opening-hand]");
+  if (banishButton) {
+    banishRandomMemoryCard();
     return;
   }
 
