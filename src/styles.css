@@ -1138,23 +1138,23 @@ h1 {
 }
 
 .try-it-button {
-  border: 1px solid rgba(255, 204, 115, 0.85);
+  border: 1px solid rgba(72, 230, 200, 0.95);
   border-radius: 14px;
-  min-height: 42px;
-  padding: 0 18px;
-  color: #170f0b;
-  background: linear-gradient(135deg, #ffd27a, var(--gold-strong) 45%, var(--gold));
+  min-height: 44px;
+  padding: 0 20px;
+  color: #041a17;
+  background: linear-gradient(135deg, #7dffe0, #2ad4b0 48%, #12b894);
   font-weight: 900;
-  letter-spacing: 0.04em;
-  box-shadow: 0 8px 22px rgba(244, 184, 93, 0.35);
+  letter-spacing: 0.05em;
+  box-shadow: 0 10px 26px rgba(18, 184, 148, 0.45);
   transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
 
 .try-it-button:hover,
 .try-it-button:focus-visible {
-  transform: translateY(-1px) scale(1.03);
-  filter: brightness(1.05);
-  box-shadow: 0 12px 28px rgba(244, 184, 93, 0.45);
+  transform: translateY(-1px) scale(1.04);
+  filter: brightness(1.06);
+  box-shadow: 0 14px 32px rgba(18, 184, 148, 0.55);
 }
 
 .deck-section-header h3 {
