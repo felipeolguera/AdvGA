@@ -6,7 +6,8 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.64";
+const APP_VERSION = "0.65";
+const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
@@ -3957,6 +3958,47 @@ async function recollectOpeningHandMemory(board = null) {
   resizeOpeningHandField(playBoard);
 }
 
+function hideOpeningHandCardPreview() {
+  document.querySelectorAll("[data-oh-card-preview]").forEach((node) => node.remove());
+}
+
+function showOpeningHandCardPreview(entry) {
+  hideOpeningHandCardPreview();
+  if (!entry?.card || entry.facedown) {
+    return;
+  }
+  const imageUrl = getImageUrl(resolveCardImage(entry.card));
+  if (!imageUrl) {
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "opening-hand-card-preview";
+  overlay.dataset.ohCardPreview = "true";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", `${entry.card.name || "Card"} preview`);
+
+  const frame = document.createElement("div");
+  frame.className = "opening-hand-card-preview-frame";
+
+  const image = document.createElement("img");
+  image.className = "opening-hand-card-preview-image";
+  image.src = imageUrl;
+  image.alt = entry.card.name || "Card";
+  image.draggable = false;
+
+  const caption = document.createElement("p");
+  caption.className = "opening-hand-card-preview-caption";
+  caption.textContent = entry.card.name || "Card";
+
+  frame.append(image, caption);
+  overlay.append(frame);
+  document.body.append(overlay);
+  // Force paint so the enter transition runs.
+  void overlay.offsetWidth;
+  overlay.classList.add("is-visible");
+}
+
 function enableOpeningHandCardDrag(cardEl, entry) {
   let pointerId = null;
   let startX = 0;
@@ -3965,6 +4007,14 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerY = 0;
   let dragMoved = false;
   let lastTapAt = 0;
+  let holdPreviewTimer = null;
+
+  const clearHoldPreviewTimer = () => {
+    if (holdPreviewTimer != null) {
+      window.clearTimeout(holdPreviewTimer);
+      holdPreviewTimer = null;
+    }
+  };
 
   const syncFaceForPosition = (field, x, y) => {
     const zone = getOpeningHandZoneAt(x, y, field);
@@ -4000,6 +4050,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       return;
     }
     pointerId = null;
+    clearHoldPreviewTimer();
+    hideOpeningHandCardPreview();
     cardEl.classList.remove("dragging");
     try {
       cardEl.releasePointerCapture(event.pointerId);
@@ -4068,6 +4120,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     event.stopPropagation();
     pointerId = event.pointerId;
     dragMoved = false;
+    clearHoldPreviewTimer();
+    hideOpeningHandCardPreview();
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -4085,6 +4139,19 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
+
+    // Hold/drag a Hand card for 3s to peek a full-size copy.
+    const startedInHand = (entry.zone || "hand") === "hand" && !entry.facedown;
+    if (startedInHand) {
+      const holdPointerId = event.pointerId;
+      holdPreviewTimer = window.setTimeout(() => {
+        holdPreviewTimer = null;
+        if (pointerId !== holdPointerId) {
+          return;
+        }
+        showOpeningHandCardPreview(entry);
+      }, OPENING_HAND_HOLD_PREVIEW_MS);
+    }
   });
 }
 
