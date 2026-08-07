@@ -1166,11 +1166,6 @@ h1 {
 }
 
 .tryit-page-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: start;
   padding: 20px 22px;
 }
 
@@ -1183,7 +1178,8 @@ h1 {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-bottom: 12px;
 }
 
 .tryit-back-link {
@@ -1193,6 +1189,8 @@ h1 {
 }
 
 .tryit-playmat-panel {
+  display: grid;
+  gap: 4px;
   padding: 16px 18px 22px;
 }
 
@@ -1201,12 +1199,6 @@ h1 {
   gap: 14px;
   justify-items: start;
   padding: 12px 4px 8px;
-}
-
-@media (max-width: 720px) {
-  .tryit-page-actions {
-    justify-content: flex-start;
-  }
 }
 
 .deck-section-header h3 {
