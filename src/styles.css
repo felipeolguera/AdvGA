@@ -1542,8 +1542,12 @@ h1 {
   inset: 0;
   z-index: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--oh-rail-width);
+  grid-template-columns: var(--oh-rail-width) minmax(0, 1fr) var(--oh-rail-width);
   grid-template-rows: repeat(3, var(--oh-row-height));
+  grid-template-areas:
+    "field field banishment"
+    "material memory deck"
+    "hand hand graveyard";
   gap: var(--oh-zone-gap);
   padding: var(--oh-inset);
   pointer-events: none;
@@ -1559,22 +1563,32 @@ h1 {
 }
 
 .opening-hand-zone-field {
+  grid-area: field;
   background: rgba(120, 200, 140, 0.07);
 }
 
+.opening-hand-zone-material {
+  grid-area: material;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .opening-hand-zone-memory {
+  grid-area: memory;
   background: rgba(80, 140, 200, 0.08);
 }
 
 .opening-hand-zone-hand {
+  grid-area: hand;
   background: rgba(255, 204, 115, 0.05);
 }
 
 .opening-hand-zone-banishment {
+  grid-area: banishment;
   background: rgba(180, 120, 220, 0.08);
 }
 
 .opening-hand-zone-deck {
+  grid-area: deck;
   position: relative;
   display: grid;
   grid-template-rows: 1fr 1fr;
@@ -1616,11 +1630,13 @@ h1 {
 }
 
 .opening-hand-zone-graveyard {
+  grid-area: graveyard;
   background: rgba(220, 100, 90, 0.08);
 }
 
 .opening-hand-field[data-active-zone="field"] .opening-hand-zone-field,
 .opening-hand-field[data-active-zone="memory"] .opening-hand-zone-memory,
+.opening-hand-field[data-active-zone="material"] .opening-hand-zone-material,
 .opening-hand-field[data-active-zone="hand"] .opening-hand-zone-hand,
 .opening-hand-field[data-active-zone="banishment"] .opening-hand-zone-banishment,
 .opening-hand-field[data-active-zone="graveyard"] .opening-hand-zone-graveyard {
@@ -1669,6 +1685,10 @@ h1 {
   color: rgba(215, 245, 227, 0.8);
 }
 
+.opening-hand-tag-material {
+  color: rgba(220, 235, 255, 0.8);
+}
+
 .opening-hand-tag-memory {
   color: rgba(207, 232, 255, 0.8);
 }
@@ -1702,6 +1722,11 @@ h1 {
   touch-action: none;
 }
 
+.opening-hand-material-pile {
+  cursor: pointer;
+  z-index: 21;
+}
+
 .opening-hand-deck-pile:disabled {
   cursor: default;
   opacity: 0.45;
@@ -1710,6 +1735,10 @@ h1 {
 .opening-hand-deck-pile.dragging {
   cursor: grabbing;
   opacity: 0.55;
+}
+
+.opening-hand-material-pile:not(:disabled):hover {
+  filter: brightness(1.08);
 }
 
 .opening-hand-deck-stack {
@@ -1895,6 +1924,100 @@ h1 {
 
 .deck-quantity-field select {
   width: 64px;
+}
+
+.material-dialog {
+  width: min(860px, calc(100% - 18px));
+  max-height: min(820px, calc(100% - 24px));
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 0;
+  color: var(--text);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.material-dialog::backdrop {
+  background: rgba(6, 5, 10, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.material-dialog-shell {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.material-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.material-dialog-header h2 {
+  margin-bottom: 6px;
+}
+
+.material-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 14px;
+  max-height: min(560px, 58vh);
+  overflow: auto;
+  padding: 2px;
+}
+
+.material-dialog-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  border: 1px solid rgba(255, 204, 115, 0.22);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.material-dialog-card-image {
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.material-dialog-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.material-dialog-card-name {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  min-height: 2.4em;
+}
+
+.material-dialog-play {
+  min-height: 36px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 12px;
+  color: #081612;
+  background: linear-gradient(135deg, #3dd6c6, #1aa897);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.material-dialog-play:hover {
+  filter: brightness(1.06);
+}
+
+.material-dialog-empty {
+  margin: 0;
+  text-align: center;
 }
 
 .import-dialog {
