@@ -6,8 +6,9 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.65";
+const APP_VERSION = "0.66";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
+const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
@@ -192,6 +193,7 @@ const state = {
   openingHandHand: [],
   openingHandDealToken: 0,
   openingHandDealComplete: true,
+  openingHandPreviewEscBound: false,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
 };
@@ -2638,6 +2640,7 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = false;
   closeMaterialDialog();
+  hideOpeningHandCardPreview();
   saveMainDeckFreehandState();
   if (IS_TRYIT_PAGE) {
     renderTryItPage();
@@ -2652,6 +2655,7 @@ function exitOpeningHandSession() {
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = true;
   closeMaterialDialog();
+  hideOpeningHandCardPreview();
   if (IS_TRYIT_PAGE) {
     window.location.assign(BUILDER_PAGE_URL);
     return;
@@ -3706,10 +3710,28 @@ async function drawOpeningHandCard(
   updateOpeningHandDeckPile(board);
   resizeOpeningHandField(board);
   // After a mid-game draw (not the opening deal), neat-line Hand automatically.
-  if (organize || (state.openingHandDealComplete && !isOpeningDeal)) {
+  const shouldOrganize =
+    organize || (state.openingHandDealComplete && !isOpeningDeal);
+  if (shouldOrganize) {
     organizeOpeningHandCards(board);
   }
+  // Highlight freshly drawn cards (Deck draws), not the opening deal.
+  if (shouldOrganize) {
+    flashOpeningHandCardGlow(board, entry.instanceId);
+  }
   return entry;
+}
+
+function flashOpeningHandCardGlow(board, instanceId, durationMs = OPENING_HAND_DRAW_GLOW_MS) {
+  const field = board?.querySelector("[data-oh-field]");
+  const cardEl = field ? findOpeningHandCardElement(field, instanceId) : null;
+  if (!cardEl) {
+    return;
+  }
+  cardEl.classList.add("is-draw-glow");
+  window.setTimeout(() => {
+    cardEl.classList.remove("is-draw-glow");
+  }, durationMs);
 }
 
 function updateOpeningHandDeckPile(board) {
@@ -3960,6 +3982,16 @@ async function recollectOpeningHandMemory(board = null) {
 
 function hideOpeningHandCardPreview() {
   document.querySelectorAll("[data-oh-card-preview]").forEach((node) => node.remove());
+  if (state.openingHandPreviewEscBound) {
+    document.removeEventListener("keydown", onOpeningHandCardPreviewKeydown);
+    state.openingHandPreviewEscBound = false;
+  }
+}
+
+function onOpeningHandCardPreviewKeydown(event) {
+  if (event.key === "Escape") {
+    hideOpeningHandCardPreview();
+  }
 }
 
 function showOpeningHandCardPreview(entry) {
@@ -3976,7 +4008,19 @@ function showOpeningHandCardPreview(entry) {
   overlay.className = "opening-hand-card-preview";
   overlay.dataset.ohCardPreview = "true";
   overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-label", `${entry.card.name || "Card"} preview`);
+
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "icon-button opening-hand-card-preview-close";
+  closeButton.setAttribute("aria-label", "Close card preview");
+  closeButton.textContent = "×";
+  closeButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    hideOpeningHandCardPreview();
+  });
 
   const frame = document.createElement("div");
   frame.className = "opening-hand-card-preview-frame";
@@ -3992,11 +4036,14 @@ function showOpeningHandCardPreview(entry) {
   caption.textContent = entry.card.name || "Card";
 
   frame.append(image, caption);
-  overlay.append(frame);
+  overlay.append(closeButton, frame);
   document.body.append(overlay);
   // Force paint so the enter transition runs.
   void overlay.offsetWidth;
   overlay.classList.add("is-visible");
+  document.addEventListener("keydown", onOpeningHandCardPreviewKeydown);
+  state.openingHandPreviewEscBound = true;
+  closeButton.focus();
 }
 
 function enableOpeningHandCardDrag(cardEl, entry) {
@@ -4051,7 +4098,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
     pointerId = null;
     clearHoldPreviewTimer();
-    hideOpeningHandCardPreview();
+    // Keep the hold-to-peek lightbox open until the user hits × / Escape.
     cardEl.classList.remove("dragging");
     try {
       cardEl.releasePointerCapture(event.pointerId);
@@ -4121,7 +4168,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     pointerId = event.pointerId;
     dragMoved = false;
     clearHoldPreviewTimer();
-    hideOpeningHandCardPreview();
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
