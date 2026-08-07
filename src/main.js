@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.66";
+const APP_VERSION = "0.67";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
@@ -194,6 +194,8 @@ const state = {
   openingHandDealToken: 0,
   openingHandDealComplete: true,
   openingHandPreviewEscBound: false,
+  openingHandTurn: 1,
+  tryitMenuOpen: false,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
 };
@@ -510,6 +512,27 @@ function getTryItShellHtml() {
         <h1>Playtest</h1>
         <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
       </div>
+      <div class="tryit-turn-controls">
+        <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
+        <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
+        <div class="tryit-menu" id="tryit-menu">
+          <button
+            class="ghost compact tryit-menu-toggle"
+            type="button"
+            data-tryit-menu-toggle="true"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="tryit-menu-panel"
+            aria-label="Open menu"
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
+          <div class="tryit-menu-panel" id="tryit-menu-panel" role="menu" hidden>
+            <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-settings="true">Settings</button>
+            <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
+          </div>
+        </div>
+      </div>
     </header>
     <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
       <div class="tryit-page-actions" id="tryit-actions">
@@ -634,6 +657,23 @@ function bootTryItPage() {
   const actions = document.querySelector("#tryit-actions");
   actions?.addEventListener("click", (event) => {
     handleTryItActionClick(event);
+  });
+  document.querySelector(".tryit-page-header")?.addEventListener("click", (event) => {
+    handleTryItHeaderClick(event);
+  });
+  document.addEventListener("click", (event) => {
+    if (!state.tryitMenuOpen) {
+      return;
+    }
+    if (event.target.closest("#tryit-menu")) {
+      return;
+    }
+    setTryItMenuOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.tryitMenuOpen) {
+      setTryItMenuOpen(false);
+    }
   });
   window.addEventListener("resize", () => {
     const board = getActiveOpeningHandBoard();
@@ -2639,10 +2679,13 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandHand = [];
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = false;
+  state.openingHandTurn = 1;
+  setTryItMenuOpen(false);
   closeMaterialDialog();
   hideOpeningHandCardPreview();
   saveMainDeckFreehandState();
   if (IS_TRYIT_PAGE) {
+    updateTryItTurnLabel();
     renderTryItPage();
   }
 }
@@ -2715,6 +2758,65 @@ function handleTryItActionClick(event) {
   const banishButton = event.target.closest("[data-banish-opening-hand]");
   if (banishButton) {
     banishRandomMemoryCard(getActiveOpeningHandBoard());
+  }
+}
+
+function updateTryItTurnLabel() {
+  const label = document.querySelector("#tryit-turn-label");
+  if (!label) {
+    return;
+  }
+  const turn = Math.max(1, Number(state.openingHandTurn) || 1);
+  state.openingHandTurn = turn;
+  label.textContent = `Turn ${turn}`;
+}
+
+function endTryItTurn() {
+  state.openingHandTurn = Math.max(1, Number(state.openingHandTurn) || 1) + 1;
+  updateTryItTurnLabel();
+  setTryItMenuOpen(false);
+}
+
+function setTryItMenuOpen(open) {
+  state.tryitMenuOpen = Boolean(open);
+  const toggle = document.querySelector("[data-tryit-menu-toggle]");
+  const panel = document.querySelector("#tryit-menu-panel");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", state.tryitMenuOpen ? "true" : "false");
+    toggle.setAttribute("aria-label", state.tryitMenuOpen ? "Close menu" : "Open menu");
+  }
+  if (panel) {
+    panel.hidden = !state.tryitMenuOpen;
+  }
+}
+
+function handleTryItHeaderClick(event) {
+  const endTurnButton = event.target.closest("[data-end-turn]");
+  if (endTurnButton) {
+    endTryItTurn();
+    return;
+  }
+
+  const menuToggle = event.target.closest("[data-tryit-menu-toggle]");
+  if (menuToggle) {
+    event.stopPropagation();
+    setTryItMenuOpen(!state.tryitMenuOpen);
+    return;
+  }
+
+  const settingsItem = event.target.closest("[data-tryit-menu-settings]");
+  if (settingsItem) {
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    // Placeholder until settings are implemented.
+    window.alert("Settings coming soon.");
+    return;
+  }
+
+  const closeItem = event.target.closest("[data-tryit-menu-close]");
+  if (closeItem) {
+    event.stopPropagation();
+    setTryItMenuOpen(false);
   }
 }
 
