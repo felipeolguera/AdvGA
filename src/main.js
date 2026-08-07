@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.68";
+const APP_VERSION = "0.69";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
@@ -515,30 +515,32 @@ function getTryItShellHtml() {
     </header>
     <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
       <div class="tryit-page-actions" id="tryit-actions">
-        <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
-        <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
-        <div class="tryit-menu" id="tryit-menu">
-          <button
-            class="ghost compact tryit-menu-toggle"
-            type="button"
-            data-tryit-menu-toggle="true"
-            aria-expanded="false"
-            aria-haspopup="true"
-            aria-controls="tryit-menu-panel"
-            aria-label="Open menu"
-          >
-            <span aria-hidden="true">☰</span>
-          </button>
-          <div class="tryit-menu-panel" id="tryit-menu-panel" role="menu" hidden>
-            <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-settings="true">Settings</button>
-            <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
-          </div>
-        </div>
         <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
         <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
         <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
         <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
         <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
+        <div class="tryit-turn-controls">
+          <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
+          <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
+          <div class="tryit-menu" id="tryit-menu">
+            <button
+              class="ghost compact tryit-menu-toggle"
+              type="button"
+              data-tryit-menu-toggle="true"
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-controls="tryit-menu-panel"
+              aria-label="Open menu"
+            >
+              <span aria-hidden="true">☰</span>
+            </button>
+            <div class="tryit-menu-panel" id="tryit-menu-panel" role="menu" hidden>
+              <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-settings="true">Settings</button>
+              <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="tryit-root"></div>
     </section>
