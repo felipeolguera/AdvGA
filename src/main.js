@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.74";
+const APP_VERSION = "0.75";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -3150,6 +3150,32 @@ function isOpeningHandMemoryPosition(x, y, field) {
   return getOpeningHandZoneAt(x, y, field) === "memory";
 }
 
+function getOpeningHandFieldPointFromClient(clientX, clientY, field) {
+  const rect = field.getBoundingClientRect();
+  return {
+    x: clientX - rect.left - FREEHAND_CARD_WIDTH / 2,
+    y: clientY - rect.top - FREEHAND_CARD_HEIGHT / 2,
+  };
+}
+
+function clampOpeningHandFieldPosition(field, x, y, z = 1) {
+  const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
+  const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
+  const snapped = snapFreehandPosition({ x, y, z });
+  return {
+    x: Math.min(maxX, Math.max(0, snapped.x)),
+    y: Math.min(maxY, Math.max(0, snapped.y)),
+    z,
+  };
+}
+
+function normalizeOpeningHandDropZone(zone) {
+  if (zone === "material") {
+    return "memory";
+  }
+  return zone;
+}
+
 function createOpeningHandPileButton({
   count,
   datasetKey,
@@ -3204,7 +3230,7 @@ function renderOpeningHandContents(board) {
     count: state.openingHandLibrary.length,
     datasetKey: "ohDeckPile",
     className: "opening-hand-deck-pile",
-    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Drag or tap to draw.`,
+    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Tap or drag to Hand; drag to Memory face-down.`,
     emptyLabel: "Deck is empty",
   });
 
@@ -3811,7 +3837,14 @@ async function dealOpeningHandCards(board, token) {
 
 async function drawOpeningHandCard(
   board,
-  { animate = true, slotIndex = null, organize = false } = {},
+  {
+    animate = true,
+    slotIndex = null,
+    organize = false,
+    zone = "hand",
+    facedown = null,
+    position = null,
+  } = {},
 ) {
   if (state.openingHandLibrary.length === 0) {
     return null;
@@ -3822,13 +3855,48 @@ async function drawOpeningHandCard(
     return null;
   }
 
+  let targetZone = normalizeOpeningHandDropZone(zone);
+  if (targetZone !== "hand" && targetZone !== "memory" && targetZone !== "field") {
+    targetZone = "hand";
+  }
+
   const next = state.openingHandLibrary.shift();
   const handIndexBefore = state.openingHandHand.length;
-  const isOpeningDeal = handIndexBefore < OPENING_HAND_SIZE;
-  const position = isOpeningDeal
-    ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
-    : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE, field);
-  const entry = { ...next, position, facedown: false, zone: "hand", rotated: false };
+  const isOpeningDeal = targetZone === "hand" && handIndexBefore < OPENING_HAND_SIZE;
+  const topZ =
+    Math.max(
+      0,
+      handIndexBefore,
+      ...state.openingHandHand.map((item) => item.position?.z || 0),
+    ) + 1;
+
+  let cardPosition;
+  if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
+    cardPosition = clampOpeningHandFieldPosition(field, position.x, position.y, topZ);
+  } else if (targetZone === "hand") {
+    cardPosition = isOpeningDeal
+      ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
+      : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE, field);
+  } else {
+    const zones = getOpeningHandZones(field);
+    const zoneTop = targetZone === "memory" ? zones.memoryTop : zones.fieldTop;
+    const zoneBottom = targetZone === "memory" ? zones.memoryBottom : zones.fieldBottom;
+    cardPosition = clampOpeningHandFieldPosition(
+      field,
+      zones.memoryLeft + Math.max(0, (zones.mainRight - zones.memoryLeft - FREEHAND_CARD_WIDTH) / 2),
+      getOpeningHandRowCardTop(zoneTop, zoneBottom),
+      topZ,
+    );
+  }
+
+  const entryFacedown = facedown != null ? Boolean(facedown) : targetZone === "memory";
+  const entry = {
+    ...next,
+    position: cardPosition,
+    facedown: entryFacedown,
+    zone: targetZone,
+    rotated: false,
+  };
   state.openingHandHand.push(entry);
 
   const cardEl = createOpeningHandCard(entry, handIndexBefore, field);
@@ -3843,29 +3911,32 @@ async function drawOpeningHandCard(
     cardEl.style.opacity = "0.35";
     cardEl.style.transform = "scale(0.86) rotate(-8deg)";
     await delay(20);
-    // Recompute slot after layout/width settle so late cards don't share one x.
-    const settled = isOpeningDeal
-      ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
-      : getOpeningHandDrawSlot(0, field);
-    entry.position = settled;
-    entry.zone = "hand";
+    if (targetZone === "hand") {
+      // Recompute slot after layout/width settle so late cards don't share one x.
+      const settled = isOpeningDeal
+        ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
+        : getOpeningHandDrawSlot(0, field);
+      entry.position = settled;
+      entry.zone = "hand";
+    }
     applyOpeningHandCardPosition(cardEl, entry);
     cardEl.style.opacity = "1";
     cardEl.style.transform = "scale(1) rotate(0deg)";
     await delay(220);
     cardEl.classList.remove("opening-hand-card-dealing");
-    cardEl.style.transform = "";
+    applyOpeningHandCardRotation(cardEl, entry);
   }
 
   updateOpeningHandDeckPile(board);
   resizeOpeningHandField(board);
-  // After a mid-game draw (not the opening deal), neat-line Hand automatically.
+  // After a mid-game Hand draw (not the opening deal), neat-line Hand automatically.
   const shouldOrganize =
-    organize || (state.openingHandDealComplete && !isOpeningDeal);
+    targetZone === "hand" &&
+    (organize || (state.openingHandDealComplete && !isOpeningDeal));
   if (shouldOrganize) {
     organizeOpeningHandCards(board, { leadInstanceId: entry.instanceId });
   }
-  // Highlight freshly drawn cards (Deck draws), not the opening deal.
+  // Highlight freshly drawn Hand cards (Deck draws), not Memory/Field drops or opening deal.
   if (shouldOrganize) {
     flashOpeningHandCardGlow(board, entry.instanceId);
   }
@@ -4408,6 +4479,22 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     ghost = null;
     pileEl.classList.remove("dragging");
     board.classList.remove("opening-hand-drawing");
+    const field = board.querySelector("[data-oh-field]");
+    delete field?.dataset.activeZone;
+  };
+
+  const syncDropZonePreview = (clientX, clientY) => {
+    const field = board.querySelector("[data-oh-field]");
+    if (!field || !isPointInElement(clientX, clientY, field)) {
+      delete field?.dataset.activeZone;
+      board.classList.remove("opening-hand-drawing");
+      return null;
+    }
+    board.classList.add("opening-hand-drawing");
+    const point = getOpeningHandFieldPointFromClient(clientX, clientY, field);
+    const zone = normalizeOpeningHandDropZone(getOpeningHandZoneAt(point.x, point.y, field));
+    field.dataset.activeZone = zone;
+    return { field, point, zone };
   };
 
   const onPointerMove = (event) => {
@@ -4421,9 +4508,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     }
     ghost.style.left = `${event.clientX - FREEHAND_CARD_WIDTH / 2}px`;
     ghost.style.top = `${event.clientY - FREEHAND_CARD_HEIGHT / 2}px`;
-    const field = board.querySelector("[data-oh-field]");
-    const overField = field && isPointInElement(event.clientX, event.clientY, field);
-    board.classList.toggle("opening-hand-drawing", Boolean(overField));
+    syncDropZonePreview(event.clientX, event.clientY);
   };
 
   const onPointerUp = async (event) => {
@@ -4435,10 +4520,12 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
 
-    const field = board.querySelector("[data-oh-field]");
-    const overField = field && isPointInElement(event.clientX, event.clientY, field);
+    const preview = syncDropZonePreview(event.clientX, event.clientY);
+    const overField = Boolean(preview);
     const shouldDraw =
       state.openingHandLibrary.length > 0 && (overField || !moved);
+    const dropZone = moved && preview?.zone === "memory" ? "memory" : "hand";
+    const dropPosition = dropZone === "memory" ? preview.point : null;
     cleanup();
     try {
       pileEl.releasePointerCapture(event.pointerId);
@@ -4447,7 +4534,13 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     }
 
     if (shouldDraw) {
-      await drawOpeningHandCard(board, { animate: true, organize: true });
+      await drawOpeningHandCard(board, {
+        animate: true,
+        organize: dropZone === "hand",
+        zone: dropZone,
+        facedown: dropZone === "memory",
+        position: dropPosition,
+      });
     }
   };
 
