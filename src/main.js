@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.52";
+const APP_VERSION = "0.53";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -2005,7 +2005,7 @@ function createFullscreenSectionHeader(section, sectionCards) {
       openingHandButton.className = "secondary compact";
       openingHandButton.type = "button";
       openingHandButton.dataset.toggleOpeningHand = "true";
-      openingHandButton.textContent = "Opening hand";
+      openingHandButton.textContent = "Try it!";
       actions.append(openingHandButton);
     }
   }
