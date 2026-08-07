@@ -3394,9 +3394,14 @@ function applyOpeningHandCardFace(cardEl, entry) {
     image.alt = facedown ? "Face-down card" : entry.card.name;
   }
   const zone = entry.zone || "hand";
-  cardEl.title = facedown
-    ? `Face-down (${zone === "field" ? "Field" : zone === "memory" ? "Memory" : "card"})`
-    : entry.card.name;
+  if (zone === "field" || zone === "memory") {
+    const zoneLabel = zone === "field" ? "Field" : "Memory";
+    cardEl.title = facedown
+      ? `Face-down (${zoneLabel}) — triple-click to flip up`
+      : `${entry.card.name} — triple-click to flip down${zone === "field" ? "; double-click to rotate" : ""}`;
+  } else {
+    cardEl.title = facedown ? "Face-down card" : entry.card.name;
+  }
 }
 
 function setOpeningHandCardFacedown(cardEl, entry, facedown) {
