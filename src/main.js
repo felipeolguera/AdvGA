@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.56";
+const APP_VERSION = "0.57";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -1990,6 +1990,14 @@ function createFullscreenSectionHeader(section, sectionCards) {
       organizeButton.dataset.organizeOpeningHand = "true";
       organizeButton.textContent = "Organize hand";
       actions.append(organizeButton);
+
+      const recollectButton = document.createElement("button");
+      recollectButton.className = "ghost compact";
+      recollectButton.type = "button";
+      recollectButton.dataset.recollectOpeningHand = "true";
+      recollectButton.textContent = "Recollect";
+      recollectButton.title = "Move all Memory cards back to Hand";
+      actions.append(recollectButton);
     } else {
       const freehandButton = document.createElement("button");
       freehandButton.className = "secondary compact";
@@ -2009,7 +2017,7 @@ function createFullscreenSectionHeader(section, sectionCards) {
       }
 
       const openingHandButton = document.createElement("button");
-      openingHandButton.className = "secondary compact";
+      openingHandButton.className = "try-it-button compact";
       openingHandButton.type = "button";
       openingHandButton.dataset.toggleOpeningHand = "true";
       openingHandButton.textContent = "Try it!";
@@ -2576,7 +2584,7 @@ function createOpeningHandBoard(sectionCards) {
   const header = document.createElement("div");
   header.className = "opening-hand-board-header";
   header.innerHTML = `
-    <p class="hint">Field / Memory / Hand (left) and Banishment / Deck / Graveyard (right). Memory flips face down. Drag or tap Deck to draw into Hand. Drag a Hand card onto Deck to put it on the bottom. Use Organize hand to neat-line Hand cards.</p>
+    <p class="hint">Field / Memory / Hand (left) and Banishment / Deck / Graveyard (right). Memory flips face down. Drag or tap Deck to draw. Drop on Deck <strong>Top</strong> to put a card on top (next draw); drop on <strong>Bottom</strong> to put it last. Recollect moves Memory back to Hand.</p>
   `;
 
   const field = document.createElement("div");
@@ -2604,6 +2612,21 @@ function createOpeningHandBoard(sectionCards) {
     tag.className = `opening-hand-tag opening-hand-tag-${key}`;
     tag.textContent = label;
     zone.append(tag);
+
+    if (key === "deck") {
+      const topHalf = document.createElement("span");
+      topHalf.className = "opening-hand-deck-half opening-hand-deck-top";
+      topHalf.dataset.ohDeckHalf = "top";
+      topHalf.textContent = "Top";
+
+      const bottomHalf = document.createElement("span");
+      bottomHalf.className = "opening-hand-deck-half opening-hand-deck-bottom";
+      bottomHalf.dataset.ohDeckHalf = "bottom";
+      bottomHalf.textContent = "Bottom";
+
+      zone.append(topHalf, bottomHalf);
+    }
+
     zonesWrap.append(zone);
   });
 
@@ -2804,7 +2827,8 @@ function getOpeningHandZoneAt(x, y, field) {
       return "banishment";
     }
     if (centerY < zones.graveyardTop) {
-      return "deck";
+      const deckMid = (zones.deckTop + zones.deckBottom) / 2;
+      return centerY < deckMid ? "deck-top" : "deck-bottom";
     }
     return "graveyard";
   }
@@ -2815,6 +2839,10 @@ function getOpeningHandZoneAt(x, y, field) {
     return "memory";
   }
   return "hand";
+}
+
+function isOpeningHandDeckZone(zone) {
+  return zone === "deck" || zone === "deck-top" || zone === "deck-bottom";
 }
 
 function isOpeningHandMemoryPosition(x, y, field) {
@@ -3153,7 +3181,7 @@ function updateOpeningHandDeckPile(board) {
   positionOpeningHandDeckPile(board);
 }
 
-async function returnOpeningHandCardToDeckBottom(board, entry, cardEl) {
+async function returnOpeningHandCardToDeck(board, entry, cardEl, placement = "bottom") {
   const field = board.querySelector("[data-oh-field]");
   if (!field) {
     return;
@@ -3162,17 +3190,29 @@ async function returnOpeningHandCardToDeckBottom(board, entry, cardEl) {
   state.openingHandHand = state.openingHandHand.filter(
     (item) => item.instanceId !== entry.instanceId,
   );
-  // Draw uses shift() from the front, so push = bottom of deck.
-  state.openingHandLibrary.push({
+  const libraryEntry = {
     card: entry.card,
     instanceId: entry.instanceId,
-  });
+  };
+  // Draw uses shift() from the front = top of the stack.
+  if (placement === "top") {
+    state.openingHandLibrary.unshift(libraryEntry);
+  } else {
+    state.openingHandLibrary.push(libraryEntry);
+  }
 
+  const zones = getOpeningHandZones(field);
   const anchor = getOpeningHandDeckAnchor(field);
+  const deckMid = (zones.deckTop + zones.deckBottom) / 2;
+  const targetY =
+    placement === "top"
+      ? zones.deckTop + OPENING_HAND_ROW_PAD / 2
+      : Math.min(anchor.y + FREEHAND_CARD_HEIGHT * 0.2, deckMid);
+
   cardEl.classList.add("opening-hand-card-dealing", "is-facedown");
   applyOpeningHandCardFace(cardEl, { ...entry, facedown: true });
   cardEl.style.left = `${anchor.x}px`;
-  cardEl.style.top = `${anchor.y}px`;
+  cardEl.style.top = `${targetY}px`;
   cardEl.style.opacity = "0.55";
   cardEl.style.transform = "scale(0.9)";
   await delay(180);
@@ -3208,6 +3248,56 @@ function organizeOpeningHandCards(board = null) {
   state.openingHandHand.forEach((entry) => {
     entry.zone = resolveOpeningHandEntryZone(entry, field);
   });
+  reflowOpeningHandZoneCards(playBoard, "hand");
+  resizeOpeningHandField(playBoard);
+}
+
+async function recollectOpeningHandMemory(board = null) {
+  const playBoard =
+    board || document.querySelector("[data-opening-hand-board]");
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field) {
+    return;
+  }
+
+  layoutOpeningHandZones(field);
+  state.openingHandHand.forEach((entry) => {
+    entry.zone = resolveOpeningHandEntryZone(entry, field);
+  });
+
+  const memoryEntries = state.openingHandHand
+    .filter((entry) => entry.zone === "memory")
+    .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
+  if (memoryEntries.length === 0) {
+    return;
+  }
+
+  const handEntries = state.openingHandHand.filter((entry) => entry.zone === "hand");
+  const totalHand = handEntries.length + memoryEntries.length;
+  const layout = getOpeningHandRowLayout(field, totalHand);
+  const startIndex = handEntries.length;
+
+  for (let index = 0; index < memoryEntries.length; index += 1) {
+    const entry = memoryEntries[index];
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    entry.zone = "hand";
+    entry.facedown = false;
+    entry.position = {
+      x: layout.startX + (startIndex + index) * layout.step,
+      y: layout.y,
+      z: startIndex + index + 1,
+    };
+    if (cardEl) {
+      cardEl.classList.add("opening-hand-card-dealing");
+      applyOpeningHandCardFace(cardEl, entry);
+      applyOpeningHandCardPosition(cardEl, entry);
+      cardEl.style.opacity = "1";
+      cardEl.style.transform = "scale(1) rotate(0deg)";
+      await delay(120);
+      cardEl.classList.remove("opening-hand-card-dealing");
+    }
+  }
+
   reflowOpeningHandZoneCards(playBoard, "hand");
   resizeOpeningHandField(playBoard);
 }
@@ -3272,8 +3362,9 @@ function enableOpeningHandCardDrag(cardEl, entry) {
 
     const zone = getOpeningHandZoneAt(x, y, field);
     delete field.dataset.activeZone;
-    if (zone === "deck") {
-      await returnOpeningHandCardToDeckBottom(board, entry, cardEl);
+    if (isOpeningHandDeckZone(zone)) {
+      const placement = zone === "deck-top" ? "top" : "bottom";
+      await returnOpeningHandCardToDeck(board, entry, cardEl, placement);
       return;
     }
 
@@ -3510,6 +3601,12 @@ function handleDeckListClick(event) {
   const organizeButton = event.target.closest("[data-organize-opening-hand]");
   if (organizeButton) {
     organizeOpeningHandCards();
+    return;
+  }
+
+  const recollectButton = event.target.closest("[data-recollect-opening-hand]");
+  if (recollectButton) {
+    recollectOpeningHandMemory();
     return;
   }
 
