@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.73";
+const APP_VERSION = "0.74";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -511,20 +511,8 @@ function getTryItShellHtml() {
     <header class="panel tryit-page-header">
       <div class="tryit-page-heading">
         <p class="eyebrow">Try it!</p>
-        <h1>Playtest</h1>
-        <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
-      </div>
-    </header>
-    <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
-      <div class="tryit-page-actions" id="tryit-actions">
-        <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
-        <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
-        <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
-        <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
-        <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
-        <div class="tryit-turn-controls">
-          <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
-          <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
+        <div class="tryit-page-title-row">
+          <h1>Playtest</h1>
           <div class="tryit-menu" id="tryit-menu">
             <button
               class="ghost compact tryit-menu-toggle"
@@ -542,6 +530,20 @@ function getTryItShellHtml() {
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
             </div>
           </div>
+        </div>
+        <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
+      </div>
+    </header>
+    <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
+      <div class="tryit-page-actions" id="tryit-actions">
+        <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
+        <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
+        <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
+        <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
+        <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
+        <div class="tryit-turn-controls">
+          <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
+          <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
         </div>
       </div>
       <div id="tryit-root"></div>
@@ -656,8 +658,8 @@ if (IS_TRYIT_PAGE) {
 }
 
 function bootTryItPage() {
-  const actions = document.querySelector("#tryit-actions");
-  actions?.addEventListener("click", (event) => {
+  const page = document.querySelector(".tryit-page");
+  page?.addEventListener("click", (event) => {
     handleTryItActionClick(event);
   });
   document.addEventListener("click", (event) => {
