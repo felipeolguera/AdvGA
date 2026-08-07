@@ -1170,7 +1170,19 @@ h1 {
 }
 
 .tryit-page-heading h1 {
+  margin: 0;
+}
+
+.tryit-page-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 6px;
+}
+
+.tryit-page-title-row h1 {
+  min-width: 0;
 }
 
 .tryit-page-actions {
@@ -1201,6 +1213,7 @@ h1 {
 
 .tryit-menu {
   position: relative;
+  flex: 0 0 auto;
 }
 
 .tryit-menu-toggle {
