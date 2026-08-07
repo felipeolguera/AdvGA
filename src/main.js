@@ -507,6 +507,8 @@ function getTryItShellHtml() {
         <h1>Playtest</h1>
         <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
       </div>
+    </header>
+    <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
       <div class="tryit-page-actions" id="tryit-actions">
         <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
         <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
@@ -514,8 +516,8 @@ function getTryItShellHtml() {
         <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
         <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
       </div>
-    </header>
-    <section class="panel tryit-playmat-panel" id="tryit-root" aria-label="Try it playmat"></section>
+      <div id="tryit-root"></div>
+    </section>
   </main>
 
   <dialog class="material-dialog" id="material-dialog" aria-labelledby="material-dialog-title">
