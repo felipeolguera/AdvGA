@@ -1496,7 +1496,7 @@ h1 {
   --oh-zone-gap: 12px;
   --oh-inset: 8px;
   position: relative;
-  min-height: 560px;
+  min-height: 500px;
   overflow: visible;
   border: 1px solid var(--line);
   border-radius: 18px;
