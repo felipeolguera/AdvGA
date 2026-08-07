@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.48";
+const APP_VERSION = "0.49";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -22,6 +22,9 @@ const OPENING_HAND_STEP_X = FREEHAND_CARD_WIDTH + FREEHAND_GAP_X;
 const OPENING_HAND_STEP_Y = FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y;
 const OPENING_HAND_ZONE_GAP = 12;
 const OPENING_HAND_TAG_SPACE = 34;
+const OPENING_HAND_RAIL_WIDTH = FREEHAND_CARD_WIDTH + FREEHAND_PADDING * 2;
+const OPENING_HAND_BAND_HEIGHT =
+  OPENING_HAND_TAG_SPACE + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING;
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -2563,36 +2566,34 @@ function createOpeningHandBoard(sectionCards) {
   const header = document.createElement("div");
   header.className = "opening-hand-board-header";
   header.innerHTML = `
-    <p class="hint">Memory (top): drop a card there to flip it face down. Hand (below): opening 7 deal face up with spacing. Drag a Memory card out to flip it face up. Drag or tap the deck to draw.</p>
+    <p class="hint">Play / Memory / Hand on the left. Memory flips cards face down; other zones stay face up. Right rail: Banishment above Deck, Graveyard below. Drag or tap the deck to draw into Hand.</p>
   `;
 
   const field = document.createElement("div");
   field.className = "opening-hand-field";
   field.dataset.ohField = "true";
 
-  const memoryZone = document.createElement("div");
-  memoryZone.className = "opening-hand-zone opening-hand-zone-memory";
-  memoryZone.dataset.ohZone = "memory";
-  memoryZone.setAttribute("aria-hidden", "true");
+  const zoneSpecs = [
+    ["play", "Play"],
+    ["memory", "Memory"],
+    ["hand", "Hand"],
+    ["banishment", "Banishment"],
+    ["deck", "Deck"],
+    ["graveyard", "Graveyard"],
+  ];
+  const zoneNodes = zoneSpecs.flatMap(([key, label]) => {
+    const zone = document.createElement("div");
+    zone.className = `opening-hand-zone opening-hand-zone-${key}`;
+    zone.dataset.ohZone = key;
+    zone.setAttribute("aria-hidden", "true");
 
-  const handZone = document.createElement("div");
-  handZone.className = "opening-hand-zone opening-hand-zone-hand";
-  handZone.dataset.ohZone = "hand";
-  handZone.setAttribute("aria-hidden", "true");
+    const tag = document.createElement("span");
+    tag.className = `opening-hand-tag opening-hand-tag-${key}`;
+    tag.textContent = label;
+    return [zone, tag];
+  });
 
-  const memoryTag = document.createElement("span");
-  memoryTag.className = "opening-hand-tag opening-hand-tag-memory";
-  memoryTag.textContent = "Memory";
-
-  const handTag = document.createElement("span");
-  handTag.className = "opening-hand-tag opening-hand-tag-hand";
-  handTag.textContent = "Hand";
-
-  const deckTag = document.createElement("span");
-  deckTag.className = "opening-hand-tag opening-hand-tag-deck";
-  deckTag.textContent = "Deck";
-
-  field.append(memoryZone, handZone, memoryTag, handTag, deckTag);
+  field.append(...zoneNodes);
   board.append(header, field);
   layoutOpeningHandZones(field);
   renderOpeningHandContents(board);
@@ -2615,19 +2616,49 @@ function getOpeningHandFieldWidth(field) {
 
 function getOpeningHandZones(field) {
   const width = getOpeningHandFieldWidth(field);
-  const memoryTop = FREEHAND_PADDING / 2;
-  const memoryContentTop = memoryTop + OPENING_HAND_TAG_SPACE;
-  const memoryBottom =
-    memoryContentTop + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING + OPENING_HAND_ZONE_GAP;
+  const inset = FREEHAND_PADDING / 2;
+  const railLeft = Math.max(
+    inset + FREEHAND_CARD_WIDTH + OPENING_HAND_ZONE_GAP,
+    width - OPENING_HAND_RAIL_WIDTH - inset,
+  );
+  const mainRight = Math.max(inset, width - railLeft + inset);
+
+  const playTop = inset;
+  const playBottom = playTop + OPENING_HAND_BAND_HEIGHT;
+  const memoryTop = playBottom + OPENING_HAND_ZONE_GAP;
+  const memoryBottom = memoryTop + OPENING_HAND_BAND_HEIGHT;
   const handTop = memoryBottom + OPENING_HAND_ZONE_GAP;
   const handContentTop = handTop + OPENING_HAND_TAG_SPACE;
+
+  const banishmentTop = inset;
+  const banishmentBottom = banishmentTop + OPENING_HAND_BAND_HEIGHT;
+  const deckTop = banishmentBottom + OPENING_HAND_ZONE_GAP;
+  const deckBottom = deckTop + OPENING_HAND_BAND_HEIGHT;
+  const graveyardTop = deckBottom + OPENING_HAND_ZONE_GAP;
+  const graveyardBottom = graveyardTop + OPENING_HAND_BAND_HEIGHT;
+
   return {
     width,
+    inset,
+    railLeft,
+    mainRight,
+    playTop,
+    playContentTop: playTop + OPENING_HAND_TAG_SPACE,
+    playBottom,
     memoryTop,
-    memoryContentTop,
+    memoryContentTop: memoryTop + OPENING_HAND_TAG_SPACE,
     memoryBottom,
     handTop,
     handContentTop,
+    banishmentTop,
+    banishmentContentTop: banishmentTop + OPENING_HAND_TAG_SPACE,
+    banishmentBottom,
+    deckTop,
+    deckContentTop: deckTop + OPENING_HAND_TAG_SPACE,
+    deckBottom,
+    graveyardTop,
+    graveyardContentTop: graveyardTop + OPENING_HAND_TAG_SPACE,
+    graveyardBottom,
   };
 }
 
@@ -2636,49 +2667,100 @@ function layoutOpeningHandZones(field) {
     return getOpeningHandZones(field);
   }
   const zones = getOpeningHandZones(field);
-  const memoryZone = field.querySelector('[data-oh-zone="memory"]');
-  const handZone = field.querySelector('[data-oh-zone="hand"]');
-  const memoryTag = field.querySelector(".opening-hand-tag-memory");
-  const handTag = field.querySelector(".opening-hand-tag-hand");
+  const setBand = (key, top, bottom, { left = null, right = null, rail = false } = {}) => {
+    const zone = field.querySelector(`[data-oh-zone="${key}"]`);
+    const tag = field.querySelector(`.opening-hand-tag-${key}`);
+    if (zone) {
+      zone.style.top = `${top}px`;
+      zone.style.height = `${Math.max(0, bottom - top)}px`;
+      zone.style.left = left == null ? "" : `${left}px`;
+      zone.style.right = right == null ? "" : `${right}px`;
+      zone.classList.toggle("opening-hand-zone-rail", rail);
+    }
+    if (tag) {
+      tag.style.top = `${top + 8}px`;
+      if (rail) {
+        tag.style.left = `${zones.railLeft + 8}px`;
+        tag.style.right = "auto";
+      } else {
+        tag.style.left = "";
+        tag.style.right = "";
+      }
+    }
+  };
 
-  if (memoryZone) {
-    memoryZone.style.top = `${zones.memoryTop}px`;
-    memoryZone.style.height = `${zones.memoryBottom - zones.memoryTop}px`;
-  }
+  setBand("play", zones.playTop, zones.playBottom, { right: zones.mainRight });
+  setBand("memory", zones.memoryTop, zones.memoryBottom, { right: zones.mainRight });
+  setBand("hand", zones.handTop, zones.handTop + OPENING_HAND_BAND_HEIGHT, {
+    right: zones.mainRight,
+  });
+  const handZone = field.querySelector('[data-oh-zone="hand"]');
   if (handZone) {
-    handZone.style.top = `${zones.handTop}px`;
-    handZone.style.bottom = `${FREEHAND_PADDING / 2}px`;
+    handZone.style.height = "";
+    handZone.style.bottom = `${zones.inset}px`;
   }
-  if (memoryTag) {
-    memoryTag.style.top = `${zones.memoryTop + 8}px`;
-  }
-  if (handTag) {
-    handTag.style.top = `${zones.handTop + 8}px`;
-  }
+
+  setBand("banishment", zones.banishmentTop, zones.banishmentBottom, {
+    left: zones.railLeft,
+    right: zones.inset,
+    rail: true,
+  });
+  setBand("deck", zones.deckTop, zones.deckBottom, {
+    left: zones.railLeft,
+    right: zones.inset,
+    rail: true,
+  });
+  setBand("graveyard", zones.graveyardTop, zones.graveyardBottom, {
+    left: zones.railLeft,
+    right: zones.inset,
+    rail: true,
+  });
+
   return zones;
 }
 
 function getOpeningHandHandColumns(field) {
-  const width = getOpeningHandFieldWidth(field);
-  const usable = Math.max(FREEHAND_CARD_WIDTH, width - FREEHAND_PADDING * 2);
+  const zones = getOpeningHandZones(field);
+  const usable = Math.max(
+    FREEHAND_CARD_WIDTH,
+    zones.railLeft - FREEHAND_PADDING - zones.inset,
+  );
   return Math.max(1, Math.floor((usable + FREEHAND_GAP_X) / OPENING_HAND_STEP_X));
 }
 
 function getOpeningHandDeckAnchor(field) {
   const zones = getOpeningHandZones(field);
   return {
-    x: Math.max(
-      FREEHAND_PADDING,
-      zones.width - FREEHAND_CARD_WIDTH - FREEHAND_PADDING,
-    ),
-    y: zones.memoryContentTop,
+    x: zones.railLeft + (OPENING_HAND_RAIL_WIDTH - FREEHAND_CARD_WIDTH) / 2,
+    y: zones.deckContentTop,
   };
 }
 
-function isOpeningHandMemoryPosition(x, y, field) {
+function getOpeningHandZoneAt(x, y, field) {
   const zones = getOpeningHandZones(field);
+  const centerX = x + FREEHAND_CARD_WIDTH / 2;
   const centerY = y + FREEHAND_CARD_HEIGHT / 2;
-  return centerY < zones.memoryBottom;
+
+  if (centerX >= zones.railLeft) {
+    if (centerY < zones.deckTop) {
+      return "banishment";
+    }
+    if (centerY < zones.graveyardTop) {
+      return "deck";
+    }
+    return "graveyard";
+  }
+  if (centerY < zones.playBottom) {
+    return "play";
+  }
+  if (centerY < zones.memoryBottom) {
+    return "memory";
+  }
+  return "hand";
+}
+
+function isOpeningHandMemoryPosition(x, y, field) {
+  return getOpeningHandZoneAt(x, y, field) === "memory";
 }
 
 function renderOpeningHandContents(board) {
@@ -2838,7 +2920,10 @@ function resizeOpeningHandField(board) {
   }
 
   const zones = layoutOpeningHandZones(field);
-  let maxBottom = zones.handContentTop + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 2;
+  let maxBottom = Math.max(
+    zones.handContentTop + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 2,
+    zones.graveyardBottom + FREEHAND_PADDING,
+  );
   field.querySelectorAll("[data-oh-card], [data-oh-deck-pile]").forEach((element) => {
     const y = Number.parseFloat(element.style.top) || 0;
     const height = element.offsetHeight || FREEHAND_CARD_HEIGHT;
@@ -2846,7 +2931,10 @@ function resizeOpeningHandField(board) {
   });
 
   const minimum =
-    zones.handContentTop + OPENING_HAND_STEP_Y + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 2;
+    Math.max(
+      zones.handContentTop + OPENING_HAND_STEP_Y + FREEHAND_CARD_HEIGHT,
+      zones.graveyardBottom,
+    ) + FREEHAND_PADDING * 2;
   field.style.minHeight = `${Math.max(minimum, maxBottom)}px`;
   positionOpeningHandDeckPile(board);
 }
@@ -2958,9 +3046,9 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerY = 0;
 
   const syncFaceForPosition = (field, x, y) => {
-    const inMemory = isOpeningHandMemoryPosition(x, y, field);
-    setOpeningHandCardFacedown(cardEl, entry, inMemory);
-    field.classList.toggle("memory-drop-active", inMemory);
+    const zone = getOpeningHandZoneAt(x, y, field);
+    setOpeningHandCardFacedown(cardEl, entry, zone === "memory");
+    field.dataset.activeZone = zone;
   };
 
   const onPointerMove = (event) => {
@@ -3011,7 +3099,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     entry.position = { x, y, z };
     if (field) {
       syncFaceForPosition(field, x, y);
-      field.classList.remove("memory-drop-active");
+      delete field.dataset.activeZone;
     }
     const board = cardEl.closest("[data-opening-hand-board]");
     if (board) {
