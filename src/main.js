@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.44";
+const APP_VERSION = "0.45";
 const FREEHAND_CARD_WIDTH = 96;
 const FREEHAND_CARD_HEIGHT = 134;
 const FREEHAND_GAP_X = 14;
@@ -2553,29 +2553,26 @@ function createOpeningHandBoard(sectionCards) {
   board.className = "opening-hand-board";
   board.dataset.openingHandBoard = "true";
 
-  const handZone = document.createElement("section");
-  handZone.className = "opening-hand-zone opening-hand-a1";
-  handZone.dataset.ohA1 = "true";
-  const handLabel = document.createElement("div");
-  handLabel.className = "opening-hand-zone-label";
-  handLabel.innerHTML = `<strong>A1</strong><span>Opening hand</span>`;
-  const handField = document.createElement("div");
-  handField.className = "opening-hand-field";
-  handField.dataset.ohHandField = "true";
-  handZone.append(handLabel, handField);
+  const header = document.createElement("div");
+  header.className = "opening-hand-board-header";
+  header.innerHTML = `
+    <p class="hint">One play field: hand cards on the left, facedown deck on the right. Drag the deck anywhere on this field (or tap it) to draw 1.</p>
+  `;
 
-  const deckZone = document.createElement("section");
-  deckZone.className = "opening-hand-zone opening-hand-a2";
-  deckZone.dataset.ohA2 = "true";
-  const deckLabel = document.createElement("div");
-  deckLabel.className = "opening-hand-zone-label";
-  deckLabel.innerHTML = `<strong>A2</strong><span>Deck</span>`;
-  const deckField = document.createElement("div");
-  deckField.className = "opening-hand-deck-field";
-  deckField.dataset.ohDeckField = "true";
-  deckZone.append(deckLabel, deckField);
+  const field = document.createElement("div");
+  field.className = "opening-hand-field";
+  field.dataset.ohField = "true";
 
-  board.append(handZone, deckZone);
+  const handTag = document.createElement("span");
+  handTag.className = "opening-hand-tag opening-hand-tag-hand";
+  handTag.textContent = "Hand";
+
+  const deckTag = document.createElement("span");
+  deckTag.className = "opening-hand-tag opening-hand-tag-deck";
+  deckTag.textContent = "Deck";
+
+  field.append(handTag, deckTag);
+  board.append(header, field);
   renderOpeningHandContents(board);
 
   const shouldDeal =
@@ -2590,18 +2587,25 @@ function createOpeningHandBoard(sectionCards) {
   return board;
 }
 
+function getOpeningHandDeckAnchor(field) {
+  const width = field.clientWidth || field.parentElement?.clientWidth || 640;
+  const height = field.clientHeight || 420;
+  return {
+    x: Math.max(FREEHAND_PADDING, width - FREEHAND_CARD_WIDTH - FREEHAND_PADDING * 2),
+    y: Math.max(FREEHAND_PADDING, Math.round(height / 2 - FREEHAND_CARD_HEIGHT / 2)),
+  };
+}
+
 function renderOpeningHandContents(board) {
-  const handField = board.querySelector("[data-oh-hand-field]");
-  const deckField = board.querySelector("[data-oh-deck-field]");
-  if (!handField || !deckField) {
+  const field = board.querySelector("[data-oh-field]");
+  if (!field) {
     return;
   }
 
-  handField.replaceChildren();
-  deckField.replaceChildren();
+  field.querySelectorAll("[data-oh-card], [data-oh-deck-pile]").forEach((node) => node.remove());
 
   state.openingHandHand.forEach((entry, index) => {
-    handField.append(createOpeningHandCard(entry, index));
+    field.append(createOpeningHandCard(entry, index));
   });
 
   const pile = document.createElement("button");
@@ -2612,7 +2616,7 @@ function renderOpeningHandContents(board) {
   pile.setAttribute(
     "aria-label",
     state.openingHandLibrary.length
-      ? `Draw from deck (${state.openingHandLibrary.length} left). Drag onto A1 to draw.`
+      ? `Draw from deck (${state.openingHandLibrary.length} left). Drag or tap to draw.`
       : "Deck is empty",
   );
 
@@ -2630,15 +2634,21 @@ function renderOpeningHandContents(board) {
   count.className = "opening-hand-deck-count";
   count.textContent = String(state.openingHandLibrary.length);
 
-  const hint = document.createElement("span");
-  hint.className = "hint opening-hand-deck-hint";
-  hint.textContent = state.openingHandLibrary.length
-    ? "Drag deck onto A1 to draw 1"
-    : "No cards left";
-
   pile.append(stack, count);
-  deckField.append(pile, hint);
+  field.append(pile);
+  positionOpeningHandDeckPile(board);
   enableOpeningHandDeckDrag(pile, board);
+}
+
+function positionOpeningHandDeckPile(board) {
+  const field = board.querySelector("[data-oh-field]");
+  const pile = board.querySelector("[data-oh-deck-pile]");
+  if (!field || !pile) {
+    return;
+  }
+  const anchor = getOpeningHandDeckAnchor(field);
+  pile.style.left = `${anchor.x}px`;
+  pile.style.top = `${anchor.y}px`;
 }
 
 function createOpeningHandCard(entry, index) {
@@ -2692,10 +2702,11 @@ function delay(ms) {
 }
 
 async function dealOpeningHandCards(board, token) {
-  const handField = board.querySelector("[data-oh-hand-field]");
-  if (!handField) {
+  const field = board.querySelector("[data-oh-field]");
+  if (!field) {
     return;
   }
+  positionOpeningHandDeckPile(board);
 
   const dealCount = Math.min(OPENING_HAND_SIZE, state.openingHandLibrary.length);
   for (let index = 0; index < dealCount; index += 1) {
@@ -2715,9 +2726,8 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
     return null;
   }
 
-  const handField = board.querySelector("[data-oh-hand-field]");
-  const deckField = board.querySelector("[data-oh-deck-field]");
-  if (!handField || !deckField) {
+  const field = board.querySelector("[data-oh-field]");
+  if (!field) {
     return null;
   }
 
@@ -2728,16 +2738,13 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
   state.openingHandHand.push(entry);
 
   const cardEl = createOpeningHandCard(entry, index);
-  handField.append(cardEl);
+  field.append(cardEl);
 
   if (animate) {
-    const deckRect = deckField.getBoundingClientRect();
-    const handRect = handField.getBoundingClientRect();
-    const startX = deckRect.left + deckRect.width / 2 - handRect.left - FREEHAND_CARD_WIDTH / 2;
-    const startY = deckRect.top + deckRect.height / 2 - handRect.top - FREEHAND_CARD_HEIGHT / 2;
+    const deckAnchor = getOpeningHandDeckAnchor(field);
     cardEl.classList.add("opening-hand-card-dealing");
-    cardEl.style.left = `${startX}px`;
-    cardEl.style.top = `${startY}px`;
+    cardEl.style.left = `${deckAnchor.x}px`;
+    cardEl.style.top = `${deckAnchor.y}px`;
     cardEl.style.opacity = "0.35";
     cardEl.style.transform = "scale(0.86) rotate(-8deg)";
     await delay(20);
@@ -2755,24 +2762,20 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
 }
 
 function updateOpeningHandDeckPile(board) {
-  const deckField = board.querySelector("[data-oh-deck-field]");
-  if (!deckField) {
-    return;
-  }
-  const pile = deckField.querySelector("[data-oh-deck-pile]");
-  const hint = deckField.querySelector(".opening-hand-deck-hint");
-  const count = deckField.querySelector(".opening-hand-deck-count");
-  const stack = deckField.querySelector(".opening-hand-deck-stack");
+  const pile = board.querySelector("[data-oh-deck-pile]");
+  const count = board.querySelector(".opening-hand-deck-count");
+  const stack = board.querySelector(".opening-hand-deck-stack");
   if (count) {
     count.textContent = String(state.openingHandLibrary.length);
   }
   if (pile) {
     pile.disabled = state.openingHandLibrary.length === 0;
-  }
-  if (hint) {
-    hint.textContent = state.openingHandLibrary.length
-      ? "Drag deck onto A1 to draw 1"
-      : "No cards left";
+    pile.setAttribute(
+      "aria-label",
+      state.openingHandLibrary.length
+        ? `Draw from deck (${state.openingHandLibrary.length} left). Drag or tap to draw.`
+        : "Deck is empty",
+    );
   }
   if (stack) {
     stack.replaceChildren();
@@ -2783,6 +2786,7 @@ function updateOpeningHandDeckPile(board) {
       stack.append(back);
     }
   }
+  positionOpeningHandDeckPile(board);
 }
 
 function enableOpeningHandCardDrag(cardEl, entry) {
@@ -2796,13 +2800,17 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     if (pointerId !== event.pointerId) {
       return;
     }
-    const field = cardEl.closest("[data-oh-hand-field]");
+    const field = cardEl.closest("[data-oh-field]");
     if (!field) {
       return;
     }
     let nextX = startX + (event.clientX - originPointerX);
     let nextY = startY + (event.clientY - originPointerY);
     const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
+    const neededHeight = nextY + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING;
+    if (neededHeight > field.clientHeight) {
+      field.style.minHeight = `${neededHeight}px`;
+    }
     const maxY = Math.max(0, field.clientHeight - FREEHAND_CARD_HEIGHT);
     const snapped = snapFreehandPosition({ x: nextX, y: nextY, z: 0 });
     nextX = Math.min(maxX, Math.max(0, snapped.x));
@@ -2862,23 +2870,31 @@ function enableOpeningHandCardDrag(cardEl, entry) {
 function enableOpeningHandDeckDrag(pileEl, board) {
   let pointerId = null;
   let ghost = null;
+  let originX = 0;
+  let originY = 0;
+  let moved = false;
 
   const cleanup = () => {
     ghost?.remove();
     ghost = null;
     pileEl.classList.remove("dragging");
-    board.classList.remove("opening-hand-draw-target");
+    board.classList.remove("opening-hand-drawing");
   };
 
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId || !ghost) {
       return;
     }
+    const dx = event.clientX - originX;
+    const dy = event.clientY - originY;
+    if (Math.hypot(dx, dy) > 6) {
+      moved = true;
+    }
     ghost.style.left = `${event.clientX - FREEHAND_CARD_WIDTH / 2}px`;
     ghost.style.top = `${event.clientY - FREEHAND_CARD_HEIGHT / 2}px`;
-    const handField = board.querySelector("[data-oh-hand-field]");
-    const overHand = handField && isPointInElement(event.clientX, event.clientY, handField);
-    board.classList.toggle("opening-hand-draw-target", Boolean(overHand));
+    const field = board.querySelector("[data-oh-field]");
+    const overField = field && isPointInElement(event.clientX, event.clientY, field);
+    board.classList.toggle("opening-hand-drawing", Boolean(overField));
   };
 
   const onPointerUp = async (event) => {
@@ -2890,8 +2906,10 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
 
-    const handField = board.querySelector("[data-oh-hand-field]");
-    const overHand = handField && isPointInElement(event.clientX, event.clientY, handField);
+    const field = board.querySelector("[data-oh-field]");
+    const overField = field && isPointInElement(event.clientX, event.clientY, field);
+    const shouldDraw =
+      state.openingHandLibrary.length > 0 && (overField || !moved);
     cleanup();
     try {
       pileEl.releasePointerCapture(event.pointerId);
@@ -2899,7 +2917,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
       // ignore
     }
 
-    if (overHand && state.openingHandLibrary.length > 0) {
+    if (shouldDraw) {
       await drawOpeningHandCard(board, { animate: true });
     }
   };
@@ -2914,10 +2932,15 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     event.preventDefault();
     event.stopPropagation();
     pointerId = event.pointerId;
+    moved = false;
+    originX = event.clientX;
+    originY = event.clientY;
     pileEl.classList.add("dragging");
 
     ghost = document.createElement("div");
     ghost.className = "opening-hand-card-back opening-hand-draw-ghost";
+    ghost.style.width = `${FREEHAND_CARD_WIDTH}px`;
+    ghost.style.height = `${FREEHAND_CARD_HEIGHT}px`;
     ghost.style.left = `${event.clientX - FREEHAND_CARD_WIDTH / 2}px`;
     ghost.style.top = `${event.clientY - FREEHAND_CARD_HEIGHT / 2}px`;
     document.body.append(ghost);
