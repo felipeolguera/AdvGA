@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.63";
+const APP_VERSION = "0.64";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
@@ -2724,12 +2724,6 @@ function createOpeningHandBoard(sectionCards) {
   board.className = "opening-hand-board";
   board.dataset.openingHandBoard = "true";
 
-  const header = document.createElement("div");
-  header.className = "opening-hand-board-header";
-  header.innerHTML = `
-    <p class="hint">Field / Memory / Hand across the board; Material sits left of Memory (same width as Deck). Click Material to play a champion onto Field. Drag or tap Deck to draw. Drop on Deck <strong>Top</strong> / <strong>Bottom</strong> to return a card. Memory flips face down. Recollect moves Memory back to Hand.</p>
-  `;
-
   const field = document.createElement("div");
   field.className = "opening-hand-field";
   field.dataset.ohField = "true";
@@ -2775,7 +2769,7 @@ function createOpeningHandBoard(sectionCards) {
   });
 
   field.append(zonesWrap);
-  board.append(header, field);
+  board.append(field);
   layoutOpeningHandZones(field);
   renderOpeningHandContents(board);
 

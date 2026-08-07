@@ -1551,10 +1551,6 @@ h1 {
   gap: 10px;
 }
 
-.opening-hand-board-header .hint {
-  margin: 0;
-}
-
 .opening-hand-field {
   --oh-rail-width: 128px;
   --oh-zone-gap: 12px;
