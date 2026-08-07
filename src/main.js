@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.60";
+const APP_VERSION = "0.61";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -184,6 +184,7 @@ const state = {
   mainDeckFreehandZ: savedMainDeckFreehand.nextZ,
   mainDeckOpeningHand: false,
   openingHandLibrary: [],
+  openingHandMaterial: [],
   openingHandHand: [],
   openingHandDealToken: 0,
   openingHandDealComplete: true,
@@ -487,6 +488,21 @@ app.innerHTML = `
     </form>
   </dialog>
 
+  <dialog class="material-dialog" id="material-dialog" aria-labelledby="material-dialog-title">
+    <div class="material-dialog-shell">
+      <header class="material-dialog-header">
+        <div>
+          <p class="eyebrow">Try it!</p>
+          <h2 id="material-dialog-title">Material Deck</h2>
+          <p class="hint">Choose a champion or material card to play onto the Field.</p>
+        </div>
+        <button class="icon-button" type="button" id="close-material-dialog" aria-label="Close material deck">×</button>
+      </header>
+      <div class="material-dialog-grid" id="material-dialog-grid"></div>
+      <p class="hint material-dialog-empty" id="material-dialog-empty" hidden>No material cards left.</p>
+    </div>
+  </dialog>
+
   <button class="scroll-top-button" type="button" id="scroll-top" aria-label="Move to top">↑</button>
 `;
 
@@ -548,6 +564,10 @@ const importStatusEl = document.querySelector("#import-status");
 const closeImportDialogButton = document.querySelector("#close-import-dialog");
 const cancelImportButton = document.querySelector("#cancel-import");
 const confirmImportButton = document.querySelector("#confirm-import");
+const materialDialog = document.querySelector("#material-dialog");
+const materialDialogGrid = document.querySelector("#material-dialog-grid");
+const materialDialogEmpty = document.querySelector("#material-dialog-empty");
+const closeMaterialDialogButton = document.querySelector("#close-material-dialog");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
 const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
@@ -765,6 +785,16 @@ importDialog.addEventListener("click", (event) => {
 importForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await importDeckFromText(importText.value);
+});
+closeMaterialDialogButton?.addEventListener("click", () => closeMaterialDialog());
+materialDialog?.addEventListener("click", (event) => {
+  if (event.target === materialDialog) {
+    closeMaterialDialog();
+  }
+});
+materialDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeMaterialDialog();
 });
 scrollTopButton.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2542,18 +2572,33 @@ function resetMainDeckFreehandPositions() {
   boards.forEach((board) => layoutFreehandBoard(board, { force: true }));
 }
 
-function expandMainDeckCopies(sectionCards) {
+function expandDeckSectionCopies(sectionCards, idPrefix = "oh") {
   const copies = [];
   sectionCards.forEach((card) => {
     const quantity = normalizeQuantity(card.quantity);
     for (let copyIndex = 0; copyIndex < quantity; copyIndex += 1) {
       copies.push({
         card,
-        instanceId: `${card.key}::oh::${copyIndex}`,
+        instanceId: `${card.key}::${idPrefix}::${copyIndex}`,
       });
     }
   });
   return copies;
+}
+
+function expandMainDeckCopies(sectionCards) {
+  return expandDeckSectionCopies(sectionCards, "oh");
+}
+
+function expandMaterialDeckCopies(sectionCards) {
+  return expandDeckSectionCopies(sectionCards, "oh-mat");
+}
+
+function getMaterialDeckCopies() {
+  const cards = state.deck.filter(
+    (card) => normalizeDeckSection(card.section) === "material",
+  );
+  return expandMaterialDeckCopies(cards);
 }
 
 function shuffleArray(items) {
@@ -2573,9 +2618,11 @@ function startOpeningHandSession(sectionCards = null) {
   state.mainDeckOpeningHand = true;
   state.mainDeckFreehand = false;
   state.openingHandLibrary = copies;
+  state.openingHandMaterial = getMaterialDeckCopies();
   state.openingHandHand = [];
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = false;
+  closeMaterialDialog();
   saveMainDeckFreehandState();
   renderDeck();
 }
@@ -2583,9 +2630,11 @@ function startOpeningHandSession(sectionCards = null) {
 function exitOpeningHandSession() {
   state.mainDeckOpeningHand = false;
   state.openingHandLibrary = [];
+  state.openingHandMaterial = [];
   state.openingHandHand = [];
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = true;
+  closeMaterialDialog();
   renderDeck();
 }
 
@@ -2611,7 +2660,7 @@ function createOpeningHandBoard(sectionCards) {
   const header = document.createElement("div");
   header.className = "opening-hand-board-header";
   header.innerHTML = `
-    <p class="hint">Field / Memory / Hand (left) and Banishment / Deck / Graveyard (right). Memory flips face down. Drag or tap Deck to draw. Drop on Deck <strong>Top</strong> to put a card on top (next draw); drop on <strong>Bottom</strong> to put it last. Recollect moves Memory back to Hand.</p>
+    <p class="hint">Field / Memory / Hand across the board; Material sits left of Memory (same width as Deck). Click Material to play a champion onto Field. Drag or tap Deck to draw. Drop on Deck <strong>Top</strong> / <strong>Bottom</strong> to return a card. Memory flips face down. Recollect moves Memory back to Hand.</p>
   `;
 
   const field = document.createElement("div");
@@ -2625,6 +2674,7 @@ function createOpeningHandBoard(sectionCards) {
   const zoneSpecs = [
     ["field", "Field"],
     ["banishment", "Banishment"],
+    ["material", "Material"],
     ["memory", "Memory"],
     ["deck", "Deck"],
     ["hand", "Hand"],
@@ -2681,28 +2731,42 @@ function createOpeningHandBoard(sectionCards) {
 function getOpeningHandFieldWidth(field) {
   const width = field?.clientWidth || field?.parentElement?.clientWidth || 0;
   // Ignore unusable 0-width measures from pre-layout frames.
-  return width >= OPENING_HAND_RAIL_WIDTH + FREEHAND_CARD_WIDTH + 48
-    ? width
-    : 640;
+  const minWidth =
+    OPENING_HAND_RAIL_WIDTH * 2 + FREEHAND_CARD_WIDTH + OPENING_HAND_ZONE_GAP + 48;
+  return width >= minWidth ? width : 720;
 }
 
 function getOpeningHandMainColumnBounds(field) {
   const width = getOpeningHandFieldWidth(field);
-  const mainLeft = OPENING_HAND_INSET;
+  const leftRailLeft = OPENING_HAND_INSET;
+  const leftRailWidth = OPENING_HAND_RAIL_WIDTH;
+  const memoryLeft = leftRailLeft + leftRailWidth + OPENING_HAND_ZONE_GAP;
   const railLeft = width - OPENING_HAND_INSET - OPENING_HAND_RAIL_WIDTH;
   const mainRight = railLeft - OPENING_HAND_ZONE_GAP;
   return {
     width,
-    mainLeft,
-    mainRight: Math.max(mainLeft + FREEHAND_CARD_WIDTH, mainRight),
+    leftRailLeft,
+    leftRailWidth,
+    // Field / Hand span the Material column + Memory column.
+    mainLeft: leftRailLeft,
+    memoryLeft,
+    mainRight: Math.max(memoryLeft + FREEHAND_CARD_WIDTH, mainRight),
     railLeft,
     railWidth: OPENING_HAND_RAIL_WIDTH,
   };
 }
 
 function getOpeningHandFallbackZones(field) {
-  const { width, mainLeft, mainRight, railLeft, railWidth } =
-    getOpeningHandMainColumnBounds(field);
+  const {
+    width,
+    mainLeft,
+    memoryLeft,
+    mainRight,
+    leftRailLeft,
+    leftRailWidth,
+    railLeft,
+    railWidth,
+  } = getOpeningHandMainColumnBounds(field);
   const inset = OPENING_HAND_INSET;
   const gap = OPENING_HAND_ZONE_GAP;
   const rowHeight = OPENING_HAND_ROW_HEIGHT;
@@ -2721,9 +2785,12 @@ function getOpeningHandFallbackZones(field) {
     height,
     inset,
     gap,
+    leftRailLeft,
+    leftRailWidth,
     railLeft,
     railWidth,
     mainLeft,
+    memoryLeft,
     mainRight,
     fieldTop: fieldRow.top,
     fieldBottom: fieldRow.bottom,
@@ -2731,6 +2798,9 @@ function getOpeningHandFallbackZones(field) {
     memoryTop: memoryRow.top,
     memoryBottom: memoryRow.bottom,
     memoryContentTop: memoryRow.contentTop,
+    materialTop: memoryRow.top,
+    materialBottom: memoryRow.bottom,
+    materialContentTop: memoryRow.top + (rowHeight - FREEHAND_CARD_HEIGHT) / 2,
     handTop: handRow.top,
     handBottom: handRow.bottom,
     handContentTop: handRow.contentTop,
@@ -2772,12 +2842,21 @@ function getOpeningHandZones(field) {
   }
 
   const fieldBox = readOpeningHandZoneBox(field, "field");
+  const materialBox = readOpeningHandZoneBox(field, "material");
   const memoryBox = readOpeningHandZoneBox(field, "memory");
   const handBox = readOpeningHandZoneBox(field, "hand");
   const banishmentBox = readOpeningHandZoneBox(field, "banishment");
   const deckBox = readOpeningHandZoneBox(field, "deck");
   const graveyardBox = readOpeningHandZoneBox(field, "graveyard");
-  if (!fieldBox || !memoryBox || !handBox || !banishmentBox || !deckBox || !graveyardBox) {
+  if (
+    !fieldBox ||
+    !materialBox ||
+    !memoryBox ||
+    !handBox ||
+    !banishmentBox ||
+    !deckBox ||
+    !graveyardBox
+  ) {
     return fallback;
   }
 
@@ -2789,13 +2868,20 @@ function getOpeningHandZones(field) {
     height: field.clientHeight || fallback.height,
     inset: OPENING_HAND_INSET,
     gap: OPENING_HAND_ZONE_GAP,
+    leftRailLeft: column.leftRailLeft,
+    leftRailWidth: column.leftRailWidth,
     railLeft: column.railLeft,
     railWidth: column.railWidth,
     mainLeft: column.mainLeft,
+    memoryLeft: column.memoryLeft,
     mainRight: column.mainRight,
     fieldTop: fieldBox.top,
     fieldBottom: fieldBox.bottom,
     fieldContentTop: fieldBox.contentTop,
+    materialTop: materialBox.top,
+    materialBottom: materialBox.bottom,
+    materialContentTop:
+      materialBox.top + Math.max(0, (materialBox.height - FREEHAND_CARD_HEIGHT) / 2),
     memoryTop: memoryBox.top,
     memoryBottom: memoryBox.bottom,
     memoryContentTop: memoryBox.contentTop,
@@ -2848,6 +2934,14 @@ function getOpeningHandDeckAnchor(field) {
   };
 }
 
+function getOpeningHandMaterialAnchor(field) {
+  const zones = getOpeningHandZones(field);
+  return {
+    x: zones.leftRailLeft + Math.max(0, (zones.leftRailWidth - FREEHAND_CARD_WIDTH) / 2),
+    y: zones.materialContentTop,
+  };
+}
+
 function getOpeningHandZoneAt(x, y, field) {
   const zones = getOpeningHandZones(field);
   const centerX = x + FREEHAND_CARD_WIDTH / 2;
@@ -2862,6 +2956,14 @@ function getOpeningHandZoneAt(x, y, field) {
       return centerY < deckMid ? "deck-top" : "deck-bottom";
     }
     return "graveyard";
+  }
+  // Material pile occupies the left rail of the Memory row only.
+  if (
+    centerX < zones.memoryLeft &&
+    centerY >= zones.memoryTop &&
+    centerY < zones.memoryBottom
+  ) {
+    return "material";
   }
   if (centerY < zones.fieldBottom) {
     return "field";
@@ -2880,6 +2982,38 @@ function isOpeningHandMemoryPosition(x, y, field) {
   return getOpeningHandZoneAt(x, y, field) === "memory";
 }
 
+function createOpeningHandPileButton({
+  count,
+  datasetKey,
+  className,
+  ariaLabel,
+  emptyLabel,
+}) {
+  const pile = document.createElement("button");
+  pile.type = "button";
+  pile.className = className;
+  pile.dataset[datasetKey] = "true";
+  pile.disabled = count === 0;
+  pile.setAttribute("aria-label", count ? ariaLabel : emptyLabel);
+
+  const stack = document.createElement("span");
+  stack.className = "opening-hand-deck-stack";
+  stack.setAttribute("aria-hidden", "true");
+  for (let layer = 0; layer < Math.min(4, count); layer += 1) {
+    const back = document.createElement("span");
+    back.className = "opening-hand-card-back";
+    back.style.setProperty("--stack-offset", `${layer * 2}px`);
+    stack.append(back);
+  }
+
+  const countEl = document.createElement("span");
+  countEl.className = "opening-hand-deck-count";
+  countEl.textContent = String(count);
+
+  pile.append(stack, countEl);
+  return pile;
+}
+
 function renderOpeningHandContents(board) {
   const field = board.querySelector("[data-oh-field]");
   if (!field) {
@@ -2888,7 +3022,9 @@ function renderOpeningHandContents(board) {
 
   layoutOpeningHandZones(field);
   field
-    .querySelectorAll("[data-oh-card], [data-oh-deck-pile], [data-oh-hand-count]")
+    .querySelectorAll(
+      "[data-oh-card], [data-oh-deck-pile], [data-oh-material-pile], [data-oh-hand-count]",
+    )
     .forEach((node) => node.remove());
 
   dedupeOpeningHandEntries();
@@ -2896,41 +3032,35 @@ function renderOpeningHandContents(board) {
     field.append(createOpeningHandCard(entry, index, field));
   });
 
-  const pile = document.createElement("button");
-  pile.type = "button";
-  pile.className = "opening-hand-deck-pile";
-  pile.dataset.ohDeckPile = "true";
-  pile.disabled = state.openingHandLibrary.length === 0;
-  pile.setAttribute(
-    "aria-label",
-    state.openingHandLibrary.length
-      ? `Draw from deck (${state.openingHandLibrary.length} left). Drag or tap to draw.`
-      : "Deck is empty",
-  );
+  const pile = createOpeningHandPileButton({
+    count: state.openingHandLibrary.length,
+    datasetKey: "ohDeckPile",
+    className: "opening-hand-deck-pile",
+    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Drag or tap to draw.`,
+    emptyLabel: "Deck is empty",
+  });
 
-  const stack = document.createElement("span");
-  stack.className = "opening-hand-deck-stack";
-  stack.setAttribute("aria-hidden", "true");
-  for (let layer = 0; layer < Math.min(4, state.openingHandLibrary.length); layer += 1) {
-    const back = document.createElement("span");
-    back.className = "opening-hand-card-back";
-    back.style.setProperty("--stack-offset", `${layer * 2}px`);
-    stack.append(back);
-  }
-
-  const count = document.createElement("span");
-  count.className = "opening-hand-deck-count";
-  count.textContent = String(state.openingHandLibrary.length);
-
-  pile.append(stack, count);
+  const materialPile = createOpeningHandPileButton({
+    count: state.openingHandMaterial.length,
+    datasetKey: "ohMaterialPile",
+    className: "opening-hand-deck-pile opening-hand-material-pile",
+    ariaLabel: `Open Material Deck (${state.openingHandMaterial.length} left)`,
+    emptyLabel: "Material Deck is empty",
+  });
+  materialPile.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openMaterialDialog(board);
+  });
 
   const handCount = document.createElement("span");
   handCount.className = "opening-hand-hand-count";
   handCount.dataset.ohHandCount = "true";
   handCount.setAttribute("aria-label", "Cards in hand");
 
-  field.append(pile, handCount);
+  field.append(pile, materialPile, handCount);
   positionOpeningHandDeckPile(board);
+  positionOpeningHandMaterialPile(board);
   positionOpeningHandHandCount(board);
   updateOpeningHandCounts(board);
   enableOpeningHandDeckDrag(pile, board);
@@ -2944,6 +3074,18 @@ function positionOpeningHandDeckPile(board) {
   }
   layoutOpeningHandZones(field);
   const anchor = getOpeningHandDeckAnchor(field);
+  pile.style.left = `${anchor.x}px`;
+  pile.style.top = `${anchor.y}px`;
+}
+
+function positionOpeningHandMaterialPile(board) {
+  const field = board.querySelector("[data-oh-field]");
+  const pile = board.querySelector("[data-oh-material-pile]");
+  if (!field || !pile) {
+    return;
+  }
+  layoutOpeningHandZones(field);
+  const anchor = getOpeningHandMaterialAnchor(field);
   pile.style.left = `${anchor.x}px`;
   pile.style.top = `${anchor.y}px`;
 }
@@ -2991,10 +3133,44 @@ function updateOpeningHandCounts(board) {
   if (!board) {
     return;
   }
-  const deckCount = board.querySelector(".opening-hand-deck-count");
+  const deckPile = board.querySelector("[data-oh-deck-pile]");
+  const deckCount = deckPile?.querySelector(".opening-hand-deck-count");
   if (deckCount) {
     deckCount.textContent = String(state.openingHandLibrary.length);
   }
+  if (deckPile) {
+    deckPile.disabled = state.openingHandLibrary.length === 0;
+  }
+
+  const materialPile = board.querySelector("[data-oh-material-pile]");
+  const materialCount = materialPile?.querySelector(".opening-hand-deck-count");
+  if (materialCount) {
+    materialCount.textContent = String(state.openingHandMaterial.length);
+  }
+  if (materialPile) {
+    materialPile.disabled = state.openingHandMaterial.length === 0;
+    materialPile.setAttribute(
+      "aria-label",
+      state.openingHandMaterial.length
+        ? `Open Material Deck (${state.openingHandMaterial.length} left)`
+        : "Material Deck is empty",
+    );
+    const stack = materialPile.querySelector(".opening-hand-deck-stack");
+    if (stack) {
+      stack.replaceChildren();
+      for (
+        let layer = 0;
+        layer < Math.min(4, state.openingHandMaterial.length);
+        layer += 1
+      ) {
+        const back = document.createElement("span");
+        back.className = "opening-hand-card-back";
+        back.style.setProperty("--stack-offset", `${layer * 2}px`);
+        stack.append(back);
+      }
+    }
+  }
+
   const handCount = board.querySelector("[data-oh-hand-count]");
   if (handCount) {
     const total = countOpeningHandZoneCards("hand");
@@ -3002,6 +3178,7 @@ function updateOpeningHandCounts(board) {
     handCount.setAttribute("aria-label", `${total} card${total === 1 ? "" : "s"} in hand`);
   }
   positionOpeningHandHandCount(board);
+  positionOpeningHandMaterialPile(board);
 }
 
 function createOpeningHandCard(entry, index, field = null) {
@@ -3120,6 +3297,163 @@ function getOpeningHandDealSlot(index, field = null) {
   };
 }
 
+function getOpeningHandFieldSlot(field, index = 0) {
+  const zones = getOpeningHandZones(field);
+  const pad = OPENING_HAND_ROW_PAD / 2;
+  const innerLeft = zones.mainLeft + pad;
+  const usable = Math.max(FREEHAND_CARD_WIDTH, zones.mainRight - pad - innerLeft);
+  const step = Math.min(28, Math.max(12, usable / Math.max(1, index + 2)));
+  return {
+    x: innerLeft + index * step,
+    y: getOpeningHandRowCardTop(zones.fieldTop, zones.fieldBottom),
+    z: 20 + index,
+  };
+}
+
+function closeMaterialDialog() {
+  if (!materialDialog?.open) {
+    return;
+  }
+  materialDialog.close();
+}
+
+function openMaterialDialog(board = null) {
+  if (!materialDialog || !materialDialogGrid) {
+    return;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  materialDialog.dataset.ohBoardBound = playBoard ? "true" : "false";
+  renderMaterialDialogGrid(playBoard);
+  if (!materialDialog.open) {
+    materialDialog.showModal();
+  }
+}
+
+function renderMaterialDialogGrid(board = null) {
+  if (!materialDialogGrid || !materialDialogEmpty) {
+    return;
+  }
+  materialDialogGrid.replaceChildren();
+  const entries = state.openingHandMaterial;
+  materialDialogEmpty.hidden = entries.length > 0;
+  entries.forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "material-dialog-card";
+    item.dataset.materialInstanceId = entry.instanceId;
+
+    const imageWrap = document.createElement("div");
+    imageWrap.className = "material-dialog-card-image";
+    const imageUrl = getImageUrl(resolveCardImage(entry.card));
+    if (imageUrl) {
+      const image = document.createElement("img");
+      image.src = imageUrl;
+      image.alt = entry.card.name || "Material card";
+      image.loading = "lazy";
+      image.draggable = false;
+      imageWrap.append(image);
+    }
+
+    const name = document.createElement("p");
+    name.className = "material-dialog-card-name";
+    name.textContent = entry.card.name || "Unknown card";
+
+    const playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.className = "material-dialog-play";
+    playButton.dataset.playMaterial = entry.instanceId;
+    playButton.textContent = "Play";
+
+    item.append(imageWrap, name, playButton);
+    materialDialogGrid.append(item);
+  });
+
+  materialDialogGrid.onclick = async (event) => {
+    const playButton = event.target.closest("[data-play-material]");
+    if (!playButton) {
+      return;
+    }
+    event.preventDefault();
+    const instanceId = playButton.dataset.playMaterial;
+    const playBoard = board || getActiveOpeningHandBoard();
+    await playOpeningHandMaterialCard(playBoard, instanceId);
+  };
+}
+
+async function playOpeningHandMaterialCard(board, instanceId) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field || !instanceId) {
+    return;
+  }
+
+  const index = state.openingHandMaterial.findIndex(
+    (entry) => entry.instanceId === instanceId,
+  );
+  if (index < 0) {
+    return;
+  }
+
+  const [source] = state.openingHandMaterial.splice(index, 1);
+  const fieldIndex = countOpeningHandZoneCards("field");
+  const position = getOpeningHandFieldSlot(field, fieldIndex);
+  const entry = {
+    ...source,
+    position,
+    facedown: false,
+    zone: "field",
+  };
+  state.openingHandHand.push(entry);
+
+  closeMaterialDialog();
+
+  const cardEl = createOpeningHandCard(entry, state.openingHandHand.length - 1, field);
+  field.append(cardEl);
+  updateOpeningHandMaterialPile(playBoard);
+  updateOpeningHandCounts(playBoard);
+
+  const materialAnchor = getOpeningHandMaterialAnchor(field);
+  cardEl.classList.add("opening-hand-card-dealing");
+  cardEl.style.left = `${materialAnchor.x}px`;
+  cardEl.style.top = `${materialAnchor.y}px`;
+  cardEl.style.opacity = "0.4";
+  cardEl.style.transform = "scale(0.86) rotate(-6deg)";
+  await delay(20);
+  applyOpeningHandCardPosition(cardEl, entry);
+  cardEl.style.opacity = "1";
+  cardEl.style.transform = "scale(1) rotate(0deg)";
+  await delay(220);
+  cardEl.classList.remove("opening-hand-card-dealing");
+  resizeOpeningHandField(playBoard);
+}
+
+function updateOpeningHandMaterialPile(board) {
+  const pile = board?.querySelector("[data-oh-material-pile]");
+  if (!pile) {
+    return;
+  }
+  const count = state.openingHandMaterial.length;
+  pile.disabled = count === 0;
+  pile.setAttribute(
+    "aria-label",
+    count ? `Open Material Deck (${count} left)` : "Material Deck is empty",
+  );
+  const countEl = pile.querySelector(".opening-hand-deck-count");
+  if (countEl) {
+    countEl.textContent = String(count);
+  }
+  const stack = pile.querySelector(".opening-hand-deck-stack");
+  if (stack) {
+    stack.replaceChildren();
+    for (let layer = 0; layer < Math.min(4, count); layer += 1) {
+      const back = document.createElement("span");
+      back.className = "opening-hand-card-back";
+      back.style.setProperty("--stack-offset", `${layer * 2}px`);
+      stack.append(back);
+    }
+  }
+  positionOpeningHandMaterialPile(board);
+}
+
 function getOpeningHandDrawSlot(drawIndex, field = null) {
   const zones = getOpeningHandZones(field);
   const handWidth = Math.max(FREEHAND_CARD_WIDTH, zones.mainRight - zones.mainLeft);
@@ -3146,6 +3480,7 @@ function resizeOpeningHandField(board) {
 
   layoutOpeningHandZones(field);
   positionOpeningHandDeckPile(board);
+  positionOpeningHandMaterialPile(board);
   updateOpeningHandCounts(board);
 }
 
@@ -3588,12 +3923,16 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       return;
     }
 
-    const zone = getOpeningHandZoneAt(x, y, field);
+    let zone = getOpeningHandZoneAt(x, y, field);
     delete field.dataset.activeZone;
     if (isOpeningHandDeckZone(zone)) {
       const placement = zone === "deck-top" ? "top" : "bottom";
       await returnOpeningHandCardToDeck(board, entry, cardEl, placement);
       return;
+    }
+    // Material is a deck pile, not a drop zone — treat as Memory (same row).
+    if (zone === "material") {
+      zone = "memory";
     }
 
     entry.zone = zone;
