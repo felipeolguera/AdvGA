@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.69";
+const APP_VERSION = "0.70";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
@@ -3644,10 +3644,17 @@ function updateOpeningHandMaterialPile(board) {
 
 function getOpeningHandDrawSlot(drawIndex, field = null) {
   const zones = getOpeningHandZones(field);
-  const handWidth = Math.max(FREEHAND_CARD_WIDTH, zones.mainRight - zones.mainLeft);
-  // Deck draws always spawn centered in the Hand area.
+  const pad = OPENING_HAND_ROW_PAD / 2;
+  const column = getOpeningHandMainColumnBounds(field);
+  const innerLeft = column.mainLeft + pad;
+  // Spawn at the left edge of Hand so the drawn card leads the order.
+  const handXs = state.openingHandHand
+    .filter((entry) => (entry.zone || "hand") === "hand")
+    .map((entry) => entry.position?.x)
+    .filter((x) => Number.isFinite(x));
+  const leftmost = handXs.length ? Math.min(...handXs) : innerLeft;
   return {
-    x: zones.mainLeft + Math.max(0, (handWidth - FREEHAND_CARD_WIDTH) / 2),
+    x: Math.min(innerLeft, leftmost) - 1,
     y: getOpeningHandRowCardTop(zones.handTop, zones.handBottom),
     z: OPENING_HAND_SIZE + drawIndex + 1,
   };
@@ -3811,7 +3818,7 @@ async function drawOpeningHandCard(
   const shouldOrganize =
     organize || (state.openingHandDealComplete && !isOpeningDeal);
   if (shouldOrganize) {
-    organizeOpeningHandCards(board);
+    organizeOpeningHandCards(board, { leadInstanceId: entry.instanceId });
   }
   // Highlight freshly drawn cards (Deck draws), not the opening deal.
   if (shouldOrganize) {
