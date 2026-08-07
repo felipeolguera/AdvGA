@@ -6,18 +6,22 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.47";
+const APP_VERSION = "0.48";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
 const FREEHAND_CARD_WIDTH = 96;
 const FREEHAND_CARD_HEIGHT = 134;
-const FREEHAND_GAP_X = 14;
+const FREEHAND_GAP_X = 16;
 const FREEHAND_GAP_Y = 16;
 const FREEHAND_PADDING = 16;
 const FREEHAND_HINT_SPACE = 36;
 const FREEHAND_SNAP = 16;
 const OPENING_HAND_SIZE = 7;
+const OPENING_HAND_STEP_X = FREEHAND_CARD_WIDTH + FREEHAND_GAP_X;
+const OPENING_HAND_STEP_Y = FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y;
+const OPENING_HAND_ZONE_GAP = 12;
+const OPENING_HAND_TAG_SPACE = 34;
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -2559,12 +2563,26 @@ function createOpeningHandBoard(sectionCards) {
   const header = document.createElement("div");
   header.className = "opening-hand-board-header";
   header.innerHTML = `
-    <p class="hint">One play field: opening 7 cards deal into the lower row. Drag or tap the deck to draw into the upper-left. The field grows as cards are added.</p>
+    <p class="hint">Memory (top): drop a card there to flip it face down. Hand (below): opening 7 deal face up with spacing. Drag a Memory card out to flip it face up. Drag or tap the deck to draw.</p>
   `;
 
   const field = document.createElement("div");
   field.className = "opening-hand-field";
   field.dataset.ohField = "true";
+
+  const memoryZone = document.createElement("div");
+  memoryZone.className = "opening-hand-zone opening-hand-zone-memory";
+  memoryZone.dataset.ohZone = "memory";
+  memoryZone.setAttribute("aria-hidden", "true");
+
+  const handZone = document.createElement("div");
+  handZone.className = "opening-hand-zone opening-hand-zone-hand";
+  handZone.dataset.ohZone = "hand";
+  handZone.setAttribute("aria-hidden", "true");
+
+  const memoryTag = document.createElement("span");
+  memoryTag.className = "opening-hand-tag opening-hand-tag-memory";
+  memoryTag.textContent = "Memory";
 
   const handTag = document.createElement("span");
   handTag.className = "opening-hand-tag opening-hand-tag-hand";
@@ -2574,8 +2592,9 @@ function createOpeningHandBoard(sectionCards) {
   deckTag.className = "opening-hand-tag opening-hand-tag-deck";
   deckTag.textContent = "Deck";
 
-  field.append(handTag, deckTag);
+  field.append(memoryZone, handZone, memoryTag, handTag, deckTag);
   board.append(header, field);
+  layoutOpeningHandZones(field);
   renderOpeningHandContents(board);
 
   const shouldDeal =
@@ -2590,12 +2609,76 @@ function createOpeningHandBoard(sectionCards) {
   return board;
 }
 
-function getOpeningHandDeckAnchor(field) {
-  const width = field.clientWidth || field.parentElement?.clientWidth || 640;
+function getOpeningHandFieldWidth(field) {
+  return field?.clientWidth || field?.parentElement?.clientWidth || 640;
+}
+
+function getOpeningHandZones(field) {
+  const width = getOpeningHandFieldWidth(field);
+  const memoryTop = FREEHAND_PADDING / 2;
+  const memoryContentTop = memoryTop + OPENING_HAND_TAG_SPACE;
+  const memoryBottom =
+    memoryContentTop + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING + OPENING_HAND_ZONE_GAP;
+  const handTop = memoryBottom + OPENING_HAND_ZONE_GAP;
+  const handContentTop = handTop + OPENING_HAND_TAG_SPACE;
   return {
-    x: Math.max(FREEHAND_PADDING, width - FREEHAND_CARD_WIDTH - FREEHAND_PADDING * 2),
-    y: FREEHAND_PADDING,
+    width,
+    memoryTop,
+    memoryContentTop,
+    memoryBottom,
+    handTop,
+    handContentTop,
   };
+}
+
+function layoutOpeningHandZones(field) {
+  if (!field) {
+    return getOpeningHandZones(field);
+  }
+  const zones = getOpeningHandZones(field);
+  const memoryZone = field.querySelector('[data-oh-zone="memory"]');
+  const handZone = field.querySelector('[data-oh-zone="hand"]');
+  const memoryTag = field.querySelector(".opening-hand-tag-memory");
+  const handTag = field.querySelector(".opening-hand-tag-hand");
+
+  if (memoryZone) {
+    memoryZone.style.top = `${zones.memoryTop}px`;
+    memoryZone.style.height = `${zones.memoryBottom - zones.memoryTop}px`;
+  }
+  if (handZone) {
+    handZone.style.top = `${zones.handTop}px`;
+    handZone.style.bottom = `${FREEHAND_PADDING / 2}px`;
+  }
+  if (memoryTag) {
+    memoryTag.style.top = `${zones.memoryTop + 8}px`;
+  }
+  if (handTag) {
+    handTag.style.top = `${zones.handTop + 8}px`;
+  }
+  return zones;
+}
+
+function getOpeningHandHandColumns(field) {
+  const width = getOpeningHandFieldWidth(field);
+  const usable = Math.max(FREEHAND_CARD_WIDTH, width - FREEHAND_PADDING * 2);
+  return Math.max(1, Math.floor((usable + FREEHAND_GAP_X) / OPENING_HAND_STEP_X));
+}
+
+function getOpeningHandDeckAnchor(field) {
+  const zones = getOpeningHandZones(field);
+  return {
+    x: Math.max(
+      FREEHAND_PADDING,
+      zones.width - FREEHAND_CARD_WIDTH - FREEHAND_PADDING,
+    ),
+    y: zones.memoryContentTop,
+  };
+}
+
+function isOpeningHandMemoryPosition(x, y, field) {
+  const zones = getOpeningHandZones(field);
+  const centerY = y + FREEHAND_CARD_HEIGHT / 2;
+  return centerY < zones.memoryBottom;
 }
 
 function renderOpeningHandContents(board) {
@@ -2604,10 +2687,11 @@ function renderOpeningHandContents(board) {
     return;
   }
 
+  layoutOpeningHandZones(field);
   field.querySelectorAll("[data-oh-card], [data-oh-deck-pile]").forEach((node) => node.remove());
 
   state.openingHandHand.forEach((entry, index) => {
-    field.append(createOpeningHandCard(entry, index));
+    field.append(createOpeningHandCard(entry, index, field));
   });
 
   const pile = document.createElement("button");
@@ -2648,18 +2732,20 @@ function positionOpeningHandDeckPile(board) {
   if (!field || !pile) {
     return;
   }
+  layoutOpeningHandZones(field);
   const anchor = getOpeningHandDeckAnchor(field);
   pile.style.left = `${anchor.x}px`;
   pile.style.top = `${anchor.y}px`;
 }
 
-function createOpeningHandCard(entry, index) {
+function createOpeningHandCard(entry, index, field = null) {
   const item = document.createElement("article");
   item.className = "deck-grid-card deck-freehand-card opening-hand-card";
   item.dataset.ohCard = entry.instanceId;
   item.title = entry.card.name;
 
-  const position = entry.position || getOpeningHandSlot(index);
+  const position = entry.position || getOpeningHandSlot(index, field);
+  entry.position = position;
   item.style.left = `${position.x}px`;
   item.style.top = `${position.y}px`;
   item.style.zIndex = String(position.z || index + 1);
@@ -2685,37 +2771,64 @@ function createOpeningHandCard(entry, index) {
   }
 
   item.append(imageWrap);
+  applyOpeningHandCardFace(item, entry);
   enableOpeningHandCardDrag(item, entry);
   return item;
 }
 
-function getOpeningHandDealSlot(index) {
-  // Initial 7 cards sit one row down so the upper-left stays free for draws.
-  const col = index % 4;
-  const row = Math.floor(index / 4) + 1;
-  return snapFreehandPosition({
-    x: FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X),
-    y: FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y),
-    z: index + 1,
-  });
-}
-
-function getOpeningHandDrawSlot(drawIndex) {
-  // Extra draws fill from the upper-left corner.
-  const col = drawIndex % 4;
-  const row = Math.floor(drawIndex / 4);
-  return snapFreehandPosition({
-    x: FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X),
-    y: FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y),
-    z: OPENING_HAND_SIZE + drawIndex + 1,
-  });
-}
-
-function getOpeningHandSlot(index) {
-  if (index < OPENING_HAND_SIZE) {
-    return getOpeningHandDealSlot(index);
+function applyOpeningHandCardFace(cardEl, entry) {
+  const facedown = Boolean(entry.facedown);
+  cardEl.classList.toggle("is-facedown", facedown);
+  cardEl.dataset.ohFacedown = facedown ? "true" : "false";
+  const image = cardEl.querySelector("img");
+  if (image) {
+    image.alt = facedown ? "Face-down card" : entry.card.name;
   }
-  return getOpeningHandDrawSlot(index - OPENING_HAND_SIZE);
+  cardEl.title = facedown ? "Face-down (Memory)" : entry.card.name;
+}
+
+function setOpeningHandCardFacedown(cardEl, entry, facedown) {
+  const next = Boolean(facedown);
+  if (Boolean(entry.facedown) === next) {
+    applyOpeningHandCardFace(cardEl, entry);
+    return;
+  }
+  entry.facedown = next;
+  applyOpeningHandCardFace(cardEl, entry);
+}
+
+function getOpeningHandDealSlot(index, field = null) {
+  const zones = getOpeningHandZones(field);
+  const cols = getOpeningHandHandColumns(field);
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  // Exact spaced slots (no snap) so the opening 7 never collapse into each other.
+  return {
+    x: FREEHAND_PADDING + col * OPENING_HAND_STEP_X,
+    y: zones.handContentTop + row * OPENING_HAND_STEP_Y,
+    z: index + 1,
+  };
+}
+
+function getOpeningHandDrawSlot(drawIndex, field = null) {
+  const zones = getOpeningHandZones(field);
+  const cols = getOpeningHandHandColumns(field);
+  // Extra draws continue after the opening 7 slots inside Hand.
+  const absoluteIndex = OPENING_HAND_SIZE + drawIndex;
+  const col = absoluteIndex % cols;
+  const row = Math.floor(absoluteIndex / cols);
+  return {
+    x: FREEHAND_PADDING + col * OPENING_HAND_STEP_X,
+    y: zones.handContentTop + row * OPENING_HAND_STEP_Y,
+    z: OPENING_HAND_SIZE + drawIndex + 1,
+  };
+}
+
+function getOpeningHandSlot(index, field = null) {
+  if (index < OPENING_HAND_SIZE) {
+    return getOpeningHandDealSlot(index, field);
+  }
+  return getOpeningHandDrawSlot(index - OPENING_HAND_SIZE, field);
 }
 
 function resizeOpeningHandField(board) {
@@ -2724,19 +2837,16 @@ function resizeOpeningHandField(board) {
     return;
   }
 
-  let maxBottom = FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 3;
+  const zones = layoutOpeningHandZones(field);
+  let maxBottom = zones.handContentTop + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 2;
   field.querySelectorAll("[data-oh-card], [data-oh-deck-pile]").forEach((element) => {
     const y = Number.parseFloat(element.style.top) || 0;
     const height = element.offsetHeight || FREEHAND_CARD_HEIGHT;
     maxBottom = Math.max(maxBottom, y + height + FREEHAND_PADDING * 2);
   });
 
-  // Keep room for the top draw row + the dealt opening-hand row.
   const minimum =
-    FREEHAND_PADDING +
-    (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y) * 2 +
-    FREEHAND_CARD_HEIGHT +
-    FREEHAND_PADDING * 2;
+    zones.handContentTop + OPENING_HAND_STEP_Y + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 2;
   field.style.minHeight = `${Math.max(minimum, maxBottom)}px`;
   positionOpeningHandDeckPile(board);
 }
@@ -2781,12 +2891,12 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
   const handIndexBefore = state.openingHandHand.length;
   const isOpeningDeal = handIndexBefore < OPENING_HAND_SIZE;
   const position = isOpeningDeal
-    ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore)
-    : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE);
-  const entry = { ...next, position };
+    ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
+    : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE, field);
+  const entry = { ...next, position, facedown: false };
   state.openingHandHand.push(entry);
 
-  const cardEl = createOpeningHandCard(entry, handIndexBefore);
+  const cardEl = createOpeningHandCard(entry, handIndexBefore, field);
   field.append(cardEl);
   resizeOpeningHandField(board);
 
@@ -2847,6 +2957,12 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerX = 0;
   let originPointerY = 0;
 
+  const syncFaceForPosition = (field, x, y) => {
+    const inMemory = isOpeningHandMemoryPosition(x, y, field);
+    setOpeningHandCardFacedown(cardEl, entry, inMemory);
+    field.classList.toggle("memory-drop-active", inMemory);
+  };
+
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId) {
       return;
@@ -2870,6 +2986,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     nextY = Math.min(maxY, nextY);
     cardEl.style.left = `${nextX}px`;
     cardEl.style.top = `${nextY}px`;
+    syncFaceForPosition(field, nextX, nextY);
   };
 
   const onPointerUp = (event) => {
@@ -2887,10 +3004,15 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
 
+    const field = cardEl.closest("[data-oh-field]");
     const x = Number.parseFloat(cardEl.style.left) || 0;
     const y = Number.parseFloat(cardEl.style.top) || 0;
     const z = Number.parseInt(cardEl.style.zIndex, 10) || 1;
     entry.position = { x, y, z };
+    if (field) {
+      syncFaceForPosition(field, x, y);
+      field.classList.remove("memory-drop-active");
+    }
     const board = cardEl.closest("[data-opening-hand-board]");
     if (board) {
       resizeOpeningHandField(board);
