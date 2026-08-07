@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.51";
+const APP_VERSION = "0.52";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -2945,10 +2945,10 @@ function getOpeningHandDealSlot(index, field = null) {
 
 function getOpeningHandDrawSlot(drawIndex, field = null) {
   const zones = getOpeningHandZones(field);
-  const absoluteIndex = OPENING_HAND_SIZE + drawIndex;
-  const step = getOpeningHandSingleRowStep(field, absoluteIndex + 1);
+  const handWidth = Math.max(FREEHAND_CARD_WIDTH, zones.mainRight - zones.mainLeft);
+  // Deck draws always spawn centered in the Hand area.
   return {
-    x: zones.mainLeft + OPENING_HAND_ROW_PAD / 2 + absoluteIndex * step,
+    x: zones.mainLeft + Math.max(0, (handWidth - FREEHAND_CARD_WIDTH) / 2),
     y: getOpeningHandRowCardTop(zones.handTop, zones.handBottom),
     z: OPENING_HAND_SIZE + drawIndex + 1,
   };
