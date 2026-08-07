@@ -1495,8 +1495,12 @@ h1 {
   --oh-rail-width: 128px;
   --oh-zone-gap: 12px;
   --oh-inset: 8px;
+  --oh-row-height: 154px;
+  --oh-board-height: 502px;
   position: relative;
-  min-height: 560px;
+  height: var(--oh-board-height);
+  min-height: var(--oh-board-height);
+  max-height: var(--oh-board-height);
   overflow: visible;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -1506,7 +1510,6 @@ h1 {
     linear-gradient(to bottom, rgba(255, 204, 115, 0.12) 1px, transparent 1px);
   background-size: 16px 16px;
   touch-action: none;
-  transition: min-height 160ms ease;
 }
 
 .opening-hand-board.opening-hand-drawing .opening-hand-field {
@@ -1520,7 +1523,7 @@ h1 {
   z-index: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--oh-rail-width);
-  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-rows: repeat(3, var(--oh-row-height));
   gap: var(--oh-zone-gap);
   padding: var(--oh-inset);
   pointer-events: none;

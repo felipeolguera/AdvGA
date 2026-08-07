@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.50";
+const APP_VERSION = "0.51";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -23,8 +23,11 @@ const OPENING_HAND_STEP_Y = FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y;
 const OPENING_HAND_ZONE_GAP = 12;
 const OPENING_HAND_INSET = 8;
 const OPENING_HAND_RAIL_WIDTH = FREEHAND_CARD_WIDTH + FREEHAND_PADDING * 2;
-const OPENING_HAND_ROW_MIN =
-  FREEHAND_PADDING + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING;
+const OPENING_HAND_ROW_PAD = 10;
+const OPENING_HAND_ROW_HEIGHT =
+  OPENING_HAND_ROW_PAD + FREEHAND_CARD_HEIGHT + OPENING_HAND_ROW_PAD;
+const OPENING_HAND_BOARD_HEIGHT =
+  OPENING_HAND_INSET * 2 + OPENING_HAND_ROW_HEIGHT * 3 + OPENING_HAND_ZONE_GAP * 2;
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -2623,15 +2626,15 @@ function getOpeningHandFallbackZones(field) {
   const inset = OPENING_HAND_INSET;
   const gap = OPENING_HAND_ZONE_GAP;
   const railWidth = OPENING_HAND_RAIL_WIDTH;
-  const rowHeight = OPENING_HAND_ROW_MIN;
-  const height = inset * 2 + rowHeight * 3 + gap * 2;
+  const rowHeight = OPENING_HAND_ROW_HEIGHT;
+  const height = OPENING_HAND_BOARD_HEIGHT;
   const railLeft = width - inset - railWidth;
   const mainLeft = inset;
   const mainRight = railLeft - gap;
 
   const row = (index) => {
     const top = inset + index * (rowHeight + gap);
-    return { top, bottom: top + rowHeight, contentTop: top + FREEHAND_PADDING / 2 };
+    return { top, bottom: top + rowHeight, contentTop: top + OPENING_HAND_ROW_PAD };
   };
   const fieldRow = row(0);
   const memoryRow = row(1);
@@ -2740,27 +2743,19 @@ function getOpeningHandMainWidth(field) {
   );
 }
 
-function getOpeningHandNeededRowHeight(field) {
-  const cols = getOpeningHandHandColumns(field);
-  const handCount = Math.max(OPENING_HAND_SIZE, state.openingHandHand.length);
-  const rows = Math.max(1, Math.ceil(handCount / cols));
-  return Math.max(
-    OPENING_HAND_ROW_MIN,
-    FREEHAND_PADDING + rows * FREEHAND_CARD_HEIGHT + (rows - 1) * FREEHAND_GAP_Y + FREEHAND_PADDING,
-  );
-}
-
-function layoutOpeningHandZones(field, { minHeight = null } = {}) {
+function layoutOpeningHandZones(field) {
   if (!field) {
     return getOpeningHandZones(field);
   }
-  const rowHeight = getOpeningHandNeededRowHeight(field);
-  const gridMin =
-    OPENING_HAND_INSET * 2 + rowHeight * 3 + OPENING_HAND_ZONE_GAP * 2;
-  field.style.minHeight = `${Math.max(gridMin, minHeight || 0)}px`;
+  // Keep every zone exactly one card-row tall; do not grow with card count.
+  field.style.height = `${OPENING_HAND_BOARD_HEIGHT}px`;
+  field.style.minHeight = `${OPENING_HAND_BOARD_HEIGHT}px`;
+  field.style.maxHeight = `${OPENING_HAND_BOARD_HEIGHT}px`;
   field.style.setProperty("--oh-rail-width", `${OPENING_HAND_RAIL_WIDTH}px`);
   field.style.setProperty("--oh-zone-gap", `${OPENING_HAND_ZONE_GAP}px`);
   field.style.setProperty("--oh-inset", `${OPENING_HAND_INSET}px`);
+  field.style.setProperty("--oh-row-height", `${OPENING_HAND_ROW_HEIGHT}px`);
+  field.style.setProperty("--oh-board-height", `${OPENING_HAND_BOARD_HEIGHT}px`);
   return getOpeningHandZones(field);
 }
 
@@ -2920,29 +2915,41 @@ function setOpeningHandCardFacedown(cardEl, entry, facedown) {
   applyOpeningHandCardFace(cardEl, entry);
 }
 
+function getOpeningHandRowCardTop(zoneTop, zoneBottom) {
+  return zoneTop + Math.max(0, (zoneBottom - zoneTop - FREEHAND_CARD_HEIGHT) / 2);
+}
+
+function getOpeningHandSingleRowStep(field, count) {
+  const zones = getOpeningHandZones(field);
+  const usable = Math.max(
+    FREEHAND_CARD_WIDTH,
+    zones.mainRight - zones.mainLeft - OPENING_HAND_ROW_PAD,
+  );
+  if (count <= 1) {
+    return OPENING_HAND_STEP_X;
+  }
+  const fitStep = (usable - FREEHAND_CARD_WIDTH) / (count - 1);
+  // Stay in one row: compress spacing when needed instead of wrapping taller.
+  return Math.min(OPENING_HAND_STEP_X, Math.max(FREEHAND_CARD_WIDTH * 0.55, fitStep));
+}
+
 function getOpeningHandDealSlot(index, field = null) {
   const zones = getOpeningHandZones(field);
-  const cols = getOpeningHandHandColumns(field);
-  const col = index % cols;
-  const row = Math.floor(index / cols);
-  // Exact spaced slots (no snap) so the opening 7 never collapse into each other.
+  const step = getOpeningHandSingleRowStep(field, OPENING_HAND_SIZE);
   return {
-    x: zones.mainLeft + FREEHAND_PADDING / 2 + col * OPENING_HAND_STEP_X,
-    y: zones.handContentTop + row * OPENING_HAND_STEP_Y,
+    x: zones.mainLeft + OPENING_HAND_ROW_PAD / 2 + index * step,
+    y: getOpeningHandRowCardTop(zones.handTop, zones.handBottom),
     z: index + 1,
   };
 }
 
 function getOpeningHandDrawSlot(drawIndex, field = null) {
   const zones = getOpeningHandZones(field);
-  const cols = getOpeningHandHandColumns(field);
-  // Extra draws continue after the opening 7 slots inside Hand.
   const absoluteIndex = OPENING_HAND_SIZE + drawIndex;
-  const col = absoluteIndex % cols;
-  const row = Math.floor(absoluteIndex / cols);
+  const step = getOpeningHandSingleRowStep(field, absoluteIndex + 1);
   return {
-    x: zones.mainLeft + FREEHAND_PADDING / 2 + col * OPENING_HAND_STEP_X,
-    y: zones.handContentTop + row * OPENING_HAND_STEP_Y,
+    x: zones.mainLeft + OPENING_HAND_ROW_PAD / 2 + absoluteIndex * step,
+    y: getOpeningHandRowCardTop(zones.handTop, zones.handBottom),
     z: OPENING_HAND_SIZE + drawIndex + 1,
   };
 }
@@ -2960,14 +2967,7 @@ function resizeOpeningHandField(board) {
     return;
   }
 
-  let maxBottom = 0;
-  field.querySelectorAll("[data-oh-card], [data-oh-deck-pile]").forEach((element) => {
-    const y = Number.parseFloat(element.style.top) || 0;
-    const height = element.offsetHeight || FREEHAND_CARD_HEIGHT;
-    maxBottom = Math.max(maxBottom, y + height + OPENING_HAND_INSET);
-  });
-
-  layoutOpeningHandZones(field, { minHeight: maxBottom });
+  layoutOpeningHandZones(field);
   positionOpeningHandDeckPile(board);
 }
 
@@ -3094,16 +3094,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     let nextX = startX + (event.clientX - originPointerX);
     let nextY = startY + (event.clientY - originPointerY);
     const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
+    const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
     const snapped = snapFreehandPosition({ x: nextX, y: nextY, z: 0 });
     nextX = Math.min(maxX, Math.max(0, snapped.x));
-    nextY = Math.max(0, snapped.y);
-
-    const neededHeight = nextY + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING * 2;
-    if (neededHeight > field.clientHeight) {
-      field.style.minHeight = `${neededHeight}px`;
-    }
-    const maxY = Math.max(0, field.clientHeight - FREEHAND_CARD_HEIGHT);
-    nextY = Math.min(maxY, nextY);
+    nextY = Math.min(maxY, Math.max(0, snapped.y));
     cardEl.style.left = `${nextX}px`;
     cardEl.style.top = `${nextY}px`;
     syncFaceForPosition(field, nextX, nextY);
