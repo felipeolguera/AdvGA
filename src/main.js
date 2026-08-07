@@ -6,13 +6,14 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.42";
 const FREEHAND_CARD_WIDTH = 96;
 const FREEHAND_CARD_HEIGHT = 134;
 const FREEHAND_GAP_X = 14;
 const FREEHAND_GAP_Y = 16;
 const FREEHAND_PADDING = 16;
 const FREEHAND_HINT_SPACE = 36;
+const FREEHAND_SNAP = 16;
+const APP_VERSION = "0.43";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -2095,7 +2096,7 @@ function createMainDeckFreehandBoard(sectionCards) {
 
   const hint = document.createElement("p");
   hint.className = "hint deck-freehand-hint";
-  hint.textContent = "Drag any card to stack or arrange. All main-deck copies stay on this board.";
+  hint.textContent = "Drag cards onto the grid to stack or arrange. Positions are kept when you leave Freehand mode.";
   board.append(hint);
 
   const instances = [];
@@ -2173,10 +2174,22 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
 function estimateFreehandSlot(index, cols = 5) {
   const col = index % cols;
   const row = Math.floor(index / cols);
-  return {
+  return snapFreehandPosition({
     x: FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X),
     y: FREEHAND_HINT_SPACE + FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y),
     z: index + 1,
+  });
+}
+
+function snapFreehandCoord(value) {
+  return Math.round(value / FREEHAND_SNAP) * FREEHAND_SNAP;
+}
+
+function snapFreehandPosition({ x, y, z }) {
+  return {
+    x: snapFreehandCoord(x),
+    y: snapFreehandCoord(y),
+    z,
   };
 }
 
@@ -2236,6 +2249,9 @@ function layoutFreehandBoard(board, { force = false } = {}) {
         row = Math.floor(nextSlot / cols);
         x = FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X);
         y = FREEHAND_HINT_SPACE + FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y);
+        const snappedSlot = snapFreehandPosition({ x, y, z: 0 });
+        x = snappedSlot.x;
+        y = snappedSlot.y;
         slotKey = `${Math.round(x)}:${Math.round(y)}`;
         nextSlot += 1;
       } while (occupied.has(slotKey));
@@ -2244,8 +2260,10 @@ function layoutFreehandBoard(board, { force = false } = {}) {
     }
 
     const maxX = Math.max(0, boardWidth - FREEHAND_CARD_WIDTH - 4);
-    x = Math.min(maxX, Math.max(0, x));
-    y = Math.max(0, y);
+    const snapped = snapFreehandPosition({ x, y, z });
+    x = Math.min(maxX, Math.max(0, snapped.x));
+    y = Math.max(0, snapped.y);
+    z = snapped.z;
 
     cardEl.style.left = `${x}px`;
     cardEl.style.top = `${y}px`;
@@ -2301,6 +2319,10 @@ function enableFreehandDrag(cardEl, instanceId) {
     const maxY = Math.max(0, boardHeight - FREEHAND_CARD_HEIGHT);
     nextY = Math.min(maxY, nextY);
 
+    const snapped = snapFreehandPosition({ x: nextX, y: nextY, z: 0 });
+    nextX = Math.min(maxX, Math.max(0, snapped.x));
+    nextY = Math.min(maxY, Math.max(0, snapped.y));
+
     cardEl.style.left = `${nextX}px`;
     cardEl.style.top = `${nextY}px`;
   };
@@ -2320,9 +2342,21 @@ function enableFreehandDrag(cardEl, instanceId) {
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
 
-    const x = Number.parseFloat(cardEl.style.left) || 0;
-    const y = Number.parseFloat(cardEl.style.top) || 0;
-    const z = Number.parseInt(cardEl.style.zIndex, 10) || state.mainDeckFreehandZ;
+    const board = cardEl.closest("[data-main-freehand-board]");
+    const boardWidth = board?.clientWidth || 0;
+    const boardHeight = board?.clientHeight || 0;
+    const maxX = Math.max(0, boardWidth - FREEHAND_CARD_WIDTH);
+    const maxY = Math.max(0, boardHeight - FREEHAND_CARD_HEIGHT);
+    const snapped = snapFreehandPosition({
+      x: Number.parseFloat(cardEl.style.left) || 0,
+      y: Number.parseFloat(cardEl.style.top) || 0,
+      z: Number.parseInt(cardEl.style.zIndex, 10) || state.mainDeckFreehandZ,
+    });
+    const x = Math.min(maxX, Math.max(0, snapped.x));
+    const y = Math.min(maxY, Math.max(0, snapped.y));
+    const z = snapped.z;
+    cardEl.style.left = `${x}px`;
+    cardEl.style.top = `${y}px`;
     state.mainDeckFreehandPositions[instanceId] = { x, y, z };
     saveMainDeckFreehandState();
   };
@@ -2406,11 +2440,6 @@ function saveMainDeckFreehandState() {
 
 function toggleMainDeckFreehand() {
   state.mainDeckFreehand = !state.mainDeckFreehand;
-  if (state.mainDeckFreehand) {
-    // Entering freehand: clear old packed/overlapped positions so every card is visible.
-    state.mainDeckFreehandPositions = {};
-    state.mainDeckFreehandZ = 1;
-  }
   saveMainDeckFreehandState();
   renderDeck();
 }
