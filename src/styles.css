@@ -1427,9 +1427,9 @@ h1 {
 
 .deck-freehand-board {
   position: relative;
-  min-height: 460px;
-  height: min(70vh, 720px);
-  overflow: hidden;
+  width: 100%;
+  min-height: 320px;
+  overflow: visible;
   border: 1px dashed rgba(255, 204, 115, 0.45);
   border-radius: 18px;
   background:
@@ -1448,24 +1448,34 @@ h1 {
   pointer-events: none;
 }
 
-.deck-freehand-card {
+.deck-grid-card.deck-freehand-card {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 96px;
+  height: 134px;
+  aspect-ratio: auto;
   margin: 0;
   cursor: grab;
   user-select: none;
   touch-action: none;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  will-change: left, top;
 }
 
-.deck-freehand-card.dragging {
+.deck-grid-card.deck-freehand-card.dragging {
   cursor: grabbing;
+  z-index: 9999 !important;
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45);
-  transform: scale(1.03);
 }
 
-.deck-freehand-card .deck-grid-qty {
+.deck-grid-card.deck-freehand-card .deck-grid-qty {
   display: none;
+}
+
+.deck-grid-card.deck-freehand-card img {
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 
 .deck-grid-card {

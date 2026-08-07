@@ -6,7 +6,13 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.40";
+const APP_VERSION = "0.42";
+const FREEHAND_CARD_WIDTH = 96;
+const FREEHAND_CARD_HEIGHT = 134;
+const FREEHAND_GAP_X = 14;
+const FREEHAND_GAP_Y = 16;
+const FREEHAND_PADDING = 16;
+const FREEHAND_HINT_SPACE = 36;
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -1949,6 +1955,15 @@ function createFullscreenSectionHeader(section, sectionCards) {
     freehandButton.textContent = state.mainDeckFreehand ? "Normal mode" : "Freehand mode";
     freehandButton.setAttribute("aria-pressed", state.mainDeckFreehand ? "true" : "false");
     actions.append(freehandButton);
+
+    if (state.mainDeckFreehand) {
+      const resetButton = document.createElement("button");
+      resetButton.className = "ghost compact";
+      resetButton.type = "button";
+      resetButton.dataset.resetMainFreehand = "true";
+      resetButton.textContent = "Reset positions";
+      actions.append(resetButton);
+    }
   }
 
   const addButton = document.createElement("button");
@@ -2080,20 +2095,33 @@ function createMainDeckFreehandBoard(sectionCards) {
 
   const hint = document.createElement("p");
   hint.className = "hint deck-freehand-hint";
-  hint.textContent = "Drag cards freely to stack or arrange them. Click Normal mode to return to the grid.";
+  hint.textContent = "Drag any card to stack or arrange. All main-deck copies stay on this board.";
   board.append(hint);
 
-  let instanceIndex = 0;
+  const instances = [];
   sectionCards.forEach((card) => {
     const copies = normalizeQuantity(card.quantity);
     for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
-      const instanceId = getFreehandInstanceId(card.key, copyIndex);
-      board.append(createFreehandDeckCard(card, instanceId, instanceIndex));
-      instanceIndex += 1;
+      instances.push({
+        card,
+        instanceId: getFreehandInstanceId(card.key, copyIndex),
+        copyIndex,
+      });
     }
   });
 
   pruneFreehandPositions(sectionCards);
+
+  instances.forEach((instance, layoutIndex) => {
+    board.append(createFreehandDeckCard(instance.card, instance.instanceId, layoutIndex));
+  });
+
+  // Lay out after the board is in the DOM so width/height are measurable.
+  window.requestAnimationFrame(() => {
+    // Toggle clears positions; otherwise keep user stacks and only place new copies.
+    layoutFreehandBoard(board, { force: false });
+  });
+
   return board;
 }
 
@@ -2101,12 +2129,16 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   const item = document.createElement("article");
   item.className = "deck-grid-card deck-freehand-card";
   item.dataset.freehandCard = instanceId;
+  item.dataset.freehandIndex = String(layoutIndex);
   item.title = card.name;
 
-  const position = getFreehandPosition(instanceId, layoutIndex);
-  item.style.left = `${position.x}px`;
-  item.style.top = `${position.y}px`;
-  item.style.zIndex = String(position.z);
+  // Provisional grid slot so cards are never stacked at 0,0 before measured layout.
+  const provisional = estimateFreehandSlot(layoutIndex);
+  item.style.left = `${provisional.x}px`;
+  item.style.top = `${provisional.y}px`;
+  item.style.zIndex = String(provisional.z);
+  item.style.width = `${FREEHAND_CARD_WIDTH}px`;
+  item.style.height = `${FREEHAND_CARD_HEIGHT}px`;
 
   const imageWrap = document.createElement("div");
   imageWrap.className = "deck-grid-card-image";
@@ -2138,26 +2170,137 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   return item;
 }
 
+function estimateFreehandSlot(index, cols = 5) {
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  return {
+    x: FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X),
+    y: FREEHAND_HINT_SPACE + FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y),
+    z: index + 1,
+  };
+}
+
+function layoutFreehandBoard(board, { force = false } = {}) {
+  if (!board) {
+    return;
+  }
+
+  const cards = [...board.querySelectorAll("[data-freehand-card]")];
+  if (cards.length === 0) {
+    board.style.minHeight = "280px";
+    return;
+  }
+
+  const boardWidth = Math.max(board.clientWidth || board.parentElement?.clientWidth || 640, 240);
+  const cols = Math.max(
+    1,
+    Math.floor((boardWidth - FREEHAND_PADDING * 2 + FREEHAND_GAP_X) / (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X)),
+  );
+  const rows = Math.ceil(cards.length / cols);
+  const contentHeight =
+    FREEHAND_HINT_SPACE +
+    FREEHAND_PADDING +
+    rows * FREEHAND_CARD_HEIGHT +
+    Math.max(0, rows - 1) * FREEHAND_GAP_Y +
+    FREEHAND_PADDING;
+  board.style.minHeight = `${Math.max(320, contentHeight)}px`;
+
+  const occupied = new Set();
+  if (!force) {
+    cards.forEach((cardEl) => {
+      const saved = state.mainDeckFreehandPositions[cardEl.dataset.freehandCard];
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        occupied.add(`${Math.round(saved.x)}:${Math.round(saved.y)}`);
+      }
+    });
+  }
+
+  let nextSlot = 0;
+  cards.forEach((cardEl, index) => {
+    const instanceId = cardEl.dataset.freehandCard;
+    const saved = state.mainDeckFreehandPositions[instanceId];
+    let x;
+    let y;
+    let z;
+
+    if (!force && saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+      x = saved.x;
+      y = saved.y;
+      z = Number.isFinite(saved.z) ? saved.z : index + 1;
+    } else {
+      let col;
+      let row;
+      let slotKey;
+      do {
+        col = nextSlot % cols;
+        row = Math.floor(nextSlot / cols);
+        x = FREEHAND_PADDING + col * (FREEHAND_CARD_WIDTH + FREEHAND_GAP_X);
+        y = FREEHAND_HINT_SPACE + FREEHAND_PADDING + row * (FREEHAND_CARD_HEIGHT + FREEHAND_GAP_Y);
+        slotKey = `${Math.round(x)}:${Math.round(y)}`;
+        nextSlot += 1;
+      } while (occupied.has(slotKey));
+      occupied.add(slotKey);
+      z = index + 1;
+    }
+
+    const maxX = Math.max(0, boardWidth - FREEHAND_CARD_WIDTH - 4);
+    x = Math.min(maxX, Math.max(0, x));
+    y = Math.max(0, y);
+
+    cardEl.style.left = `${x}px`;
+    cardEl.style.top = `${y}px`;
+    cardEl.style.zIndex = String(z);
+    state.mainDeckFreehandPositions[instanceId] = { x, y, z };
+    state.mainDeckFreehandZ = Math.max(state.mainDeckFreehandZ, z + 1);
+  });
+
+  // Grow board to fit the lowest card after custom placements.
+  let lowest = contentHeight;
+  cards.forEach((cardEl) => {
+    const top = Number.parseFloat(cardEl.style.top) || 0;
+    lowest = Math.max(lowest, top + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING);
+  });
+  board.style.minHeight = `${Math.max(320, lowest)}px`;
+
+  saveMainDeckFreehandState();
+}
+
 function enableFreehandDrag(cardEl, instanceId) {
   let pointerId = null;
-  let offsetX = 0;
-  let offsetY = 0;
+  let startX = 0;
+  let startY = 0;
+  let originPointerX = 0;
+  let originPointerY = 0;
 
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId) {
       return;
     }
-    const board = cardEl.parentElement;
+    const board = cardEl.closest("[data-main-freehand-board]");
     if (!board) {
       return;
     }
-    const boardRect = board.getBoundingClientRect();
-    const cardWidth = cardEl.offsetWidth || 96;
-    const cardHeight = cardEl.offsetHeight || 134;
-    const maxX = Math.max(0, board.clientWidth - cardWidth);
-    const maxY = Math.max(0, board.clientHeight - cardHeight);
-    const nextX = Math.min(maxX, Math.max(0, event.clientX - boardRect.left - offsetX));
-    const nextY = Math.min(maxY, Math.max(0, event.clientY - boardRect.top - offsetY));
+
+    const dx = event.clientX - originPointerX;
+    const dy = event.clientY - originPointerY;
+    let nextX = startX + dx;
+    let nextY = startY + dy;
+
+    const boardWidth = board.clientWidth;
+    let boardHeight = board.clientHeight;
+    const maxX = Math.max(0, boardWidth - FREEHAND_CARD_WIDTH);
+    nextX = Math.min(maxX, Math.max(0, nextX));
+    nextY = Math.max(0, nextY);
+
+    // Grow the board when dragging downward so cards are never clipped away.
+    const neededHeight = nextY + FREEHAND_CARD_HEIGHT + FREEHAND_PADDING;
+    if (neededHeight > boardHeight) {
+      board.style.minHeight = `${neededHeight}px`;
+      boardHeight = neededHeight;
+    }
+    const maxY = Math.max(0, boardHeight - FREEHAND_CARD_HEIGHT);
+    nextY = Math.min(maxY, nextY);
+
     cardEl.style.left = `${nextX}px`;
     cardEl.style.top = `${nextY}px`;
   };
@@ -2168,7 +2311,11 @@ function enableFreehandDrag(cardEl, instanceId) {
     }
     pointerId = null;
     cardEl.classList.remove("dragging");
-    cardEl.releasePointerCapture?.(event.pointerId);
+    try {
+      cardEl.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore if capture was already released.
+    }
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
@@ -2181,22 +2328,31 @@ function enableFreehandDrag(cardEl, instanceId) {
   };
 
   cardEl.addEventListener("pointerdown", (event) => {
+    if (event.button != null && event.button !== 0) {
+      return;
+    }
     if (event.target.closest(".deck-grid-remove")) {
       return;
     }
     event.preventDefault();
+    event.stopPropagation();
+
     pointerId = event.pointerId;
-    const board = cardEl.parentElement;
-    if (!board) {
-      return;
-    }
-    const cardRect = cardEl.getBoundingClientRect();
-    offsetX = event.clientX - cardRect.left;
-    offsetY = event.clientY - cardRect.top;
+    startX = Number.parseFloat(cardEl.style.left) || 0;
+    startY = Number.parseFloat(cardEl.style.top) || 0;
+    originPointerX = event.clientX;
+    originPointerY = event.clientY;
+
     state.mainDeckFreehandZ += 1;
     cardEl.style.zIndex = String(state.mainDeckFreehandZ);
     cardEl.classList.add("dragging");
-    cardEl.setPointerCapture?.(event.pointerId);
+
+    try {
+      cardEl.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers may reject capture; window listeners still handle move/up.
+    }
+
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
@@ -2205,29 +2361,6 @@ function enableFreehandDrag(cardEl, instanceId) {
 
 function getFreehandInstanceId(cardKey, copyIndex) {
   return `${cardKey}::${copyIndex}`;
-}
-
-function getFreehandPosition(instanceId, layoutIndex) {
-  const saved = state.mainDeckFreehandPositions[instanceId];
-  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-    return {
-      x: saved.x,
-      y: saved.y,
-      z: Number.isFinite(saved.z) ? saved.z : layoutIndex + 1,
-    };
-  }
-
-  const col = layoutIndex % 8;
-  const row = Math.floor(layoutIndex / 8);
-  const position = {
-    x: 16 + col * 34,
-    y: 40 + row * 42,
-    z: layoutIndex + 1,
-  };
-  state.mainDeckFreehandPositions[instanceId] = position;
-  state.mainDeckFreehandZ = Math.max(state.mainDeckFreehandZ, position.z + 1);
-  saveMainDeckFreehandState();
-  return position;
 }
 
 function pruneFreehandPositions(sectionCards) {
@@ -2273,8 +2406,25 @@ function saveMainDeckFreehandState() {
 
 function toggleMainDeckFreehand() {
   state.mainDeckFreehand = !state.mainDeckFreehand;
+  if (state.mainDeckFreehand) {
+    // Entering freehand: clear old packed/overlapped positions so every card is visible.
+    state.mainDeckFreehandPositions = {};
+    state.mainDeckFreehandZ = 1;
+  }
   saveMainDeckFreehandState();
   renderDeck();
+}
+
+function resetMainDeckFreehandPositions() {
+  state.mainDeckFreehandPositions = {};
+  state.mainDeckFreehandZ = 1;
+  saveMainDeckFreehandState();
+  const boards = document.querySelectorAll("[data-main-freehand-board]");
+  if (boards.length === 0) {
+    renderDeck();
+    return;
+  }
+  boards.forEach((board) => layoutFreehandBoard(board, { force: true }));
 }
 
 function createDeckRow(card) {
@@ -2364,6 +2514,12 @@ function handleDeckListClick(event) {
   const freehandButton = event.target.closest("[data-toggle-main-freehand]");
   if (freehandButton) {
     toggleMainDeckFreehand();
+    return;
+  }
+
+  const resetFreehandButton = event.target.closest("[data-reset-main-freehand]");
+  if (resetFreehandButton) {
+    resetMainDeckFreehandPositions();
     return;
   }
 
