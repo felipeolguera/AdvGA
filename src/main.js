@@ -6,8 +6,8 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.75";
-const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
+const APP_VERSION = "0.76";
+const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
 const OPENING_HAND_FACE_FLIP_MS = 280;
@@ -4452,7 +4452,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
 
-    // Hold/drag a Hand card for 3s to peek a full-size copy.
+    // Hold/drag a Hand card for 2s to peek a full-size copy.
     const startedInHand = (entry.zone || "hand") === "hand" && !entry.facedown;
     if (startedInHand) {
       const holdPointerId = event.pointerId;
