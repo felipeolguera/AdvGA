@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.53";
+const APP_VERSION = "0.54";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -1983,6 +1983,13 @@ function createFullscreenSectionHeader(section, sectionCards) {
       redealButton.dataset.redealOpeningHand = "true";
       redealButton.textContent = "Redeal";
       actions.append(redealButton);
+
+      const organizeButton = document.createElement("button");
+      organizeButton.className = "ghost compact";
+      organizeButton.type = "button";
+      organizeButton.dataset.organizeOpeningHand = "true";
+      organizeButton.textContent = "Organize hand";
+      actions.append(organizeButton);
     } else {
       const freehandButton = document.createElement("button");
       freehandButton.className = "secondary compact";
@@ -2569,7 +2576,7 @@ function createOpeningHandBoard(sectionCards) {
   const header = document.createElement("div");
   header.className = "opening-hand-board-header";
   header.innerHTML = `
-    <p class="hint">Board layout: Field / Memory / Hand (left) and Banishment / Deck / Graveyard (right). Memory flips cards face down; other zones stay face up. Drag or tap the deck to draw into Hand.</p>
+    <p class="hint">Field / Memory / Hand (left) and Banishment / Deck / Graveyard (right). Memory flips face down. Drag or tap Deck to draw into Hand. Drag a Hand card onto Deck to put it on the bottom. Use Organize hand to neat-line Hand cards.</p>
   `;
 
   const field = document.createElement("div");
@@ -3070,6 +3077,76 @@ function updateOpeningHandDeckPile(board) {
   positionOpeningHandDeckPile(board);
 }
 
+async function returnOpeningHandCardToDeckBottom(board, entry, cardEl) {
+  const field = board.querySelector("[data-oh-field]");
+  if (!field) {
+    return;
+  }
+
+  state.openingHandHand = state.openingHandHand.filter(
+    (item) => item.instanceId !== entry.instanceId,
+  );
+  // Draw uses shift() from the front, so push = bottom of deck.
+  state.openingHandLibrary.push({
+    card: entry.card,
+    instanceId: entry.instanceId,
+  });
+
+  const anchor = getOpeningHandDeckAnchor(field);
+  cardEl.classList.add("opening-hand-card-dealing", "is-facedown");
+  applyOpeningHandCardFace(cardEl, { ...entry, facedown: true });
+  cardEl.style.left = `${anchor.x}px`;
+  cardEl.style.top = `${anchor.y}px`;
+  cardEl.style.opacity = "0.55";
+  cardEl.style.transform = "scale(0.9)";
+  await delay(180);
+  cardEl.remove();
+  updateOpeningHandDeckPile(board);
+  resizeOpeningHandField(board);
+}
+
+function organizeOpeningHandCards(board = null) {
+  const playBoard =
+    board || document.querySelector("[data-opening-hand-board]");
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field) {
+    return;
+  }
+
+  layoutOpeningHandZones(field);
+  const zones = getOpeningHandZones(field);
+  const handEntries = state.openingHandHand
+    .filter((entry) => {
+      const position = entry.position || { x: 0, y: 0 };
+      return getOpeningHandZoneAt(position.x, position.y, field) === "hand";
+    })
+    .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
+
+  if (handEntries.length === 0) {
+    return;
+  }
+
+  const step = getOpeningHandSingleRowStep(field, handEntries.length);
+  const y = getOpeningHandRowCardTop(zones.handTop, zones.handBottom);
+  handEntries.forEach((entry, index) => {
+    entry.facedown = false;
+    entry.position = {
+      x: zones.mainLeft + OPENING_HAND_ROW_PAD / 2 + index * step,
+      y,
+      z: index + 1,
+    };
+    const cardEl = field.querySelector(`[data-oh-card="${CSS.escape(entry.instanceId)}"]`);
+    if (!cardEl) {
+      return;
+    }
+    cardEl.style.left = `${entry.position.x}px`;
+    cardEl.style.top = `${entry.position.y}px`;
+    cardEl.style.zIndex = String(entry.position.z);
+    applyOpeningHandCardFace(cardEl, entry);
+  });
+  resizeOpeningHandField(playBoard);
+}
+
 function enableOpeningHandCardDrag(cardEl, entry) {
   let pointerId = null;
   let startX = 0;
@@ -3103,7 +3180,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     syncFaceForPosition(field, nextX, nextY);
   };
 
-  const onPointerUp = (event) => {
+  const onPointerUp = async (event) => {
     if (pointerId !== event.pointerId) {
       return;
     }
@@ -3119,18 +3196,25 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.removeEventListener("pointercancel", onPointerUp);
 
     const field = cardEl.closest("[data-oh-field]");
+    const board = cardEl.closest("[data-opening-hand-board]");
     const x = Number.parseFloat(cardEl.style.left) || 0;
     const y = Number.parseFloat(cardEl.style.top) || 0;
     const z = Number.parseInt(cardEl.style.zIndex, 10) || 1;
     entry.position = { x, y, z };
-    if (field) {
-      syncFaceForPosition(field, x, y);
-      delete field.dataset.activeZone;
+    if (!field || !board) {
+      return;
     }
-    const board = cardEl.closest("[data-opening-hand-board]");
-    if (board) {
-      resizeOpeningHandField(board);
+
+    const zone = getOpeningHandZoneAt(x, y, field);
+    delete field.dataset.activeZone;
+    if (zone === "deck") {
+      await returnOpeningHandCardToDeckBottom(board, entry, cardEl);
+      return;
     }
+
+    syncFaceForPosition(field, x, y);
+    delete field.dataset.activeZone;
+    resizeOpeningHandField(board);
   };
 
   cardEl.addEventListener("pointerdown", (event) => {
@@ -3353,6 +3437,12 @@ function handleDeckListClick(event) {
   const redealButton = event.target.closest("[data-redeal-opening-hand]");
   if (redealButton) {
     startOpeningHandSession();
+    return;
+  }
+
+  const organizeButton = event.target.closest("[data-organize-opening-hand]");
+  if (organizeButton) {
+    organizeOpeningHandCards();
     return;
   }
 
