@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.61";
+const APP_VERSION = "0.62";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -3215,6 +3215,7 @@ function createOpeningHandCard(entry, index, field = null) {
 
   item.append(imageWrap);
   applyOpeningHandCardFace(item, entry);
+  applyOpeningHandCardRotation(item, entry);
   enableOpeningHandCardDrag(item, entry);
   return item;
 }
@@ -3238,6 +3239,28 @@ function setOpeningHandCardFacedown(cardEl, entry, facedown) {
   }
   entry.facedown = next;
   applyOpeningHandCardFace(cardEl, entry);
+}
+
+function applyOpeningHandCardRotation(cardEl, entry) {
+  if (!cardEl || !entry) {
+    return;
+  }
+  const onField = (entry.zone || "hand") === "field";
+  const rotated = Boolean(entry.rotated) && onField;
+  entry.rotated = rotated;
+  cardEl.classList.toggle("is-rotated", rotated);
+  cardEl.dataset.ohRotated = rotated ? "true" : "false";
+  if (!cardEl.classList.contains("opening-hand-card-dealing") && !cardEl.classList.contains("dragging")) {
+    cardEl.style.transform = rotated ? "rotate(90deg)" : "";
+  }
+}
+
+function toggleOpeningHandCardRotation(cardEl, entry) {
+  if (!cardEl || !entry || (entry.zone || "hand") !== "field") {
+    return;
+  }
+  entry.rotated = !entry.rotated;
+  applyOpeningHandCardRotation(cardEl, entry);
 }
 
 function getOpeningHandRowCardTop(zoneTop, zoneBottom) {
@@ -3400,6 +3423,7 @@ async function playOpeningHandMaterialCard(board, instanceId) {
     ...source,
     position,
     facedown: false,
+    rotated: false,
     zone: "field",
   };
   state.openingHandHand.push(entry);
@@ -3569,7 +3593,10 @@ async function dealOpeningHandCards(board, token) {
   resizeOpeningHandField(board);
 }
 
-async function drawOpeningHandCard(board, { animate = true, slotIndex = null } = {}) {
+async function drawOpeningHandCard(
+  board,
+  { animate = true, slotIndex = null, organize = false } = {},
+) {
   if (state.openingHandLibrary.length === 0) {
     return null;
   }
@@ -3585,7 +3612,7 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
   const position = isOpeningDeal
     ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
     : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE, field);
-  const entry = { ...next, position, facedown: false, zone: "hand" };
+  const entry = { ...next, position, facedown: false, zone: "hand", rotated: false };
   state.openingHandHand.push(entry);
 
   const cardEl = createOpeningHandCard(entry, handIndexBefore, field);
@@ -3616,6 +3643,10 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
 
   updateOpeningHandDeckPile(board);
   resizeOpeningHandField(board);
+  // After a mid-game draw (not the opening deal), neat-line Hand automatically.
+  if (organize || (state.openingHandDealComplete && !isOpeningDeal)) {
+    organizeOpeningHandCards(board);
+  }
   return entry;
 }
 
@@ -3871,6 +3902,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let startY = 0;
   let originPointerX = 0;
   let originPointerY = 0;
+  let dragMoved = false;
+  let lastTapAt = 0;
 
   const syncFaceForPosition = (field, x, y) => {
     const zone = getOpeningHandZoneAt(x, y, field);
@@ -3888,6 +3921,9 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
     let nextX = startX + (event.clientX - originPointerX);
     let nextY = startY + (event.clientY - originPointerY);
+    if (Math.hypot(event.clientX - originPointerX, event.clientY - originPointerY) > 8) {
+      dragMoved = true;
+    }
     const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
     const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
     const snapped = snapFreehandPosition({ x: nextX, y: nextY, z: 0 });
@@ -3926,6 +3962,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     let zone = getOpeningHandZoneAt(x, y, field);
     delete field.dataset.activeZone;
     if (isOpeningHandDeckZone(zone)) {
+      entry.rotated = false;
+      applyOpeningHandCardRotation(cardEl, entry);
       const placement = zone === "deck-top" ? "top" : "bottom";
       await returnOpeningHandCardToDeck(board, entry, cardEl, placement);
       return;
@@ -3937,8 +3975,26 @@ function enableOpeningHandCardDrag(cardEl, entry) {
 
     entry.zone = zone;
     entry.facedown = zone === "memory";
+    if (zone !== "field") {
+      entry.rotated = false;
+    }
     syncFaceForPosition(field, x, y);
+    applyOpeningHandCardRotation(cardEl, entry);
     delete field.dataset.activeZone;
+
+    // Double-tap / double-click a Field card to rest it (90°) or stand it back up.
+    if (!dragMoved && zone === "field") {
+      const now = Date.now();
+      if (now - lastTapAt < 340) {
+        toggleOpeningHandCardRotation(cardEl, entry);
+        lastTapAt = 0;
+      } else {
+        lastTapAt = now;
+      }
+    } else {
+      lastTapAt = 0;
+    }
+
     updateOpeningHandCounts(board);
     resizeOpeningHandField(board);
   };
@@ -3950,6 +4006,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     event.preventDefault();
     event.stopPropagation();
     pointerId = event.pointerId;
+    dragMoved = false;
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -4021,7 +4078,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     }
 
     if (shouldDraw) {
-      await drawOpeningHandCard(board, { animate: true });
+      await drawOpeningHandCard(board, { animate: true, organize: true });
     }
   };
 
