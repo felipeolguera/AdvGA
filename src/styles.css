@@ -1745,6 +1745,20 @@ h1 {
   font-weight: 900;
 }
 
+.opening-hand-hand-count {
+  position: absolute;
+  z-index: 25;
+  min-width: 28px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #170f0b;
+  background: var(--gold-strong);
+  font-size: 0.85rem;
+  font-weight: 900;
+  pointer-events: none;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
 .opening-hand-card {
   transition:
     left 180ms ease,
