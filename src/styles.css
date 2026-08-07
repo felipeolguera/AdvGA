@@ -1846,6 +1846,53 @@ h1 {
   transform: rotate(90deg);
 }
 
+.opening-hand-card-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 5, 10, 0.72);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.opening-hand-card-preview.is-visible {
+  opacity: 1;
+}
+
+.opening-hand-card-preview-frame {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: min(360px, calc(100vw - 48px));
+  transform: scale(0.94);
+  transition: transform 180ms ease;
+}
+
+.opening-hand-card-preview.is-visible .opening-hand-card-preview-frame {
+  transform: scale(1);
+}
+
+.opening-hand-card-preview-image {
+  display: block;
+  width: 100%;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  background: #0a0a0b;
+}
+
+.opening-hand-card-preview-caption {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .opening-hand-card.is-facedown {
   border-color: rgba(120, 190, 255, 0.35);
 }
