@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.55";
+const APP_VERSION = "0.56";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -2625,19 +2625,34 @@ function createOpeningHandBoard(sectionCards) {
 }
 
 function getOpeningHandFieldWidth(field) {
-  return field?.clientWidth || field?.parentElement?.clientWidth || 640;
+  const width = field?.clientWidth || field?.parentElement?.clientWidth || 0;
+  // Ignore unusable 0-width measures from pre-layout frames.
+  return width >= OPENING_HAND_RAIL_WIDTH + FREEHAND_CARD_WIDTH + 48
+    ? width
+    : 640;
+}
+
+function getOpeningHandMainColumnBounds(field) {
+  const width = getOpeningHandFieldWidth(field);
+  const mainLeft = OPENING_HAND_INSET;
+  const railLeft = width - OPENING_HAND_INSET - OPENING_HAND_RAIL_WIDTH;
+  const mainRight = railLeft - OPENING_HAND_ZONE_GAP;
+  return {
+    width,
+    mainLeft,
+    mainRight: Math.max(mainLeft + FREEHAND_CARD_WIDTH, mainRight),
+    railLeft,
+    railWidth: OPENING_HAND_RAIL_WIDTH,
+  };
 }
 
 function getOpeningHandFallbackZones(field) {
-  const width = getOpeningHandFieldWidth(field);
+  const { width, mainLeft, mainRight, railLeft, railWidth } =
+    getOpeningHandMainColumnBounds(field);
   const inset = OPENING_HAND_INSET;
   const gap = OPENING_HAND_ZONE_GAP;
-  const railWidth = OPENING_HAND_RAIL_WIDTH;
   const rowHeight = OPENING_HAND_ROW_HEIGHT;
   const height = OPENING_HAND_BOARD_HEIGHT;
-  const railLeft = width - inset - railWidth;
-  const mainLeft = inset;
-  const mainRight = railLeft - gap;
 
   const row = (index) => {
     const top = inset + index * (rowHeight + gap);
@@ -2712,16 +2727,18 @@ function getOpeningHandZones(field) {
     return fallback;
   }
 
+  // Horizontal Hand bounds come from the field width + rail, not getBoundingClientRect.
+  // Rect measures can be wrong before/during layout and were placing cards 5-7 under Deck.
+  const column = getOpeningHandMainColumnBounds(field);
   return {
-    width: getOpeningHandFieldWidth(field),
+    width: column.width,
     height: field.clientHeight || fallback.height,
     inset: OPENING_HAND_INSET,
     gap: OPENING_HAND_ZONE_GAP,
-    railLeft: banishmentBox.left,
-    railWidth: banishmentBox.width,
-    // Use the Hand cell width so dealt/organized cards stay inside Hand.
-    mainLeft: handBox.left,
-    mainRight: handBox.right,
+    railLeft: column.railLeft,
+    railWidth: column.railWidth,
+    mainLeft: column.mainLeft,
+    mainRight: column.mainRight,
     fieldTop: fieldBox.top,
     fieldBottom: fieldBox.bottom,
     fieldContentTop: fieldBox.contentTop,
@@ -2744,11 +2761,8 @@ function getOpeningHandZones(field) {
 }
 
 function getOpeningHandMainWidth(field) {
-  const width = getOpeningHandFieldWidth(field);
-  return Math.max(
-    FREEHAND_CARD_WIDTH,
-    width - OPENING_HAND_INSET * 2 - OPENING_HAND_ZONE_GAP - OPENING_HAND_RAIL_WIDTH,
-  );
+  const { mainLeft, mainRight } = getOpeningHandMainColumnBounds(field);
+  return Math.max(FREEHAND_CARD_WIDTH, mainRight - mainLeft);
 }
 
 function layoutOpeningHandZones(field) {
@@ -2930,29 +2944,25 @@ function getOpeningHandRowCardTop(zoneTop, zoneBottom) {
 function getOpeningHandRowLayout(field, count) {
   const zones = getOpeningHandZones(field);
   const pad = OPENING_HAND_ROW_PAD / 2;
-  const innerLeft = zones.mainLeft + pad;
-  const innerRight = zones.mainRight - pad;
+  const column = getOpeningHandMainColumnBounds(field);
+  const innerLeft = column.mainLeft + pad;
+  const innerRight = column.mainRight - pad;
   const usable = Math.max(FREEHAND_CARD_WIDTH, innerRight - innerLeft);
-  const startX = innerLeft;
   const y = getOpeningHandRowCardTop(zones.handTop, zones.handBottom);
-  if (count <= 1) {
+  const safeCount = Math.max(1, count);
+  if (safeCount <= 1) {
     return {
-      startX: startX + Math.max(0, (usable - FREEHAND_CARD_WIDTH) / 2),
+      startX: innerLeft + Math.max(0, (usable - FREEHAND_CARD_WIDTH) / 2),
       step: 0,
       y,
     };
   }
-  // Equal gaps across the full Hand width. Compress (even overlap) when narrow
-  // so later cards never stack on the same x or spill into the Deck rail.
+  // Equal gaps across the Hand column only (never into the Deck rail).
   const step = Math.min(
     OPENING_HAND_STEP_X,
-    (usable - FREEHAND_CARD_WIDTH) / (count - 1),
+    (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1),
   );
-  return { startX, step, y };
-}
-
-function getOpeningHandSingleRowStep(field, count) {
-  return getOpeningHandRowLayout(field, count).step;
+  return { startX: innerLeft, step: Number.isFinite(step) ? step : 0, y };
 }
 
 function getOpeningHandDealSlot(index, field = null) {
@@ -2996,11 +3006,56 @@ function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function applyOpeningHandCardPosition(cardEl, entry) {
+  if (!cardEl || !entry?.position) {
+    return;
+  }
+  cardEl.style.left = `${entry.position.x}px`;
+  cardEl.style.top = `${entry.position.y}px`;
+  cardEl.style.zIndex = String(entry.position.z || 1);
+}
+
+function reflowOpeningHandZoneCards(board, zoneName = "hand") {
+  const field = board?.querySelector("[data-oh-field]");
+  if (!field) {
+    return;
+  }
+  layoutOpeningHandZones(field);
+  const entries = state.openingHandHand
+    .filter((entry) => (entry.zone || "hand") === zoneName)
+    .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
+  if (entries.length === 0) {
+    return;
+  }
+  const layout = getOpeningHandRowLayout(field, entries.length);
+  entries.forEach((entry, index) => {
+    entry.zone = zoneName;
+    entry.facedown = zoneName === "memory" ? Boolean(entry.facedown) : false;
+    if (zoneName === "hand") {
+      entry.facedown = false;
+    }
+    entry.position = {
+      x: layout.startX + index * layout.step,
+      y: layout.y,
+      z: index + 1,
+    };
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    applyOpeningHandCardPosition(cardEl, entry);
+    if (cardEl) {
+      applyOpeningHandCardFace(cardEl, entry);
+    }
+  });
+}
+
 async function dealOpeningHandCards(board, token) {
   const field = board.querySelector("[data-oh-field]");
   if (!field) {
     return;
   }
+  // Wait until the board has a real measured width before placing cards.
+  await new Promise((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+  });
   positionOpeningHandDeckPile(board);
   resizeOpeningHandField(board);
 
@@ -3015,6 +3070,8 @@ async function dealOpeningHandCards(board, token) {
     });
     await delay(140);
   }
+  // Final equal reflow so every dealt card uses the same measured Hand width.
+  reflowOpeningHandZoneCards(board, "hand");
   resizeOpeningHandField(board);
 }
 
@@ -3034,7 +3091,7 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
   const position = isOpeningDeal
     ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
     : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE, field);
-  const entry = { ...next, position, facedown: false };
+  const entry = { ...next, position, facedown: false, zone: "hand" };
   state.openingHandHand.push(entry);
 
   const cardEl = createOpeningHandCard(entry, handIndexBefore, field);
@@ -3049,8 +3106,13 @@ async function drawOpeningHandCard(board, { animate = true, slotIndex = null } =
     cardEl.style.opacity = "0.35";
     cardEl.style.transform = "scale(0.86) rotate(-8deg)";
     await delay(20);
-    cardEl.style.left = `${position.x}px`;
-    cardEl.style.top = `${position.y}px`;
+    // Recompute slot after layout/width settle so late cards don't share one x.
+    const settled = isOpeningDeal
+      ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
+      : getOpeningHandDrawSlot(0, field);
+    entry.position = settled;
+    entry.zone = "hand";
+    applyOpeningHandCardPosition(cardEl, entry);
     cardEl.style.opacity = "1";
     cardEl.style.transform = "scale(1) rotate(0deg)";
     await delay(220);
@@ -3119,25 +3181,18 @@ async function returnOpeningHandCardToDeckBottom(board, entry, cardEl) {
   resizeOpeningHandField(board);
 }
 
-function isOpeningHandCardInHandBand(entry, field, zones) {
-  const position = entry.position || { x: 0, y: 0 };
-  const zone = getOpeningHandZoneAt(position.x, position.y, field);
-  if (zone === "hand") {
-    return true;
-  }
-  // Include cards that used to spill into the right rail from the old spacing bug.
-  const centerY = position.y + FREEHAND_CARD_HEIGHT / 2;
-  return (
-    centerY >= zones.handTop &&
-    centerY <= zones.handBottom &&
-    (zone === "deck" || zone === "graveyard" || zone === "banishment")
-  );
-}
-
 function findOpeningHandCardElement(field, instanceId) {
   return [...field.querySelectorAll("[data-oh-card]")].find(
     (element) => element.dataset.ohCard === instanceId,
   );
+}
+
+function resolveOpeningHandEntryZone(entry, field) {
+  if (entry.zone) {
+    return entry.zone;
+  }
+  const position = entry.position || { x: 0, y: 0 };
+  return getOpeningHandZoneAt(position.x, position.y, field);
 }
 
 function organizeOpeningHandCards(board = null) {
@@ -3149,32 +3204,11 @@ function organizeOpeningHandCards(board = null) {
   }
 
   layoutOpeningHandZones(field);
-  const zones = getOpeningHandZones(field);
-  const handEntries = state.openingHandHand
-    .filter((entry) => isOpeningHandCardInHandBand(entry, field, zones))
-    .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
-
-  if (handEntries.length === 0) {
-    return;
-  }
-
-  const layout = getOpeningHandRowLayout(field, handEntries.length);
-  handEntries.forEach((entry, index) => {
-    entry.facedown = false;
-    entry.position = {
-      x: layout.startX + index * layout.step,
-      y: layout.y,
-      z: index + 1,
-    };
-    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
-    if (!cardEl) {
-      return;
-    }
-    cardEl.style.left = `${entry.position.x}px`;
-    cardEl.style.top = `${entry.position.y}px`;
-    cardEl.style.zIndex = String(entry.position.z);
-    applyOpeningHandCardFace(cardEl, entry);
+  // Only cards currently owned by Hand — never Field/Memory/Graveyard/Banishment.
+  state.openingHandHand.forEach((entry) => {
+    entry.zone = resolveOpeningHandEntryZone(entry, field);
   });
+  reflowOpeningHandZoneCards(playBoard, "hand");
   resizeOpeningHandField(playBoard);
 }
 
@@ -3243,6 +3277,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       return;
     }
 
+    entry.zone = zone;
+    entry.facedown = zone === "memory";
     syncFaceForPosition(field, x, y);
     delete field.dataset.activeZone;
     resizeOpeningHandField(board);
