@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.57";
+const APP_VERSION = "0.58";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
@@ -2985,12 +2985,13 @@ function getOpeningHandRowLayout(field, count) {
       y,
     };
   }
-  // Equal gaps across the Hand column only (never into the Deck rail).
-  const step = Math.min(
-    OPENING_HAND_STEP_X,
-    (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1),
-  );
-  return { startX: innerLeft, step: Number.isFinite(step) ? step : 0, y };
+  // Spread evenly across the full Hand width (horizontal + shared vertical row).
+  const step = (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1);
+  return {
+    startX: innerLeft,
+    step: Number.isFinite(step) ? Math.max(0, step) : 0,
+    y,
+  };
 }
 
 function getOpeningHandDealSlot(index, field = null) {
@@ -3248,7 +3249,18 @@ function organizeOpeningHandCards(board = null) {
   state.openingHandHand.forEach((entry) => {
     entry.zone = resolveOpeningHandEntryZone(entry, field);
   });
+  // Force a clean even row: same Y, equal X gaps across the Hand width.
   reflowOpeningHandZoneCards(playBoard, "hand");
+  const handEntries = state.openingHandHand.filter((entry) => entry.zone === "hand");
+  handEntries.forEach((entry) => {
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (!cardEl || !entry.position) {
+      return;
+    }
+    // Retrigger horizontal transition even if a prior left matched.
+    cardEl.style.transition = "left 220ms ease, top 220ms ease";
+    applyOpeningHandCardPosition(cardEl, entry);
+  });
   resizeOpeningHandField(playBoard);
 }
 
