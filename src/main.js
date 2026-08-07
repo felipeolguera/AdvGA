@@ -6,9 +6,10 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.71";
+const APP_VERSION = "0.72";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
+const OPENING_HAND_TAP_WINDOW_MS = 380;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
@@ -3392,7 +3393,10 @@ function applyOpeningHandCardFace(cardEl, entry) {
   if (image) {
     image.alt = facedown ? "Face-down card" : entry.card.name;
   }
-  cardEl.title = facedown ? "Face-down (Memory)" : entry.card.name;
+  const zone = entry.zone || "hand";
+  cardEl.title = facedown
+    ? `Face-down (${zone === "field" ? "Field" : zone === "memory" ? "Memory" : "card"})`
+    : entry.card.name;
 }
 
 function setOpeningHandCardFacedown(cardEl, entry, facedown) {
@@ -3402,6 +3406,18 @@ function setOpeningHandCardFacedown(cardEl, entry, facedown) {
     return;
   }
   entry.facedown = next;
+  applyOpeningHandCardFace(cardEl, entry);
+}
+
+function toggleOpeningHandCardFace(cardEl, entry) {
+  if (!cardEl || !entry) {
+    return;
+  }
+  const zone = entry.zone || "hand";
+  if (zone !== "field" && zone !== "memory") {
+    return;
+  }
+  entry.facedown = !entry.facedown;
   applyOpeningHandCardFace(cardEl, entry);
 }
 
@@ -4162,7 +4178,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerY = 0;
   let dragMoved = false;
   let lastTapAt = 0;
+  let tapCount = 0;
+  let tapActionTimer = null;
   let holdPreviewTimer = null;
+  const originZone = () => entry.zone || "hand";
 
   const clearHoldPreviewTimer = () => {
     if (holdPreviewTimer != null) {
@@ -4171,10 +4190,25 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
   };
 
+  const clearTapActionTimer = () => {
+    if (tapActionTimer != null) {
+      window.clearTimeout(tapActionTimer);
+      tapActionTimer = null;
+    }
+  };
+
   const syncFaceForPosition = (field, x, y) => {
     const zone = getOpeningHandZoneAt(x, y, field);
-    setOpeningHandCardFacedown(cardEl, entry, zone === "memory");
     field.dataset.activeZone = zone;
+    // Preview face-down only when entering Memory from another zone.
+    // Field/Memory keep a manually toggled face while you stay there.
+    if (zone === "memory") {
+      if (originZone() !== "memory") {
+        setOpeningHandCardFacedown(cardEl, entry, true);
+      }
+    } else if (zone !== "field") {
+      setOpeningHandCardFacedown(cardEl, entry, false);
+    }
   };
 
   const onPointerMove = (event) => {
@@ -4231,7 +4265,9 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     delete field.dataset.activeZone;
     if (isOpeningHandDeckZone(zone)) {
       entry.rotated = false;
+      entry.facedown = false;
       applyOpeningHandCardRotation(cardEl, entry);
+      applyOpeningHandCardFace(cardEl, entry);
       const placement = zone === "deck-top" ? "top" : "bottom";
       await returnOpeningHandCardToDeck(board, entry, cardEl, placement);
       return;
@@ -4241,25 +4277,50 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       zone = "memory";
     }
 
+    const previousZone = entry.zone || "hand";
     entry.zone = zone;
-    entry.facedown = zone === "memory";
+    if (zone === "memory" && previousZone !== "memory") {
+      entry.facedown = true;
+    } else if (zone !== "memory" && zone !== "field") {
+      entry.facedown = false;
+    } else if (zone === "field" && previousZone !== "field" && previousZone !== "memory") {
+      entry.facedown = false;
+    }
+    // Staying in Field/Memory (or moving between them) keeps the current face.
     if (zone !== "field") {
       entry.rotated = false;
     }
-    syncFaceForPosition(field, x, y);
+    applyOpeningHandCardFace(cardEl, entry);
     applyOpeningHandCardRotation(cardEl, entry);
     delete field.dataset.activeZone;
 
-    // Double-tap / double-click a Field card to rest it (90°) or stand it back up.
-    if (!dragMoved && zone === "field") {
+    // Tap gestures (no drag):
+    // - Field double-tap → rotate 90°
+    // - Field/Memory triple-tap → toggle face down / face up
+    if (!dragMoved && (zone === "field" || zone === "memory")) {
       const now = Date.now();
-      if (now - lastTapAt < 340) {
-        toggleOpeningHandCardRotation(cardEl, entry);
-        lastTapAt = 0;
-      } else {
-        lastTapAt = now;
+      if (now - lastTapAt > OPENING_HAND_TAP_WINDOW_MS) {
+        tapCount = 0;
+      }
+      tapCount += 1;
+      lastTapAt = now;
+      clearTapActionTimer();
+
+      if (tapCount >= 3) {
+        toggleOpeningHandCardFace(cardEl, entry);
+        tapCount = 0;
+      } else if (tapCount === 2 && zone === "field") {
+        tapActionTimer = window.setTimeout(() => {
+          tapActionTimer = null;
+          if (tapCount === 2 && (entry.zone || "hand") === "field") {
+            toggleOpeningHandCardRotation(cardEl, entry);
+          }
+          tapCount = 0;
+        }, OPENING_HAND_TAP_WINDOW_MS);
       }
     } else {
+      clearTapActionTimer();
+      tapCount = 0;
       lastTapAt = 0;
     }
 
