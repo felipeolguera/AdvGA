@@ -1492,8 +1492,11 @@ h1 {
 }
 
 .opening-hand-field {
+  --oh-rail-width: 128px;
+  --oh-zone-gap: 12px;
+  --oh-inset: 8px;
   position: relative;
-  min-height: 720px;
+  min-height: 560px;
   overflow: visible;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -1511,22 +1514,28 @@ h1 {
   box-shadow: inset 0 0 0 1px rgba(255, 204, 115, 0.22);
 }
 
-.opening-hand-zone {
+.opening-hand-zones {
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset: 0;
   z-index: 0;
-  border: 1px dashed rgba(255, 204, 115, 0.28);
-  border-radius: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--oh-rail-width);
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: var(--oh-zone-gap);
+  padding: var(--oh-inset);
+  pointer-events: none;
+}
+
+.opening-hand-zone {
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 204, 115, 0.34);
+  border-radius: 14px;
   pointer-events: none;
   transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
-.opening-hand-zone-rail {
-  left: auto;
-}
-
-.opening-hand-zone-play {
+.opening-hand-zone-field {
   background: rgba(120, 200, 140, 0.07);
 }
 
@@ -1550,13 +1559,13 @@ h1 {
   background: rgba(220, 100, 90, 0.08);
 }
 
-.opening-hand-field[data-active-zone="play"] .opening-hand-zone-play,
+.opening-hand-field[data-active-zone="field"] .opening-hand-zone-field,
 .opening-hand-field[data-active-zone="memory"] .opening-hand-zone-memory,
 .opening-hand-field[data-active-zone="hand"] .opening-hand-zone-hand,
 .opening-hand-field[data-active-zone="banishment"] .opening-hand-zone-banishment,
 .opening-hand-field[data-active-zone="deck"] .opening-hand-zone-deck,
 .opening-hand-field[data-active-zone="graveyard"] .opening-hand-zone-graveyard {
-  border-color: rgba(255, 204, 115, 0.7);
+  border-color: rgba(255, 204, 115, 0.75);
   box-shadow: inset 0 0 0 1px rgba(255, 204, 115, 0.2);
 }
 
@@ -1567,39 +1576,40 @@ h1 {
 }
 
 .opening-hand-tag {
-  position: absolute;
-  z-index: 1;
-  left: 20px;
-  border: 1px solid rgba(255, 204, 115, 0.35);
-  border-radius: 999px;
-  padding: 4px 10px;
-  color: #ffe3b0;
-  background: rgba(20, 16, 28, 0.72);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  color: rgba(247, 239, 228, 0.72);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  text-align: center;
   pointer-events: none;
+  border: 0;
+  background: transparent;
+  padding: 0 8px;
+  font-size: clamp(0.72rem, 1.4vw, 0.95rem);
+  font-weight: 800;
 }
 
-.opening-hand-tag-play {
-  color: #d7f5e3;
-  border-color: rgba(120, 200, 140, 0.45);
+.opening-hand-tag-field {
+  color: rgba(215, 245, 227, 0.8);
 }
 
 .opening-hand-tag-memory {
-  color: #cfe8ff;
-  border-color: rgba(120, 190, 255, 0.4);
+  color: rgba(207, 232, 255, 0.8);
+}
+
+.opening-hand-tag-hand {
+  color: rgba(255, 227, 176, 0.8);
 }
 
 .opening-hand-tag-banishment {
-  color: #ebd7ff;
-  border-color: rgba(180, 120, 220, 0.45);
+  color: rgba(235, 215, 255, 0.8);
+}
+
+.opening-hand-tag-deck {
+  color: rgba(247, 239, 228, 0.75);
 }
 
 .opening-hand-tag-graveyard {
-  color: #ffd0cd;
-  border-color: rgba(220, 100, 90, 0.45);
+  color: rgba(255, 208, 205, 0.8);
 }
 
 .opening-hand-deck-pile {
