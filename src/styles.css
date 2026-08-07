@@ -1166,11 +1166,6 @@ h1 {
 }
 
 .tryit-page-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
   padding: 20px 22px;
 }
 
@@ -1178,19 +1173,20 @@ h1 {
   margin: 0 0 6px;
 }
 
-.tryit-turn-controls {
+.tryit-page-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-bottom: 12px;
 }
 
 .tryit-turn-label {
   margin: 0;
   min-width: 4.5rem;
   color: var(--gold-strong);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 900;
   letter-spacing: 0.04em;
 }
@@ -1208,7 +1204,7 @@ h1 {
 .tryit-menu-panel {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  left: 0;
   z-index: 40;
   display: grid;
   min-width: 160px;
@@ -1238,22 +1234,6 @@ h1 {
 .tryit-menu-item:hover,
 .tryit-menu-item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
-}
-
-.tryit-page-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-start;
-  margin-bottom: 12px;
-}
-
-@media (max-width: 720px) {
-  .tryit-turn-controls {
-    justify-content: flex-start;
-    width: 100%;
-  }
 }
 
 .tryit-back-link {

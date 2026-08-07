@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.67";
+const APP_VERSION = "0.68";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
@@ -512,7 +512,9 @@ function getTryItShellHtml() {
         <h1>Playtest</h1>
         <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
       </div>
-      <div class="tryit-turn-controls">
+    </header>
+    <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
+      <div class="tryit-page-actions" id="tryit-actions">
         <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
         <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
         <div class="tryit-menu" id="tryit-menu">
@@ -532,10 +534,6 @@ function getTryItShellHtml() {
             <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
           </div>
         </div>
-      </div>
-    </header>
-    <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
-      <div class="tryit-page-actions" id="tryit-actions">
         <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
         <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
         <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
@@ -657,9 +655,6 @@ function bootTryItPage() {
   const actions = document.querySelector("#tryit-actions");
   actions?.addEventListener("click", (event) => {
     handleTryItActionClick(event);
-  });
-  document.querySelector(".tryit-page-header")?.addEventListener("click", (event) => {
-    handleTryItHeaderClick(event);
   });
   document.addEventListener("click", (event) => {
     if (!state.tryitMenuOpen) {
@@ -2737,6 +2732,35 @@ function renderTryItPage() {
 }
 
 function handleTryItActionClick(event) {
+  const endTurnButton = event.target.closest("[data-end-turn]");
+  if (endTurnButton) {
+    endTryItTurn();
+    return;
+  }
+
+  const menuToggle = event.target.closest("[data-tryit-menu-toggle]");
+  if (menuToggle) {
+    event.stopPropagation();
+    setTryItMenuOpen(!state.tryitMenuOpen);
+    return;
+  }
+
+  const settingsItem = event.target.closest("[data-tryit-menu-settings]");
+  if (settingsItem) {
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    // Placeholder until settings are implemented.
+    window.alert("Settings coming soon.");
+    return;
+  }
+
+  const closeItem = event.target.closest("[data-tryit-menu-close]");
+  if (closeItem) {
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    return;
+  }
+
   const redealButton = event.target.closest("[data-redeal-opening-hand]");
   if (redealButton) {
     startOpeningHandSession();
@@ -2787,36 +2811,6 @@ function setTryItMenuOpen(open) {
   }
   if (panel) {
     panel.hidden = !state.tryitMenuOpen;
-  }
-}
-
-function handleTryItHeaderClick(event) {
-  const endTurnButton = event.target.closest("[data-end-turn]");
-  if (endTurnButton) {
-    endTryItTurn();
-    return;
-  }
-
-  const menuToggle = event.target.closest("[data-tryit-menu-toggle]");
-  if (menuToggle) {
-    event.stopPropagation();
-    setTryItMenuOpen(!state.tryitMenuOpen);
-    return;
-  }
-
-  const settingsItem = event.target.closest("[data-tryit-menu-settings]");
-  if (settingsItem) {
-    event.stopPropagation();
-    setTryItMenuOpen(false);
-    // Placeholder until settings are implemented.
-    window.alert("Settings coming soon.");
-    return;
-  }
-
-  const closeItem = event.target.closest("[data-tryit-menu-close]");
-  if (closeItem) {
-    event.stopPropagation();
-    setTryItMenuOpen(false);
   }
 }
 
