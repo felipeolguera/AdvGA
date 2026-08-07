@@ -6,8 +6,11 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.62";
+const APP_VERSION = "0.63";
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
+const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
+const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
+const TRYIT_PAGE_URL = `${import.meta.env.BASE_URL}tryit.html`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
 const FREEHAND_CARD_WIDTH = 96;
@@ -194,7 +197,8 @@ const state = {
 
 const app = document.querySelector("#app");
 
-app.innerHTML = `
+function getBuilderShellHtml() {
+  return `
   <p class="app-version" aria-label="App version">v${APP_VERSION}</p>
   <main class="page-shell">
     <details class="panel collapsible-section hero-section" id="card-search" open>
@@ -488,6 +492,32 @@ app.innerHTML = `
     </form>
   </dialog>
 
+  <button class="scroll-top-button" type="button" id="scroll-top" aria-label="Move to top">↑</button>
+`;
+}
+
+function getTryItShellHtml() {
+  const deckLabel = escapeHtml(state.deckName || "Untitled Deck");
+  return `
+  <p class="app-version" aria-label="App version">v${APP_VERSION}</p>
+  <main class="page-shell tryit-page">
+    <header class="panel tryit-page-header">
+      <div class="tryit-page-heading">
+        <p class="eyebrow">Try it!</p>
+        <h1>Playtest</h1>
+        <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
+      </div>
+      <div class="tryit-page-actions" id="tryit-actions">
+        <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
+        <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
+        <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
+        <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
+        <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
+      </div>
+    </header>
+    <section class="panel tryit-playmat-panel" id="tryit-root" aria-label="Try it playmat"></section>
+  </main>
+
   <dialog class="material-dialog" id="material-dialog" aria-labelledby="material-dialog-title">
     <div class="material-dialog-shell">
       <header class="material-dialog-header">
@@ -502,9 +532,14 @@ app.innerHTML = `
       <p class="hint material-dialog-empty" id="material-dialog-empty" hidden>No material cards left.</p>
     </div>
   </dialog>
-
-  <button class="scroll-top-button" type="button" id="scroll-top" aria-label="Move to top">↑</button>
 `;
+}
+
+if (IS_TRYIT_PAGE) {
+  app.innerHTML = getTryItShellHtml();
+} else {
+  app.innerHTML = getBuilderShellHtml();
+}
 
 const form = document.querySelector("#search-form");
 const input = document.querySelector("#search-input");
@@ -573,219 +608,6 @@ const scrollTopButton = document.querySelector("#scroll-top");
 const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
 const lightboxAddedMessage = document.querySelector("#lightbox-added-message");
 
-document.querySelectorAll(".summary-action").forEach((element) => {
-  element.addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (element.matches("button")) {
-      event.preventDefault();
-    }
-  });
-});
-
-librarySortSelect?.addEventListener("mousedown", (event) => {
-  event.stopPropagation();
-});
-librarySortSelect?.addEventListener("click", (event) => {
-  event.stopPropagation();
-});
-librarySortSelect?.addEventListener("change", (event) => {
-  event.stopPropagation();
-  const nextSort = librarySortSelect.value;
-  state.librarySort = LIBRARY_SORT_OPTIONS.some((option) => option.value === nextSort)
-    ? nextSort
-    : "default";
-  renderCards();
-});
-if (librarySortSelect) {
-  librarySortSelect.value = state.librarySort;
-}
-
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  runSearch(input.value.trim(), { reset: true, remember: true, scrollToLibrary: true });
-});
-
-toggleSearchFiltersButton.addEventListener("click", () => {
-  state.searchFiltersOpen = !state.searchFiltersOpen;
-  updateSearchFiltersVisibility();
-  if (state.searchFiltersOpen) {
-    quickFilterEffect.focus();
-  }
-});
-
-applySearchFiltersButton.addEventListener("click", () => {
-  runSearch(input.value.trim(), {
-    reset: true,
-    remember: Boolean(input.value.trim()),
-    scrollToLibrary: true,
-  });
-});
-
-clearSearchFiltersButton.addEventListener("click", () => {
-  quickFilterEffect.value = "";
-  quickFilterElement.value = "";
-  quickFilterType.value = "";
-  quickFilterSubtype.value = "";
-  updateSearchFiltersButtonState();
-  runSearch(input.value.trim(), { reset: true, remember: false, scrollToLibrary: true });
-});
-
-[quickFilterEffect, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
-  field?.addEventListener("change", updateSearchFiltersButtonState);
-  field?.addEventListener("input", updateSearchFiltersButtonState);
-});
-
-quickFilterEffect.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    runSearch(input.value.trim(), {
-      reset: true,
-      remember: Boolean(input.value.trim()),
-      scrollToLibrary: true,
-    });
-  }
-});
-
-input.addEventListener("input", updateClearSearchVisibility);
-
-clearSearchButton.addEventListener("click", () => {
-  input.value = "";
-  state.query = "";
-  state.cards = [];
-  state.parsed = null;
-  state.reachedEnd = true;
-  state.status = "Enter a search such as “fire spells that target units”.";
-  updateShareUrl("");
-  updateClearSearchVisibility();
-  render();
-  input.focus();
-});
-
-document.querySelectorAll("[data-example]").forEach((button) => {
-  button.addEventListener("click", () => {
-    input.value = button.dataset.example;
-    runSearch(input.value, { reset: true, remember: true, scrollToLibrary: true });
-  });
-});
-
-keywordRow.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-keyword]");
-  if (!button) {
-    return;
-  }
-
-  input.value = appendQueryToken(input.value, button.dataset.keyword);
-  input.focus();
-});
-
-recentSearchesEl.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-recent]");
-  if (!button) {
-    return;
-  }
-
-  input.value = button.dataset.recent;
-  runSearch(input.value, { reset: true, remember: true });
-});
-
-clearRecentsButton.addEventListener("click", () => {
-  state.recentSearches = [];
-  saveStoredJson(RECENT_SEARCHES_KEY, state.recentSearches);
-  renderRecentSearches();
-});
-
-copyShareButton.addEventListener("click", async () => {
-  const url = buildShareUrl();
-  try {
-    await navigator.clipboard.writeText(url);
-    copyShareButton.textContent = "Copied";
-  } catch {
-    window.prompt("Copy this search link", url);
-  } finally {
-    window.setTimeout(() => {
-      copyShareButton.textContent = "Copy link";
-    }, 1200);
-  }
-});
-
-advancedForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const query = buildQueryFromAdvancedForm(new FormData(advancedForm));
-  input.value = query || input.value;
-  runSearch(input.value.trim(), { reset: true, remember: true });
-});
-
-clearFiltersButton.addEventListener("click", () => {
-  advancedForm.reset();
-  state.sort = SORT_OPTIONS[0];
-  sortSelect.value = "0";
-});
-
-sortSelect.addEventListener("change", () => {
-  state.sort = SORT_OPTIONS[Number(sortSelect.value)] || SORT_OPTIONS[0];
-  if (state.query) {
-    runSearch(state.query, { reset: true, remember: false });
-  }
-});
-
-loadMoreButton.addEventListener("click", () => {
-  if (!state.loading && !state.reachedEnd) {
-    runSearch(state.query, { reset: false, remember: false });
-  }
-});
-
-exportDeckButton.addEventListener("click", () => exportDeck(exportDeckButton));
-exportDeckFullscreenButton.addEventListener("click", () => exportDeck(exportDeckFullscreenButton));
-downloadDeckButton.addEventListener("click", downloadDeck);
-downloadDeckFullscreenButton.addEventListener("click", downloadDeck);
-importDeckButton.addEventListener("click", openImportDialog);
-importDeckFullscreenButton.addEventListener("click", openImportDialog);
-clearDeckButton.addEventListener("click", clearDeck);
-clearDeckFullscreenButton.addEventListener("click", clearDeck);
-[toggleDeckIndividualButton, toggleDeckIndividualFullscreenButton].forEach((button) => {
-  button?.addEventListener("click", () => {
-    state.deckShowIndividually = !state.deckShowIndividually;
-    renderDeck();
-  });
-});
-deckNameInput.addEventListener("input", () => {
-  state.deckName = deckNameInput.value.trim() || "Untitled Deck";
-  saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
-});
-closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
-goCardSearchButton.addEventListener("click", goToCardSearch);
-deckFullscreen.addEventListener("click", (event) => {
-  if (event.target === deckFullscreen) {
-    deckFullscreen.close();
-  }
-});
-deckFullscreen.addEventListener("close", () => {
-  resetDeckAutocomplete();
-  hideDeckToast();
-  renderDeck();
-});
-[deckListEl, deckListFullscreenEl].forEach((deckList) => {
-  deckList.addEventListener("click", handleSectionDeckClick);
-  deckList.addEventListener("input", handleSectionDeckInput);
-  deckList.addEventListener("keydown", handleSectionDeckKeydown);
-  deckList.addEventListener("submit", handleSectionDeckSubmit);
-  deckList.addEventListener("mousedown", (event) => {
-    if (event.target.closest("[data-autocomplete-index]")) {
-      event.preventDefault();
-    }
-  });
-});
-closeImportDialogButton.addEventListener("click", () => importDialog.close());
-cancelImportButton.addEventListener("click", () => importDialog.close());
-importDialog.addEventListener("click", (event) => {
-  if (event.target === importDialog) {
-    importDialog.close();
-  }
-});
-importForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await importDeckFromText(importText.value);
-});
 closeMaterialDialogButton?.addEventListener("click", () => closeMaterialDialog());
 materialDialog?.addEventListener("click", (event) => {
   if (event.target === materialDialog) {
@@ -796,75 +618,311 @@ materialDialog?.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeMaterialDialog();
 });
-scrollTopButton.addEventListener("click", () => {
-  window.scrollTo({ top: 0, behavior: "smooth" });
-});
-window.addEventListener("scroll", updateScrollTopVisibility, { passive: true });
 
-lightboxQuantitySelect.addEventListener("change", () => {
-  const amount = Number(lightboxQuantitySelect.value);
-  if (!amount || !state.activeLightboxCard) {
-    return;
-  }
+if (IS_TRYIT_PAGE) {
+  bootTryItPage();
+} else {
+  bootBuilderPage();
+}
 
-  const cardKey = getCardKey(state.activeLightboxCard);
-  state.resultSelectedQuantities[cardKey] = String(amount);
-  state.resultAddedMessages[cardKey] = `${amount} Added`;
-  window.clearTimeout(state.resultFeedbackTimers[cardKey]);
-  addCardToDeck(state.activeLightboxCard, amount, "main");
-  showLightboxAddedMessage(`${amount} Added`);
-  state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
-    delete state.resultAddedMessages[cardKey];
+function bootTryItPage() {
+  const actions = document.querySelector("#tryit-actions");
+  actions?.addEventListener("click", (event) => {
+    handleTryItActionClick(event);
+  });
+  window.addEventListener("resize", () => {
+    const board = getActiveOpeningHandBoard();
+    if (board) {
+      resizeOpeningHandField(board);
+    }
+  });
+  startOpeningHandSession();
+}
+
+function bootBuilderPage() {
+  document.querySelectorAll(".summary-action").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (element.matches("button")) {
+        event.preventDefault();
+      }
+    });
+  });
+
+  librarySortSelect?.addEventListener("mousedown", (event) => {
+    event.stopPropagation();
+  });
+  librarySortSelect?.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+  librarySortSelect?.addEventListener("change", (event) => {
+    event.stopPropagation();
+    const nextSort = librarySortSelect.value;
+    state.librarySort = LIBRARY_SORT_OPTIONS.some((option) => option.value === nextSort)
+      ? nextSort
+      : "default";
     renderCards();
-  }, 1300);
-});
-
-[deckListEl, deckListFullscreenEl].forEach((deckList) => {
-  deckList.addEventListener("click", handleDeckListClick);
-  deckList.addEventListener("change", handleDeckListInput);
-});
-
-chipsEl.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-remove-phrase]");
-  if (!button) {
-    return;
+  });
+  if (librarySortSelect) {
+    librarySortSelect.value = state.librarySort;
   }
 
-  input.value = removePhrasesFromQuery(input.value, button.dataset.removePhrase.split("||"));
-  runSearch(input.value.trim(), { reset: true, remember: true });
-});
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    runSearch(input.value.trim(), { reset: true, remember: true, scrollToLibrary: true });
+  });
 
-closeLightboxButton.addEventListener("click", closeLightbox);
+  toggleSearchFiltersButton.addEventListener("click", () => {
+    state.searchFiltersOpen = !state.searchFiltersOpen;
+    updateSearchFiltersVisibility();
+    if (state.searchFiltersOpen) {
+      quickFilterEffect.focus();
+    }
+  });
 
-lightbox.addEventListener("click", (event) => {
-  if (event.target === lightbox) {
-    closeLightbox();
-  }
-});
+  applySearchFiltersButton.addEventListener("click", () => {
+    runSearch(input.value.trim(), {
+      reset: true,
+      remember: Boolean(input.value.trim()),
+      scrollToLibrary: true,
+    });
+  });
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && lightbox.open) {
-    closeLightbox();
-  }
-});
+  clearSearchFiltersButton.addEventListener("click", () => {
+    quickFilterEffect.value = "";
+    quickFilterElement.value = "";
+    quickFilterType.value = "";
+    quickFilterSubtype.value = "";
+    updateSearchFiltersButtonState();
+    runSearch(input.value.trim(), { reset: true, remember: false, scrollToLibrary: true });
+  });
 
-renderKeywordButtons();
-renderSortOptions();
-renderRecentSearches();
-renderDeck();
-updateScrollTopVisibility();
+  [quickFilterEffect, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
+    field?.addEventListener("change", updateSearchFiltersButtonState);
+    field?.addEventListener("input", updateSearchFiltersButtonState);
+  });
 
-loadOptions().then(() => {
-  input.value = state.query;
-  updateClearSearchVisibility();
-  updateSearchFiltersVisibility();
-  if (state.query.trim()) {
-    runSearch(state.query, { reset: true, remember: false });
-  } else {
-    state.status = `Enter a search such as “${EXAMPLE_QUERY}”.`;
+  quickFilterEffect.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runSearch(input.value.trim(), {
+        reset: true,
+        remember: Boolean(input.value.trim()),
+        scrollToLibrary: true,
+      });
+    }
+  });
+
+  input.addEventListener("input", updateClearSearchVisibility);
+
+  clearSearchButton.addEventListener("click", () => {
+    input.value = "";
+    state.query = "";
+    state.cards = [];
+    state.parsed = null;
+    state.reachedEnd = true;
+    state.status = "Enter a search such as “fire spells that target units”.";
+    updateShareUrl("");
+    updateClearSearchVisibility();
     render();
-  }
-});
+    input.focus();
+  });
+
+  document.querySelectorAll("[data-example]").forEach((button) => {
+    button.addEventListener("click", () => {
+      input.value = button.dataset.example;
+      runSearch(input.value, { reset: true, remember: true, scrollToLibrary: true });
+    });
+  });
+
+  keywordRow.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-keyword]");
+    if (!button) {
+      return;
+    }
+
+    input.value = appendQueryToken(input.value, button.dataset.keyword);
+    input.focus();
+  });
+
+  recentSearchesEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-recent]");
+    if (!button) {
+      return;
+    }
+
+    input.value = button.dataset.recent;
+    runSearch(input.value, { reset: true, remember: true });
+  });
+
+  clearRecentsButton.addEventListener("click", () => {
+    state.recentSearches = [];
+    saveStoredJson(RECENT_SEARCHES_KEY, state.recentSearches);
+    renderRecentSearches();
+  });
+
+  copyShareButton.addEventListener("click", async () => {
+    const url = buildShareUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      copyShareButton.textContent = "Copied";
+    } catch {
+      window.prompt("Copy this search link", url);
+    } finally {
+      window.setTimeout(() => {
+        copyShareButton.textContent = "Copy link";
+      }, 1200);
+    }
+  });
+
+  advancedForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const query = buildQueryFromAdvancedForm(new FormData(advancedForm));
+    input.value = query || input.value;
+    runSearch(input.value.trim(), { reset: true, remember: true });
+  });
+
+  clearFiltersButton.addEventListener("click", () => {
+    advancedForm.reset();
+    state.sort = SORT_OPTIONS[0];
+    sortSelect.value = "0";
+  });
+
+  sortSelect.addEventListener("change", () => {
+    state.sort = SORT_OPTIONS[Number(sortSelect.value)] || SORT_OPTIONS[0];
+    if (state.query) {
+      runSearch(state.query, { reset: true, remember: false });
+    }
+  });
+
+  loadMoreButton.addEventListener("click", () => {
+    if (!state.loading && !state.reachedEnd) {
+      runSearch(state.query, { reset: false, remember: false });
+    }
+  });
+
+  exportDeckButton.addEventListener("click", () => exportDeck(exportDeckButton));
+  exportDeckFullscreenButton.addEventListener("click", () => exportDeck(exportDeckFullscreenButton));
+  downloadDeckButton.addEventListener("click", downloadDeck);
+  downloadDeckFullscreenButton.addEventListener("click", downloadDeck);
+  importDeckButton.addEventListener("click", openImportDialog);
+  importDeckFullscreenButton.addEventListener("click", openImportDialog);
+  clearDeckButton.addEventListener("click", clearDeck);
+  clearDeckFullscreenButton.addEventListener("click", clearDeck);
+  [toggleDeckIndividualButton, toggleDeckIndividualFullscreenButton].forEach((button) => {
+    button?.addEventListener("click", () => {
+      state.deckShowIndividually = !state.deckShowIndividually;
+      renderDeck();
+    });
+  });
+  deckNameInput.addEventListener("input", () => {
+    state.deckName = deckNameInput.value.trim() || "Untitled Deck";
+    saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
+  });
+  closeDeckFullscreenButton.addEventListener("click", () => deckFullscreen.close());
+  goCardSearchButton.addEventListener("click", goToCardSearch);
+  deckFullscreen.addEventListener("click", (event) => {
+    if (event.target === deckFullscreen) {
+      deckFullscreen.close();
+    }
+  });
+  deckFullscreen.addEventListener("close", () => {
+    resetDeckAutocomplete();
+    hideDeckToast();
+    renderDeck();
+  });
+  [deckListEl, deckListFullscreenEl].forEach((deckList) => {
+    deckList.addEventListener("click", handleSectionDeckClick);
+    deckList.addEventListener("input", handleSectionDeckInput);
+    deckList.addEventListener("keydown", handleSectionDeckKeydown);
+    deckList.addEventListener("submit", handleSectionDeckSubmit);
+    deckList.addEventListener("mousedown", (event) => {
+      if (event.target.closest("[data-autocomplete-index]")) {
+        event.preventDefault();
+      }
+    });
+  });
+  closeImportDialogButton.addEventListener("click", () => importDialog.close());
+  cancelImportButton.addEventListener("click", () => importDialog.close());
+  importDialog.addEventListener("click", (event) => {
+    if (event.target === importDialog) {
+      importDialog.close();
+    }
+  });
+  importForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await importDeckFromText(importText.value);
+  });
+  scrollTopButton.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  window.addEventListener("scroll", updateScrollTopVisibility, { passive: true });
+
+  lightboxQuantitySelect.addEventListener("change", () => {
+    const amount = Number(lightboxQuantitySelect.value);
+    if (!amount || !state.activeLightboxCard) {
+      return;
+    }
+
+    const cardKey = getCardKey(state.activeLightboxCard);
+    state.resultSelectedQuantities[cardKey] = String(amount);
+    state.resultAddedMessages[cardKey] = `${amount} Added`;
+    window.clearTimeout(state.resultFeedbackTimers[cardKey]);
+    addCardToDeck(state.activeLightboxCard, amount, "main");
+    showLightboxAddedMessage(`${amount} Added`);
+    state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
+      delete state.resultAddedMessages[cardKey];
+      renderCards();
+    }, 1300);
+  });
+
+  [deckListEl, deckListFullscreenEl].forEach((deckList) => {
+    deckList.addEventListener("click", handleDeckListClick);
+    deckList.addEventListener("change", handleDeckListInput);
+  });
+
+  chipsEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove-phrase]");
+    if (!button) {
+      return;
+    }
+
+    input.value = removePhrasesFromQuery(input.value, button.dataset.removePhrase.split("||"));
+    runSearch(input.value.trim(), { reset: true, remember: true });
+  });
+
+  closeLightboxButton.addEventListener("click", closeLightbox);
+
+  lightbox.addEventListener("click", (event) => {
+    if (event.target === lightbox) {
+      closeLightbox();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && lightbox.open) {
+      closeLightbox();
+    }
+  });
+
+  renderKeywordButtons();
+  renderSortOptions();
+  renderRecentSearches();
+  renderDeck();
+  updateScrollTopVisibility();
+
+  loadOptions().then(() => {
+    input.value = state.query;
+    updateClearSearchVisibility();
+    updateSearchFiltersVisibility();
+    if (state.query.trim()) {
+      runSearch(state.query, { reset: true, remember: false });
+    } else {
+      state.status = `Enter a search such as “${EXAMPLE_QUERY}”.`;
+      render();
+    }
+  });
+}
 
 function openFullscreenDeckBuilder() {
   if (!deckFullscreen.open) {
@@ -1840,12 +1898,10 @@ function renderDeck() {
   renderDeckInto(deckListEl, {
     grid: true,
     showSearch: !deckFullscreen.open,
-    livePlaymat: !deckFullscreen.open,
   });
   renderDeckInto(deckListFullscreenEl, {
     grid: true,
     showSearch: deckFullscreen.open,
-    livePlaymat: deckFullscreen.open,
   });
 }
 
@@ -1925,7 +1981,7 @@ function renderDeckValidation(container) {
   container.append(list);
 }
 
-function renderDeckInto(container, { grid = true, showSearch = false, livePlaymat = false } = {}) {
+function renderDeckInto(container, { grid = true, showSearch = false } = {}) {
   container.replaceChildren();
 
   DECK_SECTIONS.forEach((section) => {
@@ -1944,16 +2000,6 @@ function renderDeckInto(container, { grid = true, showSearch = false, livePlayma
         empty.className = "hint";
         empty.textContent = "No cards in this section yet.";
         group.append(empty);
-      } else if (section.key === "main" && state.mainDeckOpeningHand) {
-        // Only one live playmat — mounting in both home + fullscreen dealt twice (count 14).
-        if (livePlaymat) {
-          group.append(createOpeningHandBoard(sectionCards));
-        } else {
-          const paused = document.createElement("p");
-          paused.className = "hint";
-          paused.textContent = "Try it! is open in the other deck view.";
-          group.append(paused);
-        }
       } else if (section.key === "main" && state.mainDeckFreehand) {
         group.append(createMainDeckFreehandBoard(sectionCards));
       } else {
@@ -2016,68 +2062,30 @@ function createFullscreenSectionHeader(section, sectionCards) {
   actions.className = "deck-section-header-actions";
 
   if (section.key === "main") {
-    if (state.mainDeckOpeningHand) {
-      const exitButton = document.createElement("button");
-      exitButton.className = "secondary compact";
-      exitButton.type = "button";
-      exitButton.dataset.toggleOpeningHand = "true";
-      exitButton.textContent = "Normal mode";
-      actions.append(exitButton);
+    const freehandButton = document.createElement("button");
+    freehandButton.className = "secondary compact";
+    freehandButton.type = "button";
+    freehandButton.dataset.toggleMainFreehand = "true";
+    freehandButton.textContent = state.mainDeckFreehand ? "Normal mode" : "Freehand mode";
+    freehandButton.setAttribute("aria-pressed", state.mainDeckFreehand ? "true" : "false");
+    actions.append(freehandButton);
 
-      const redealButton = document.createElement("button");
-      redealButton.className = "ghost compact";
-      redealButton.type = "button";
-      redealButton.dataset.redealOpeningHand = "true";
-      redealButton.textContent = "Redeal";
-      actions.append(redealButton);
-
-      const organizeButton = document.createElement("button");
-      organizeButton.className = "ghost compact";
-      organizeButton.type = "button";
-      organizeButton.dataset.organizeOpeningHand = "true";
-      organizeButton.textContent = "Organize hand";
-      actions.append(organizeButton);
-
-      const recollectButton = document.createElement("button");
-      recollectButton.className = "ghost compact";
-      recollectButton.type = "button";
-      recollectButton.dataset.recollectOpeningHand = "true";
-      recollectButton.textContent = "Recollect";
-      recollectButton.title = "Move all Memory cards back to Hand";
-      actions.append(recollectButton);
-
-      const banishButton = document.createElement("button");
-      banishButton.className = "ghost compact";
-      banishButton.type = "button";
-      banishButton.dataset.banishOpeningHand = "true";
-      banishButton.textContent = "Banish random";
-      banishButton.title = "Banish 1 random card from Memory";
-      actions.append(banishButton);
-    } else {
-      const freehandButton = document.createElement("button");
-      freehandButton.className = "secondary compact";
-      freehandButton.type = "button";
-      freehandButton.dataset.toggleMainFreehand = "true";
-      freehandButton.textContent = state.mainDeckFreehand ? "Normal mode" : "Freehand mode";
-      freehandButton.setAttribute("aria-pressed", state.mainDeckFreehand ? "true" : "false");
-      actions.append(freehandButton);
-
-      if (state.mainDeckFreehand) {
-        const resetButton = document.createElement("button");
-        resetButton.className = "ghost compact";
-        resetButton.type = "button";
-        resetButton.dataset.resetMainFreehand = "true";
-        resetButton.textContent = "Reset positions";
-        actions.append(resetButton);
-      }
-
-      const openingHandButton = document.createElement("button");
-      openingHandButton.className = "try-it-button compact";
-      openingHandButton.type = "button";
-      openingHandButton.dataset.toggleOpeningHand = "true";
-      openingHandButton.textContent = "Try it!";
-      actions.append(openingHandButton);
+    if (state.mainDeckFreehand) {
+      const resetButton = document.createElement("button");
+      resetButton.className = "ghost compact";
+      resetButton.type = "button";
+      resetButton.dataset.resetMainFreehand = "true";
+      resetButton.textContent = "Reset positions";
+      actions.append(resetButton);
     }
+
+    const openingHandButton = document.createElement("a");
+    openingHandButton.className = "try-it-button compact";
+    openingHandButton.href = TRYIT_PAGE_URL;
+    openingHandButton.dataset.openTryIt = "true";
+    openingHandButton.textContent = "Try it!";
+    openingHandButton.title = "Open the standalone Try it! playtest page";
+    actions.append(openingHandButton);
   }
 
   const addButton = document.createElement("button");
@@ -2610,6 +2618,10 @@ function shuffleArray(items) {
   return next;
 }
 
+function openTryItPage() {
+  window.location.assign(TRYIT_PAGE_URL);
+}
+
 function startOpeningHandSession(sectionCards = null) {
   const cards =
     sectionCards ||
@@ -2624,7 +2636,9 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandDealComplete = false;
   closeMaterialDialog();
   saveMainDeckFreehandState();
-  renderDeck();
+  if (IS_TRYIT_PAGE) {
+    renderTryItPage();
+  }
 }
 
 function exitOpeningHandSession() {
@@ -2635,15 +2649,66 @@ function exitOpeningHandSession() {
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = true;
   closeMaterialDialog();
+  if (IS_TRYIT_PAGE) {
+    window.location.assign(BUILDER_PAGE_URL);
+    return;
+  }
   renderDeck();
 }
 
-function toggleOpeningHand() {
-  if (state.mainDeckOpeningHand) {
-    exitOpeningHandSession();
+function renderTryItPage() {
+  const root = document.querySelector("#tryit-root");
+  if (!root) {
     return;
   }
-  startOpeningHandSession();
+
+  const nameEl = document.querySelector(".tryit-deck-name");
+  if (nameEl) {
+    nameEl.innerHTML = `Deck: <strong>${escapeHtml(state.deckName || "Untitled Deck")}</strong>`;
+  }
+
+  const sectionCards = state.deck.filter(
+    (card) => normalizeDeckSection(card.section) === "main",
+  );
+  root.replaceChildren();
+
+  if (sectionCards.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "tryit-empty";
+    empty.innerHTML = `
+      <p class="hint">Your Main Deck is empty. Add cards in the deck builder, then come back to Try it!</p>
+      <a class="try-it-button compact" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
+    `;
+    root.append(empty);
+    return;
+  }
+
+  root.append(createOpeningHandBoard(sectionCards));
+}
+
+function handleTryItActionClick(event) {
+  const redealButton = event.target.closest("[data-redeal-opening-hand]");
+  if (redealButton) {
+    startOpeningHandSession();
+    return;
+  }
+
+  const organizeButton = event.target.closest("[data-organize-opening-hand]");
+  if (organizeButton) {
+    organizeOpeningHandCards(getActiveOpeningHandBoard());
+    return;
+  }
+
+  const recollectButton = event.target.closest("[data-recollect-opening-hand]");
+  if (recollectButton) {
+    recollectOpeningHandMemory(getActiveOpeningHandBoard());
+    return;
+  }
+
+  const banishButton = event.target.closest("[data-banish-opening-hand]");
+  if (banishButton) {
+    banishRandomMemoryCard(getActiveOpeningHandBoard());
+  }
 }
 
 function createOpeningHandBoard(sectionCards) {
@@ -4211,42 +4276,10 @@ function handleDeckListClick(event) {
     return;
   }
 
-  const openingHandButton = event.target.closest("[data-toggle-opening-hand]");
+  const openingHandButton = event.target.closest("[data-open-try-it], [data-toggle-opening-hand]");
   if (openingHandButton) {
-    toggleOpeningHand();
-    return;
-  }
-
-  const redealButton = event.target.closest("[data-redeal-opening-hand]");
-  if (redealButton) {
-    startOpeningHandSession();
-    return;
-  }
-
-  const organizeButton = event.target.closest("[data-organize-opening-hand]");
-  if (organizeButton) {
-    const board =
-      organizeButton.closest(".deck-section-group")?.querySelector("[data-opening-hand-board]") ||
-      getActiveOpeningHandBoard();
-    organizeOpeningHandCards(board);
-    return;
-  }
-
-  const recollectButton = event.target.closest("[data-recollect-opening-hand]");
-  if (recollectButton) {
-    const board =
-      recollectButton.closest(".deck-section-group")?.querySelector("[data-opening-hand-board]") ||
-      getActiveOpeningHandBoard();
-    recollectOpeningHandMemory(board);
-    return;
-  }
-
-  const banishButton = event.target.closest("[data-banish-opening-hand]");
-  if (banishButton) {
-    const board =
-      banishButton.closest(".deck-section-group")?.querySelector("[data-opening-hand-board]") ||
-      getActiveOpeningHandBoard();
-    banishRandomMemoryCard(board);
+    event.preventDefault();
+    openTryItPage();
     return;
   }
 

@@ -1138,6 +1138,8 @@ h1 {
 }
 
 .try-it-button {
+  display: inline-grid;
+  place-items: center;
   border: 1px solid rgba(72, 230, 200, 0.95);
   border-radius: 14px;
   min-height: 44px;
@@ -1146,6 +1148,7 @@ h1 {
   background: linear-gradient(135deg, #7dffe0, #2ad4b0 48%, #12b894);
   font-weight: 900;
   letter-spacing: 0.05em;
+  text-decoration: none;
   box-shadow: 0 10px 26px rgba(18, 184, 148, 0.45);
   transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
@@ -1155,6 +1158,55 @@ h1 {
   transform: translateY(-1px) scale(1.04);
   filter: brightness(1.06);
   box-shadow: 0 14px 32px rgba(18, 184, 148, 0.55);
+}
+
+.tryit-page {
+  display: grid;
+  gap: 16px;
+}
+
+.tryit-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  padding: 20px 22px;
+}
+
+.tryit-page-heading h1 {
+  margin: 0 0 6px;
+}
+
+.tryit-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.tryit-back-link {
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+.tryit-playmat-panel {
+  padding: 16px 18px 22px;
+}
+
+.tryit-empty {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  padding: 12px 4px 8px;
+}
+
+@media (max-width: 720px) {
+  .tryit-page-actions {
+    justify-content: flex-start;
+  }
 }
 
 .deck-section-header h3 {
