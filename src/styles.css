@@ -1182,6 +1182,14 @@ h1 {
   margin-bottom: 12px;
 }
 
+.tryit-turn-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
 .tryit-turn-label {
   margin: 0;
   min-width: 4.5rem;
@@ -1204,7 +1212,7 @@ h1 {
 .tryit-menu-panel {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
+  right: 0;
   z-index: 40;
   display: grid;
   min-width: 160px;
@@ -1213,6 +1221,14 @@ h1 {
   padding: 6px;
   background: var(--panel-strong);
   box-shadow: var(--shadow);
+}
+
+@media (max-width: 720px) {
+  .tryit-turn-controls {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 .tryit-menu-panel[hidden] {
