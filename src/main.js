@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.70";
+const APP_VERSION = "0.71";
 const OPENING_HAND_HOLD_PREVIEW_MS = 3000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
@@ -3489,9 +3489,12 @@ function getOpeningHandFieldSlot(field, index = 0) {
   const pad = OPENING_HAND_ROW_PAD / 2;
   const innerLeft = zones.mainLeft + pad;
   const usable = Math.max(FREEHAND_CARD_WIDTH, zones.mainRight - pad - innerLeft);
-  const step = Math.min(28, Math.max(12, usable / Math.max(1, index + 2)));
+  // Material plays spawn in the middle of Field.
+  const centerX = innerLeft + Math.max(0, (usable - FREEHAND_CARD_WIDTH) / 2);
+  // Small fan so later Field cards don't fully cover earlier ones.
+  const offset = index * 18;
   return {
-    x: innerLeft + index * step,
+    x: centerX + offset,
     y: getOpeningHandRowCardTop(zones.fieldTop, zones.fieldBottom),
     z: 20 + index,
   };
