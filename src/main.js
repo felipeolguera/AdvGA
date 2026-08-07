@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.76";
+const APP_VERSION = "0.77";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -3427,7 +3427,11 @@ function applyOpeningHandCardFace(cardEl, entry) {
     const zoneLabel = zone === "field" ? "Field" : "Memory";
     cardEl.title = facedown
       ? `Face-down (${zoneLabel}) — triple-click to flip up`
-      : `${entry.card.name} — triple-click to flip down${zone === "field" ? "; double-click to rotate" : ""}`;
+      : `${entry.card.name} — triple-click to flip down${
+          zone === "field" ? "; double-click to rotate; hold 2s to peek" : ""
+        }`;
+  } else if (zone === "hand" && !facedown) {
+    cardEl.title = `${entry.card.name} — hold 2s to peek`;
   } else {
     cardEl.title = facedown ? "Face-down card" : entry.card.name;
   }
@@ -4452,13 +4456,19 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
 
-    // Hold/drag a Hand card for 2s to peek a full-size copy.
-    const startedInHand = (entry.zone || "hand") === "hand" && !entry.facedown;
-    if (startedInHand) {
+    // Hold/drag a face-up Hand or Field card for 2s to peek a full-size copy.
+    const zone = entry.zone || "hand";
+    const canHoldPeek = (zone === "hand" || zone === "field") && !entry.facedown;
+    if (canHoldPeek) {
       const holdPointerId = event.pointerId;
       holdPreviewTimer = window.setTimeout(() => {
         holdPreviewTimer = null;
         if (pointerId !== holdPointerId) {
+          return;
+        }
+        // Still require a face-up Hand/Field card at fire time.
+        const currentZone = entry.zone || "hand";
+        if ((currentZone !== "hand" && currentZone !== "field") || entry.facedown) {
           return;
         }
         showOpeningHandCardPreview(entry);
