@@ -4,8 +4,9 @@ const EXAMPLE_QUERY = "fire spells that target units";
 const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
+const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.39";
+const APP_VERSION = "0.40";
 
 const DECK_SECTIONS = [
   { key: "material", title: "Material Deck", target: 12, mode: "max" },
@@ -127,6 +128,8 @@ const OPERATOR_PATTERNS = [
   { operator: "=", phrases: ["equal to", "equals", "exactly", "is", "="] },
 ];
 
+const savedMainDeckFreehand = loadMainDeckFreehandState();
+
 const state = {
   cards: [],
   deck: normalizeStoredDeck(loadStoredJson(DECK_STORAGE_KEY, [])),
@@ -155,6 +158,9 @@ const state = {
   },
   deckToastTimer: null,
   deckShowIndividually: false,
+  mainDeckFreehand: savedMainDeckFreehand.enabled,
+  mainDeckFreehandPositions: savedMainDeckFreehand.positions,
+  mainDeckFreehandZ: savedMainDeckFreehand.nextZ,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
 };
@@ -1874,6 +1880,8 @@ function renderDeckInto(container, { grid = true, showSearch = false } = {}) {
         empty.className = "hint";
         empty.textContent = "No cards in this section yet.";
         group.append(empty);
+      } else if (section.key === "main" && state.mainDeckFreehand) {
+        group.append(createMainDeckFreehandBoard(sectionCards));
       } else {
         const gridEl = document.createElement("div");
         gridEl.className = "deck-card-grid";
@@ -1930,13 +1938,27 @@ function createFullscreenSectionHeader(section, sectionCards) {
   const heading = document.createElement("h3");
   heading.textContent = `${section.title} (${sectionCards.reduce((total, card) => total + normalizeQuantity(card.quantity), 0)})`;
 
+  const actions = document.createElement("div");
+  actions.className = "deck-section-header-actions";
+
+  if (section.key === "main") {
+    const freehandButton = document.createElement("button");
+    freehandButton.className = "secondary compact";
+    freehandButton.type = "button";
+    freehandButton.dataset.toggleMainFreehand = "true";
+    freehandButton.textContent = state.mainDeckFreehand ? "Normal mode" : "Freehand mode";
+    freehandButton.setAttribute("aria-pressed", state.mainDeckFreehand ? "true" : "false");
+    actions.append(freehandButton);
+  }
+
   const addButton = document.createElement("button");
   addButton.className = "secondary compact";
   addButton.type = "button";
   addButton.dataset.openSectionSearch = section.key;
   addButton.textContent = state.deckAutocomplete.section === section.key ? "Close search" : "Add card";
+  actions.append(addButton);
 
-  header.append(heading, addButton);
+  header.append(heading, actions);
   return header;
 }
 
@@ -2051,6 +2073,210 @@ function createDeckGridCard(card, { individual = false } = {}) {
   return item;
 }
 
+function createMainDeckFreehandBoard(sectionCards) {
+  const board = document.createElement("div");
+  board.className = "deck-freehand-board";
+  board.dataset.mainFreehandBoard = "true";
+
+  const hint = document.createElement("p");
+  hint.className = "hint deck-freehand-hint";
+  hint.textContent = "Drag cards freely to stack or arrange them. Click Normal mode to return to the grid.";
+  board.append(hint);
+
+  let instanceIndex = 0;
+  sectionCards.forEach((card) => {
+    const copies = normalizeQuantity(card.quantity);
+    for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
+      const instanceId = getFreehandInstanceId(card.key, copyIndex);
+      board.append(createFreehandDeckCard(card, instanceId, instanceIndex));
+      instanceIndex += 1;
+    }
+  });
+
+  pruneFreehandPositions(sectionCards);
+  return board;
+}
+
+function createFreehandDeckCard(card, instanceId, layoutIndex) {
+  const item = document.createElement("article");
+  item.className = "deck-grid-card deck-freehand-card";
+  item.dataset.freehandCard = instanceId;
+  item.title = card.name;
+
+  const position = getFreehandPosition(instanceId, layoutIndex);
+  item.style.left = `${position.x}px`;
+  item.style.top = `${position.y}px`;
+  item.style.zIndex = String(position.z);
+
+  const imageWrap = document.createElement("div");
+  imageWrap.className = "deck-grid-card-image";
+  const imageUrl = getImageUrl(resolveCardImage(card));
+  if (imageUrl) {
+    const image = document.createElement("img");
+    image.draggable = false;
+    image.loading = "lazy";
+    image.src = imageUrl;
+    image.alt = card.name;
+    image.onerror = () => {
+      image.remove();
+      imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
+    };
+    imageWrap.append(image);
+  } else {
+    imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
+  }
+
+  const remove = document.createElement("button");
+  remove.className = "deck-grid-remove";
+  remove.type = "button";
+  remove.dataset.removeOneDeck = card.key;
+  remove.setAttribute("aria-label", `Remove one ${card.name}`);
+  remove.textContent = "×";
+
+  item.append(imageWrap, remove);
+  enableFreehandDrag(item, instanceId);
+  return item;
+}
+
+function enableFreehandDrag(cardEl, instanceId) {
+  let pointerId = null;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  const onPointerMove = (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    const board = cardEl.parentElement;
+    if (!board) {
+      return;
+    }
+    const boardRect = board.getBoundingClientRect();
+    const cardWidth = cardEl.offsetWidth || 96;
+    const cardHeight = cardEl.offsetHeight || 134;
+    const maxX = Math.max(0, board.clientWidth - cardWidth);
+    const maxY = Math.max(0, board.clientHeight - cardHeight);
+    const nextX = Math.min(maxX, Math.max(0, event.clientX - boardRect.left - offsetX));
+    const nextY = Math.min(maxY, Math.max(0, event.clientY - boardRect.top - offsetY));
+    cardEl.style.left = `${nextX}px`;
+    cardEl.style.top = `${nextY}px`;
+  };
+
+  const onPointerUp = (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    pointerId = null;
+    cardEl.classList.remove("dragging");
+    cardEl.releasePointerCapture?.(event.pointerId);
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+
+    const x = Number.parseFloat(cardEl.style.left) || 0;
+    const y = Number.parseFloat(cardEl.style.top) || 0;
+    const z = Number.parseInt(cardEl.style.zIndex, 10) || state.mainDeckFreehandZ;
+    state.mainDeckFreehandPositions[instanceId] = { x, y, z };
+    saveMainDeckFreehandState();
+  };
+
+  cardEl.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".deck-grid-remove")) {
+      return;
+    }
+    event.preventDefault();
+    pointerId = event.pointerId;
+    const board = cardEl.parentElement;
+    if (!board) {
+      return;
+    }
+    const cardRect = cardEl.getBoundingClientRect();
+    offsetX = event.clientX - cardRect.left;
+    offsetY = event.clientY - cardRect.top;
+    state.mainDeckFreehandZ += 1;
+    cardEl.style.zIndex = String(state.mainDeckFreehandZ);
+    cardEl.classList.add("dragging");
+    cardEl.setPointerCapture?.(event.pointerId);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+  });
+}
+
+function getFreehandInstanceId(cardKey, copyIndex) {
+  return `${cardKey}::${copyIndex}`;
+}
+
+function getFreehandPosition(instanceId, layoutIndex) {
+  const saved = state.mainDeckFreehandPositions[instanceId];
+  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+    return {
+      x: saved.x,
+      y: saved.y,
+      z: Number.isFinite(saved.z) ? saved.z : layoutIndex + 1,
+    };
+  }
+
+  const col = layoutIndex % 8;
+  const row = Math.floor(layoutIndex / 8);
+  const position = {
+    x: 16 + col * 34,
+    y: 40 + row * 42,
+    z: layoutIndex + 1,
+  };
+  state.mainDeckFreehandPositions[instanceId] = position;
+  state.mainDeckFreehandZ = Math.max(state.mainDeckFreehandZ, position.z + 1);
+  saveMainDeckFreehandState();
+  return position;
+}
+
+function pruneFreehandPositions(sectionCards) {
+  const validIds = new Set();
+  sectionCards.forEach((card) => {
+    const copies = normalizeQuantity(card.quantity);
+    for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
+      validIds.add(getFreehandInstanceId(card.key, copyIndex));
+    }
+  });
+
+  let changed = false;
+  Object.keys(state.mainDeckFreehandPositions).forEach((instanceId) => {
+    if (!validIds.has(instanceId)) {
+      delete state.mainDeckFreehandPositions[instanceId];
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveMainDeckFreehandState();
+  }
+}
+
+function loadMainDeckFreehandState() {
+  const stored = loadStoredJson(FREEHAND_STORAGE_KEY, null);
+  if (!stored || typeof stored !== "object") {
+    return { enabled: false, positions: {}, nextZ: 1 };
+  }
+  return {
+    enabled: Boolean(stored.enabled),
+    positions: stored.positions && typeof stored.positions === "object" ? stored.positions : {},
+    nextZ: Number.isFinite(stored.nextZ) ? stored.nextZ : 1,
+  };
+}
+
+function saveMainDeckFreehandState() {
+  saveStoredJson(FREEHAND_STORAGE_KEY, {
+    enabled: state.mainDeckFreehand,
+    positions: state.mainDeckFreehandPositions,
+    nextZ: state.mainDeckFreehandZ,
+  });
+}
+
+function toggleMainDeckFreehand() {
+  state.mainDeckFreehand = !state.mainDeckFreehand;
+  saveMainDeckFreehandState();
+  renderDeck();
+}
+
 function createDeckRow(card) {
   const row = document.createElement("div");
   row.className = "deck-row deck-row-with-thumb";
@@ -2135,6 +2361,12 @@ function shortSectionLabel(section) {
 }
 
 function handleDeckListClick(event) {
+  const freehandButton = event.target.closest("[data-toggle-main-freehand]");
+  if (freehandButton) {
+    toggleMainDeckFreehand();
+    return;
+  }
+
   const removeOneButton = event.target.closest("[data-remove-one-deck]");
   if (removeOneButton) {
     removeOneDeckCopy(removeOneButton.dataset.removeOneDeck);
