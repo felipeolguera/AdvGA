@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.79";
+const APP_VERSION = "0.80";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -172,6 +172,9 @@ const state = {
   sort: SORT_OPTIONS[0],
   librarySort: "default",
   activeLightboxCard: null,
+  lightboxCards: [],
+  lightboxIndex: -1,
+  lightboxSource: "search",
   resultAddedMessages: {},
   resultFeedbackTimers: {},
   resultSelectedQuantities: {},
@@ -420,31 +423,13 @@ function getBuilderShellHtml() {
     </details>
   </main>
 
-  <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
-    <button class="icon-button" id="close-lightbox" aria-label="Close card details">×</button>
-    <article class="lightbox-card">
-      <div class="lightbox-image-wrap">
-        <img id="lightbox-image" alt="" />
-      </div>
-      <div class="lightbox-details">
-        <p class="eyebrow" id="lightbox-set"></p>
-        <h2 id="lightbox-title"></h2>
-        <div class="detail-tags" id="lightbox-tags"></div>
-        <dl class="stat-list" id="lightbox-stats"></dl>
-        <p class="effect-text" id="lightbox-effect"></p>
-        <label class="lightbox-quantity-control" for="lightbox-quantity-select">
-          Add quantity
-          <select id="lightbox-quantity-select" aria-label="Add quantity from lightbox">
-            <option value="">Add</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-          <span class="result-added-message lightbox-added-message" id="lightbox-added-message" aria-live="polite"></span>
-        </label>
-      </div>
-    </article>
+  <dialog class="lightbox" id="lightbox" aria-label="Card image">
+    <button class="icon-button lightbox-close" type="button" id="close-lightbox" aria-label="Close">×</button>
+    <button class="lightbox-nav lightbox-nav-prev" type="button" id="lightbox-prev" aria-label="Previous card">‹</button>
+    <button class="lightbox-nav lightbox-nav-next" type="button" id="lightbox-next" aria-label="Next card">›</button>
+    <figure class="lightbox-card">
+      <img id="lightbox-image" alt="" />
+    </figure>
   </dialog>
 
   <dialog class="deck-fullscreen" id="deck-fullscreen" aria-labelledby="deck-fullscreen-title">
@@ -592,6 +577,9 @@ const librarySortSelect = document.querySelector("#library-sort");
 const loadMoreButton = document.querySelector("#load-more");
 const lightbox = document.querySelector("#lightbox");
 const closeLightboxButton = document.querySelector("#close-lightbox");
+const lightboxPrevButton = document.querySelector("#lightbox-prev");
+const lightboxNextButton = document.querySelector("#lightbox-next");
+const lightboxImage = document.querySelector("#lightbox-image");
 const keywordRow = document.querySelector("#keyword-row");
 const suggestionsEl = document.querySelector("#search-suggestions");
 const advancedForm = document.querySelector("#advanced-form");
@@ -637,8 +625,6 @@ const materialDialogEmpty = document.querySelector("#material-dialog-empty");
 const closeMaterialDialogButton = document.querySelector("#close-material-dialog");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
-const lightboxQuantitySelect = document.querySelector("#lightbox-quantity-select");
-const lightboxAddedMessage = document.querySelector("#lightbox-added-message");
 
 closeMaterialDialogButton?.addEventListener("click", () => closeMaterialDialog());
 materialDialog?.addEventListener("click", (event) => {
@@ -904,27 +890,6 @@ function bootBuilderPage() {
   });
   window.addEventListener("scroll", updateScrollTopVisibility, { passive: true });
 
-  lightboxQuantitySelect.addEventListener("change", () => {
-    const amount = Number(lightboxQuantitySelect.value);
-    if (!amount || !state.activeLightboxCard) {
-      return;
-    }
-
-    const card = state.activeLightboxCard;
-    const cardKey = getCardKey(card);
-    const section = defaultDeckSection(card);
-    const addedAmount = section === "material" ? 1 : amount;
-    state.resultSelectedQuantities[cardKey] = String(addedAmount);
-    state.resultAddedMessages[cardKey] = `${addedAmount} Added`;
-    window.clearTimeout(state.resultFeedbackTimers[cardKey]);
-    addCardToDeck(card, addedAmount, section);
-    showLightboxAddedMessage(`${addedAmount} Added`);
-    state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
-      delete state.resultAddedMessages[cardKey];
-      renderCards();
-    }, 1300);
-  });
-
   [deckListEl, deckListFullscreenEl].forEach((deckList) => {
     deckList.addEventListener("click", handleDeckListClick);
     deckList.addEventListener("change", handleDeckListInput);
@@ -940,17 +905,32 @@ function bootBuilderPage() {
     runSearch(input.value.trim(), { reset: true, remember: true });
   });
 
-  closeLightboxButton.addEventListener("click", closeLightbox);
+  closeLightboxButton?.addEventListener("click", closeLightbox);
+  lightboxPrevButton?.addEventListener("click", () => stepLightbox(-1));
+  lightboxNextButton?.addEventListener("click", () => stepLightbox(1));
 
-  lightbox.addEventListener("click", (event) => {
+  lightbox?.addEventListener("click", (event) => {
     if (event.target === lightbox) {
       closeLightbox();
     }
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && lightbox.open) {
+    if (!lightbox?.open) {
+      return;
+    }
+    if (event.key === "Escape") {
       closeLightbox();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      stepLightbox(-1);
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      stepLightbox(1);
     }
   });
 
@@ -4764,21 +4744,21 @@ async function openDeckCardLightbox(deckCard) {
     null;
 
   if (fromResults) {
-    openLightbox(fromResults);
+    openLightbox(fromResults, { source: "deck" });
     return;
   }
 
   try {
     const lookedUp = await lookupCardByName(deckCard.name);
     if (lookedUp) {
-      openLightbox(lookedUp);
+      openLightbox(lookedUp, { source: "deck" });
       return;
     }
   } catch (error) {
     console.warn("Deck lightbox lookup failed", error);
   }
 
-  openLightbox(deckEntryToLightboxCard(deckCard));
+  openLightbox(deckEntryToLightboxCard(deckCard), { source: "deck" });
 }
 
 function deckEntryToLightboxCard(deckCard) {
@@ -5787,7 +5767,7 @@ function createCardButton(card) {
   imageButton.className = "result-grid-card-image";
   imageButton.type = "button";
   imageButton.setAttribute("aria-label", `Open details for ${card.name}`);
-  imageButton.addEventListener("click", () => openLightbox(card));
+  imageButton.addEventListener("click", () => openLightbox(card, { source: "search" }));
 
   if (imageUrl) {
     const image = document.createElement("img");
@@ -5894,85 +5874,93 @@ function createPlaceholder(name) {
   return placeholder;
 }
 
-function showLightboxAddedMessage(message) {
-  lightboxAddedMessage.textContent = message;
-  lightboxAddedMessage.classList.add("show");
-  window.setTimeout(() => {
-    lightboxAddedMessage.classList.remove("show");
-  }, 1300);
-}
-
-function openLightbox(card) {
-  state.activeLightboxCard = card;
-  const edition = getPrimaryEdition(card);
-  const imageUrl = getImageUrl(edition?.image);
-  const image = document.querySelector("#lightbox-image");
-  const set = document.querySelector("#lightbox-set");
-  const title = document.querySelector("#lightbox-title");
-  const tags = document.querySelector("#lightbox-tags");
-  const stats = document.querySelector("#lightbox-stats");
-  const effect = document.querySelector("#lightbox-effect");
-
-  image.src = imageUrl || "";
-  image.alt = imageUrl ? card.name : "";
-  image.classList.toggle("hidden", !imageUrl);
-  set.textContent = edition?.set
-    ? `${edition.set.name} (${edition.set.prefix}) #${edition.collector_number}`
-    : "Card details";
-  title.textContent = card.name;
-
-  tags.replaceChildren();
-  [
-    ...(card.elements || []),
-    ...(card.types || []),
-    ...(card.subtypes || []),
-    ...(card.classes || []),
-  ].forEach((value) => tags.append(createChip(titleCase(value))));
-
-  stats.replaceChildren();
-  addStat(stats, "Cost", formatCost(card.cost));
-  addStat(stats, "Level", statValue(card.level));
-  addStat(stats, "Power", statValue(card.power));
-  addStat(stats, "Life", statValue(card.life));
-  addStat(stats, "Speed", statValue(card.speed));
-
-  effect.textContent =
-    edition?.effect_raw || card.effect_raw || "No effect text available for this print.";
-
-  const cardKey = getCardKey(card);
-  const lightboxSection = defaultDeckSection(card);
-  const lightboxMax = getMaxQuantityForSection(lightboxSection, card);
-  lightboxQuantitySelect.replaceChildren(createOption("", "Add"));
-  for (let quantity = 1; quantity <= lightboxMax; quantity += 1) {
-    lightboxQuantitySelect.append(createOption(String(quantity), String(quantity)));
+function getLightboxCardList(source = "search") {
+  if (source === "deck") {
+    return state.deck.slice();
   }
-  lightboxQuantitySelect.setAttribute(
-    "aria-label",
-    lightboxSection === "material"
-      ? `Add 1 ${card.name} to Material Deck`
-      : `Add quantity of ${card.name} to Main Deck`,
-  );
-  lightboxQuantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
-  lightboxAddedMessage.textContent = state.resultAddedMessages[cardKey] || "";
-  lightboxAddedMessage.classList.toggle("show", Boolean(state.resultAddedMessages[cardKey]));
-
-  lightbox.showModal();
+  return getSortedLibraryCards(state.cards);
 }
 
-function closeLightbox() {
-  lightbox.close();
-}
-
-function addStat(list, label, value) {
-  if (!value) {
+function openLightbox(card, { source = "search" } = {}) {
+  if (!card || !lightbox || !lightboxImage) {
     return;
   }
 
-  const term = document.createElement("dt");
-  term.textContent = label;
-  const description = document.createElement("dd");
-  description.textContent = value;
-  list.append(term, description);
+  const cards = getLightboxCardList(source);
+  const key = getCardKey(card);
+  let index = cards.findIndex((item) => getCardKey(item) === key);
+  if (index < 0) {
+    index = cards.findIndex(
+      (item) => String(item.name || "").toLowerCase() === String(card.name || "").toLowerCase(),
+    );
+  }
+
+  if (index < 0) {
+    state.lightboxCards = [card];
+    state.lightboxIndex = 0;
+  } else {
+    // Prefer the opened card object (may have fuller API data than a deck entry).
+    const nextCards = cards.slice();
+    nextCards[index] = card;
+    state.lightboxCards = nextCards;
+    state.lightboxIndex = index;
+  }
+
+  state.lightboxSource = source;
+  renderLightboxCard();
+  lightbox.showModal();
+  lightboxCloseFocus();
+}
+
+function renderLightboxCard() {
+  const card = state.lightboxCards[state.lightboxIndex];
+  state.activeLightboxCard = card || null;
+  if (!card || !lightboxImage) {
+    return;
+  }
+
+  const imageUrl = getImageUrl(resolveCardImage(card));
+  lightboxImage.src = imageUrl || "";
+  lightboxImage.alt = card.name || "Card";
+  lightboxImage.classList.toggle("hidden", !imageUrl);
+  lightbox.setAttribute("aria-label", card.name ? `${card.name} image` : "Card image");
+  updateLightboxNav();
+}
+
+function updateLightboxNav() {
+  const total = state.lightboxCards.length;
+  const index = state.lightboxIndex;
+  const atStart = index <= 0;
+  const atEnd = index < 0 || index >= total - 1;
+  if (lightboxPrevButton) {
+    lightboxPrevButton.disabled = atStart || total <= 1;
+    lightboxPrevButton.hidden = total <= 1;
+  }
+  if (lightboxNextButton) {
+    lightboxNextButton.disabled = atEnd || total <= 1;
+    lightboxNextButton.hidden = total <= 1;
+  }
+}
+
+function stepLightbox(delta) {
+  if (!lightbox?.open || state.lightboxCards.length <= 1) {
+    return;
+  }
+  const next = state.lightboxIndex + delta;
+  if (next < 0 || next >= state.lightboxCards.length) {
+    return;
+  }
+  state.lightboxIndex = next;
+  renderLightboxCard();
+}
+
+function lightboxCloseFocus() {
+  closeLightboxButton?.focus();
+}
+
+function closeLightbox() {
+  lightbox?.close();
+  state.activeLightboxCard = null;
 }
 
 function buildStatus(count, parsed, usedFallback) {
