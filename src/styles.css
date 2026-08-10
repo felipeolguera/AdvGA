@@ -2097,6 +2097,19 @@ button.result-grid-add {
   background: rgba(255, 255, 255, 0.04);
 }
 
+button.deck-grid-card-image {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.deck-grid-card-image:focus-visible {
+  outline: 2px solid rgba(255, 204, 115, 0.9);
+  outline-offset: -2px;
+}
+
 .deck-grid-card-image img {
   display: block;
   width: 100%;
@@ -2157,10 +2170,18 @@ button.result-grid-add {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
+  padding: 0;
   color: var(--gold-strong);
-  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
   font-size: 0.76rem;
   font-weight: 900;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+button.deck-card-thumbnail:focus-visible {
+  outline: 2px solid rgba(255, 204, 115, 0.9);
+  outline-offset: 2px;
 }
 
 .deck-card-thumbnail img {

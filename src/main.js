@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.78";
+const APP_VERSION = "0.79";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -2210,10 +2210,13 @@ function createSectionAutocomplete(section) {
 function createDeckGridCard(card, { individual = false } = {}) {
   const item = document.createElement("article");
   item.className = individual ? "deck-grid-card deck-grid-card-individual" : "deck-grid-card";
-  item.title = card.name;
+  item.title = `${card.name} — tap art for details`;
 
-  const imageWrap = document.createElement("div");
-  imageWrap.className = "deck-grid-card-image";
+  const imageButton = document.createElement("button");
+  imageButton.type = "button";
+  imageButton.className = "deck-grid-card-image";
+  imageButton.dataset.deckLightbox = card.key;
+  imageButton.setAttribute("aria-label", `View ${card.name} details`);
   const imageUrl = getImageUrl(resolveCardImage(card));
   if (imageUrl) {
     const image = document.createElement("img");
@@ -2222,11 +2225,11 @@ function createDeckGridCard(card, { individual = false } = {}) {
     image.alt = card.name;
     image.onerror = () => {
       image.remove();
-      imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
+      imageButton.textContent = card.name.slice(0, 2).toUpperCase();
     };
-    imageWrap.append(image);
+    imageButton.append(image);
   } else {
-    imageWrap.textContent = card.name.slice(0, 2).toUpperCase();
+    imageButton.textContent = card.name.slice(0, 2).toUpperCase();
   }
 
   const remove = document.createElement("button");
@@ -2237,7 +2240,7 @@ function createDeckGridCard(card, { individual = false } = {}) {
     remove.dataset.removeOneDeck = card.key;
     remove.setAttribute("aria-label", `Remove one ${card.name}`);
     remove.textContent = "×";
-    item.append(imageWrap, remove);
+    item.append(imageButton, remove);
     return item;
   }
 
@@ -2255,7 +2258,7 @@ function createDeckGridCard(card, { individual = false } = {}) {
   remove.setAttribute("aria-label", `Remove ${card.name}`);
   remove.textContent = "×";
 
-  item.append(imageWrap, quantity, remove);
+  item.append(imageButton, quantity, remove);
   return item;
 }
 
@@ -2301,7 +2304,8 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   item.className = "deck-grid-card deck-freehand-card";
   item.dataset.freehandCard = instanceId;
   item.dataset.freehandIndex = String(layoutIndex);
-  item.title = card.name;
+  item.dataset.deckLightbox = card.key;
+  item.title = `${card.name} — tap for details, drag to move`;
 
   // Provisional grid slot so cards are never stacked at 0,0 before measured layout.
   const provisional = estimateFreehandSlot(layoutIndex);
@@ -2337,7 +2341,7 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   remove.textContent = "×";
 
   item.append(imageWrap, remove);
-  enableFreehandDrag(item, instanceId);
+  enableFreehandDrag(item, instanceId, card);
   return item;
 }
 
@@ -2453,12 +2457,13 @@ function layoutFreehandBoard(board, { force = false } = {}) {
   saveMainDeckFreehandState();
 }
 
-function enableFreehandDrag(cardEl, instanceId) {
+function enableFreehandDrag(cardEl, instanceId, card = null) {
   let pointerId = null;
   let startX = 0;
   let startY = 0;
   let originPointerX = 0;
   let originPointerY = 0;
+  let dragMoved = false;
 
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId) {
@@ -2471,6 +2476,9 @@ function enableFreehandDrag(cardEl, instanceId) {
 
     const dx = event.clientX - originPointerX;
     const dy = event.clientY - originPointerY;
+    if (Math.hypot(dx, dy) > 8) {
+      dragMoved = true;
+    }
     let nextX = startX + dx;
     let nextY = startY + dy;
 
@@ -2529,6 +2537,11 @@ function enableFreehandDrag(cardEl, instanceId) {
     cardEl.style.top = `${y}px`;
     state.mainDeckFreehandPositions[instanceId] = { x, y, z };
     saveMainDeckFreehandState();
+
+    // Tap (no drag) opens the deck-builder lightbox.
+    if (!dragMoved && card) {
+      void openDeckCardLightbox(card);
+    }
   };
 
   cardEl.addEventListener("pointerdown", (event) => {
@@ -2542,6 +2555,7 @@ function enableFreehandDrag(cardEl, instanceId) {
     event.stopPropagation();
 
     pointerId = event.pointerId;
+    dragMoved = false;
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -4631,8 +4645,12 @@ function createDeckRow(card) {
 }
 
 function createDeckThumbnail(card) {
-  const thumbnail = document.createElement("span");
+  const thumbnail = document.createElement("button");
+  thumbnail.type = "button";
   thumbnail.className = "deck-card-thumbnail";
+  thumbnail.dataset.deckLightbox = card.key;
+  thumbnail.setAttribute("aria-label", `View ${card.name} details`);
+  thumbnail.title = `${card.name} — tap for details`;
   const imageUrl = getImageUrl(resolveCardImage(card));
   if (imageUrl) {
     const image = document.createElement("img");
@@ -4699,6 +4717,16 @@ function handleDeckListClick(event) {
     return;
   }
 
+  const lightboxButton = event.target.closest("[data-deck-lightbox]");
+  if (lightboxButton) {
+    event.preventDefault();
+    const deckCard = state.deck.find((card) => card.key === lightboxButton.dataset.deckLightbox);
+    if (deckCard) {
+      void openDeckCardLightbox(deckCard);
+    }
+    return;
+  }
+
   const removeOneButton = event.target.closest("[data-remove-one-deck]");
   if (removeOneButton) {
     removeOneDeckCopy(removeOneButton.dataset.removeOneDeck);
@@ -4720,6 +4748,53 @@ function handleDeckListClick(event) {
     renderDeck();
     renderCards();
   }
+}
+
+async function openDeckCardLightbox(deckCard) {
+  if (!deckCard?.name) {
+    return;
+  }
+
+  const key = getCardKey(deckCard);
+  const fromResults =
+    state.cards.find((card) => getCardKey(card) === key) ||
+    state.cards.find(
+      (card) => String(card.name || "").toLowerCase() === String(deckCard.name || "").toLowerCase(),
+    ) ||
+    null;
+
+  if (fromResults) {
+    openLightbox(fromResults);
+    return;
+  }
+
+  try {
+    const lookedUp = await lookupCardByName(deckCard.name);
+    if (lookedUp) {
+      openLightbox(lookedUp);
+      return;
+    }
+  } catch (error) {
+    console.warn("Deck lightbox lookup failed", error);
+  }
+
+  openLightbox(deckEntryToLightboxCard(deckCard));
+}
+
+function deckEntryToLightboxCard(deckCard) {
+  return {
+    uuid: deckCard.key,
+    slug: deckCard.key,
+    name: deckCard.name,
+    types: Array.isArray(deckCard.types) ? deckCard.types : [],
+    elements: Array.isArray(deckCard.elements) ? deckCard.elements : [],
+    subtypes: Array.isArray(deckCard.subtypes) ? deckCard.subtypes : [],
+    classes: Array.isArray(deckCard.classes) ? deckCard.classes : [],
+    level: deckCard.level ?? null,
+    cost: deckCard.costType ? { type: deckCard.costType } : deckCard.cost || null,
+    effect_raw: deckCard.effect || deckCard.effect_raw || "",
+    edition: deckCard.image ? { image: deckCard.image } : null,
+  };
 }
 
 function removeOneDeckCopy(key) {
