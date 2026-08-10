@@ -6,7 +6,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.77";
+const APP_VERSION = "0.78";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -910,12 +910,15 @@ function bootBuilderPage() {
       return;
     }
 
-    const cardKey = getCardKey(state.activeLightboxCard);
-    state.resultSelectedQuantities[cardKey] = String(amount);
-    state.resultAddedMessages[cardKey] = `${amount} Added`;
+    const card = state.activeLightboxCard;
+    const cardKey = getCardKey(card);
+    const section = defaultDeckSection(card);
+    const addedAmount = section === "material" ? 1 : amount;
+    state.resultSelectedQuantities[cardKey] = String(addedAmount);
+    state.resultAddedMessages[cardKey] = `${addedAmount} Added`;
     window.clearTimeout(state.resultFeedbackTimers[cardKey]);
-    addCardToDeck(state.activeLightboxCard, amount, "main");
-    showLightboxAddedMessage(`${amount} Added`);
+    addCardToDeck(card, addedAmount, section);
+    showLightboxAddedMessage(`${addedAmount} Added`);
     state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
       delete state.resultAddedMessages[cardKey];
       renderCards();
@@ -5695,7 +5698,10 @@ function createCardButton(card) {
   const imageUrl = getImageUrl(edition?.image);
   const cardKey = getCardKey(card);
   const deckEntry = state.deck.find((item) => item.key === cardKey);
-  const maxQuantity = getMaxQuantityForSection("main", card);
+  const targetSection = defaultDeckSection(card);
+  const toMaterial = targetSection === "material";
+  const maxQuantity = getMaxQuantityForSection(targetSection, card);
+  const sectionLabel = targetSection === "material" ? "Material Deck" : "Main Deck";
 
   const item = document.createElement("article");
   item.className = "card-tile result-grid-card";
@@ -5722,16 +5728,6 @@ function createCardButton(card) {
     imageButton.append(createPlaceholder(card.name));
   }
 
-  const quantitySelect = document.createElement("select");
-  quantitySelect.className = "deck-grid-qty result-grid-qty";
-  quantitySelect.setAttribute("aria-label", `Add ${card.name} to Main Deck`);
-  quantitySelect.dataset.addCardQuantity = cardKey;
-  quantitySelect.append(createOption("", "+"));
-  for (let quantity = 1; quantity <= maxQuantity; quantity += 1) {
-    quantitySelect.append(createOption(String(quantity), String(quantity)));
-  }
-  quantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
-
   const addedMessage = document.createElement("span");
   addedMessage.className = "result-added-message";
   addedMessage.setAttribute("aria-live", "polite");
@@ -5739,6 +5735,44 @@ function createCardButton(card) {
     addedMessage.textContent = state.resultAddedMessages[cardKey];
     addedMessage.classList.add("show");
   }
+
+  const markResultAdded = (amount) => {
+    state.resultSelectedQuantities[cardKey] = String(amount);
+    state.resultAddedMessages[cardKey] = `${amount} Added`;
+    window.clearTimeout(state.resultFeedbackTimers[cardKey]);
+    state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
+      delete state.resultAddedMessages[cardKey];
+      delete state.resultSelectedQuantities[cardKey];
+      renderCards();
+    }, 1300);
+  };
+
+  // Champion / Regalia: one-click + adds 1 copy to Material Deck.
+  if (toMaterial) {
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "deck-grid-qty result-grid-qty result-grid-add";
+    addButton.dataset.addCardQuantity = cardKey;
+    addButton.setAttribute("aria-label", `Add 1 ${card.name} to ${sectionLabel}`);
+    addButton.textContent = "+";
+    addButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      addCardToDeck(card, 1, "material");
+      markResultAdded(1);
+    });
+    item.append(imageButton, addButton, addedMessage);
+    return item;
+  }
+
+  const quantitySelect = document.createElement("select");
+  quantitySelect.className = "deck-grid-qty result-grid-qty";
+  quantitySelect.setAttribute("aria-label", `Add ${card.name} to ${sectionLabel}`);
+  quantitySelect.dataset.addCardQuantity = cardKey;
+  quantitySelect.append(createOption("", "+"));
+  for (let quantity = 1; quantity <= maxQuantity; quantity += 1) {
+    quantitySelect.append(createOption(String(quantity), String(quantity)));
+  }
+  quantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
 
   quantitySelect.addEventListener("click", (event) => event.stopPropagation());
   quantitySelect.addEventListener("change", (event) => {
@@ -5748,15 +5782,8 @@ function createCardButton(card) {
       return;
     }
 
-    state.resultSelectedQuantities[cardKey] = String(amount);
-    state.resultAddedMessages[cardKey] = `${amount} Added`;
-    window.clearTimeout(state.resultFeedbackTimers[cardKey]);
-    addCardToDeck(card, amount, "main");
-    state.resultFeedbackTimers[cardKey] = window.setTimeout(() => {
-      delete state.resultAddedMessages[cardKey];
-      delete state.resultSelectedQuantities[cardKey];
-      renderCards();
-    }, 1300);
+    addCardToDeck(card, amount, targetSection);
+    markResultAdded(amount);
   });
 
   item.append(imageButton, quantitySelect, addedMessage);
@@ -5838,6 +5865,18 @@ function openLightbox(card) {
     edition?.effect_raw || card.effect_raw || "No effect text available for this print.";
 
   const cardKey = getCardKey(card);
+  const lightboxSection = defaultDeckSection(card);
+  const lightboxMax = getMaxQuantityForSection(lightboxSection, card);
+  lightboxQuantitySelect.replaceChildren(createOption("", "Add"));
+  for (let quantity = 1; quantity <= lightboxMax; quantity += 1) {
+    lightboxQuantitySelect.append(createOption(String(quantity), String(quantity)));
+  }
+  lightboxQuantitySelect.setAttribute(
+    "aria-label",
+    lightboxSection === "material"
+      ? `Add 1 ${card.name} to Material Deck`
+      : `Add quantity of ${card.name} to Main Deck`,
+  );
   lightboxQuantitySelect.value = state.resultSelectedQuantities[cardKey] || "";
   lightboxAddedMessage.textContent = state.resultAddedMessages[cardKey] || "";
   lightboxAddedMessage.classList.toggle("show", Boolean(state.resultAddedMessages[cardKey]));

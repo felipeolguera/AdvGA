@@ -435,6 +435,14 @@ h1 {
   z-index: 3;
 }
 
+button.result-grid-add {
+  cursor: pointer;
+  font: inherit;
+  min-width: 42px;
+  display: grid;
+  place-items: center;
+}
+
 .placeholder-card {
   display: grid;
   place-items: center;
