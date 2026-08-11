@@ -1378,10 +1378,17 @@ button.result-grid-add {
   overflow: hidden;
 }
 
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-zone-banishment,
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-zone-graveyard {
+  /* Keep rail zones readable behind stacked cards */
+  z-index: 0;
+}
+
 .opening-hand-board[data-mp-readonly="true"] .opening-hand-card {
   /* Keep face-up shells visible while art loads on the shared board. */
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  z-index: 5;
 }
 
 .mp-seat-b .opening-hand-field {

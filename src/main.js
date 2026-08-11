@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.84";
+const APP_VERSION = "0.85";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -712,11 +712,66 @@ function bootTryItPage() {
   });
 
   const { room, role } = readRoomParams();
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("mpLayoutTest") === "1") {
+    bootMultiplayerLayoutTest();
+    return;
+  }
   if (room && role) {
     void joinMultiplayerRoom({ roomCode: room, role });
     return;
   }
   state.mp.mode = "lobby";
+  renderTryItPage();
+}
+
+function bootMultiplayerLayoutTest() {
+  const mkCard = (key, name) => ({ key, name, image: "" });
+  const mkEntry = (key, name, zone, x, y) => ({
+    instanceId: `${key}::oh::0`,
+    zone,
+    facedown: zone === "memory",
+    rotated: false,
+    position: { x, y, z: 1 },
+    card: mkCard(key, name),
+  });
+  state.mp.mode = "multi";
+  state.mp.role = "table";
+  state.mp.roomCode = "TEST";
+  state.mp.status = "Layout test";
+  state.mp.peerCount = 0;
+  state.mp.seats = {
+    a: {
+      seat: "a",
+      revision: 1,
+      deckName: "Layout Test A",
+      boardWidth: 390,
+      library: Array.from({ length: 40 }, (_, index) => ({
+        instanceId: `lib-${index}`,
+        card: mkCard(`lib-${index}`, `Lib ${index}`),
+      })),
+      material: Array.from({ length: 3 }, (_, index) => ({
+        instanceId: `mat-${index}`,
+        card: mkCard(`mat-${index}`, `Mat ${index}`),
+      })),
+      cards: [
+        mkEntry("f1", "Field One", "field", 900, 20),
+        mkEntry("f2", "Field Two", "field", 950, 40),
+        mkEntry("m1", "Mem One", "memory", 800, 200),
+        mkEntry("m2", "Mem Two", "memory", 860, 210),
+        mkEntry("m3", "Mem Three", "memory", 920, 220),
+        mkEntry("g1", "Grave One", "graveyard", 1000, 400),
+        mkEntry("b1", "Banish One", "banishment", 1000, 10),
+        mkEntry("h1", "Hand One", "hand", 100, 400),
+        mkEntry("h2", "Hand Two", "hand", 200, 400),
+      ],
+      turn: 1,
+      dealComplete: true,
+    },
+    b: null,
+  };
+  state.mainDeckOpeningHand = true;
+  updateTryItTurnLabel();
   renderTryItPage();
 }
 
@@ -3002,97 +3057,192 @@ function renderMultiplayerTableBoard() {
   });
 
   root.append(wrap);
-
-  // Phone coordinates don't match the tablet board width — reflow after layout.
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      wrap.querySelectorAll("[data-opening-hand-board][data-mp-seat]").forEach((board) => {
-        const seat = board.dataset.mpSeat;
-        const seatData = state.mp.seats[seat];
-        if (!seatData || !board.isConnected) {
-          return;
-        }
-        withSeatBoardState(seatData, () => {
-          layoutMultiplayerTableSeat(board);
-        });
-      });
-    });
-  });
+  scheduleMultiplayerTableLayout(wrap);
 }
 
-function getOpeningHandZoneRowLayout(field, zoneName, count) {
-  const zones = getOpeningHandZones(field);
-  const pad = OPENING_HAND_ROW_PAD / 2;
-  const column = getOpeningHandMainColumnBounds(field);
-  const railCenteredX =
-    zones.railLeft + Math.max(0, (zones.railWidth - FREEHAND_CARD_WIDTH) / 2);
-  const leftRailCenteredX =
-    zones.leftRailLeft + Math.max(0, (zones.leftRailWidth - FREEHAND_CARD_WIDTH) / 2);
-
-  let innerLeft = column.mainLeft + pad;
-  let innerRight = column.mainRight - pad;
-  let top = zones.handTop;
-  let bottom = zones.handBottom;
-
-  if (zoneName === "field") {
-    top = zones.fieldTop;
-    bottom = zones.fieldBottom;
-  } else if (zoneName === "memory") {
-    top = zones.memoryTop;
-    bottom = zones.memoryBottom;
-    innerLeft = column.memoryLeft + pad;
-  } else if (zoneName === "graveyard") {
-    return {
-      startX: railCenteredX,
-      step: 4,
-      y: getOpeningHandRowCardTop(zones.graveyardTop, zones.graveyardBottom),
-      stack: true,
-    };
-  } else if (zoneName === "banishment") {
-    return {
-      startX: railCenteredX,
-      step: 4,
-      y: getOpeningHandRowCardTop(zones.banishmentTop, zones.banishmentBottom),
-      stack: true,
-    };
-  } else if (zoneName === "material") {
-    return {
-      startX: leftRailCenteredX,
-      step: 4,
-      y: getOpeningHandRowCardTop(zones.materialTop, zones.materialBottom),
-      stack: true,
-    };
+function scheduleMultiplayerTableLayout(wrap) {
+  if (!wrap) {
+    return;
   }
-
-  const usable = Math.max(FREEHAND_CARD_WIDTH, innerRight - innerLeft);
-  const y = getOpeningHandRowCardTop(top, bottom);
-  const safeCount = Math.max(1, count);
-  if (safeCount <= 1) {
-    return {
-      startX: innerLeft + Math.max(0, (usable - FREEHAND_CARD_WIDTH) / 2),
-      step: 0,
-      y,
-    };
-  }
-  const packedWidth = safeCount * FREEHAND_CARD_WIDTH;
-  if (packedWidth <= usable) {
-    return {
-      startX: innerLeft + (usable - packedWidth) / 2,
-      step: FREEHAND_CARD_WIDTH,
-      y,
-    };
-  }
-  const overlapStep = (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1);
-  return {
-    startX: innerLeft,
-    step: Number.isFinite(overlapStep) ? Math.max(12, overlapStep) : 12,
-    y,
+  const run = () => {
+    wrap.querySelectorAll("[data-opening-hand-board][data-mp-seat]").forEach((board) => {
+      const seat = board.dataset.mpSeat;
+      const seatData = state.mp.seats[seat];
+      if (!seatData || !board.isConnected) {
+        return;
+      }
+      const field = board.querySelector("[data-oh-field]");
+      // Wait until the board has a real measured width — fallback 720px layout
+      // puts Deck / Banishment / Graveyard in the wrong place on tablets.
+      if (!field || field.clientWidth < 280) {
+        return;
+      }
+      withSeatBoardState(seatData, () => {
+        layoutMultiplayerTableSeat(board);
+      });
+    });
   };
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(run);
+  });
+  window.setTimeout(run, 50);
+  window.setTimeout(run, 200);
+
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(wrap._mpLayoutTimer);
+      wrap._mpLayoutTimer = window.setTimeout(run, 40);
+    });
+    wrap.querySelectorAll("[data-oh-field]").forEach((field) => observer.observe(field));
+    wrap._mpResizeObserver = observer;
+  }
+}
+
+function getMeasuredZoneBox(field, zoneName) {
+  layoutOpeningHandZones(field);
+  const measured = readOpeningHandZoneBox(field, zoneName);
+  if (measured && measured.width > 8 && measured.height > 8) {
+    return measured;
+  }
+  const zones = getOpeningHandZones(field);
+  if (zoneName === "field") {
+    return {
+      left: zones.mainLeft,
+      right: zones.mainRight,
+      top: zones.fieldTop,
+      bottom: zones.fieldBottom,
+      width: Math.max(0, zones.mainRight - zones.mainLeft),
+      height: Math.max(0, zones.fieldBottom - zones.fieldTop),
+    };
+  }
+  if (zoneName === "memory") {
+    return {
+      left: zones.memoryLeft,
+      right: zones.mainRight,
+      top: zones.memoryTop,
+      bottom: zones.memoryBottom,
+      width: Math.max(0, zones.mainRight - zones.memoryLeft),
+      height: Math.max(0, zones.memoryBottom - zones.memoryTop),
+    };
+  }
+  if (zoneName === "hand") {
+    return {
+      left: zones.mainLeft,
+      right: zones.mainRight,
+      top: zones.handTop,
+      bottom: zones.handBottom,
+      width: Math.max(0, zones.mainRight - zones.mainLeft),
+      height: Math.max(0, zones.handBottom - zones.handTop),
+    };
+  }
+  if (zoneName === "banishment") {
+    return {
+      left: zones.railLeft,
+      right: zones.railLeft + zones.railWidth,
+      top: zones.banishmentTop,
+      bottom: zones.banishmentBottom,
+      width: zones.railWidth,
+      height: Math.max(0, zones.banishmentBottom - zones.banishmentTop),
+    };
+  }
+  if (zoneName === "graveyard") {
+    return {
+      left: zones.railLeft,
+      right: zones.railLeft + zones.railWidth,
+      top: zones.graveyardTop,
+      bottom: zones.graveyardBottom,
+      width: zones.railWidth,
+      height: Math.max(0, zones.graveyardBottom - zones.graveyardTop),
+    };
+  }
+  if (zoneName === "deck") {
+    return {
+      left: zones.railLeft,
+      right: zones.railLeft + zones.railWidth,
+      top: zones.deckTop,
+      bottom: zones.deckBottom,
+      width: zones.railWidth,
+      height: Math.max(0, zones.deckBottom - zones.deckTop),
+    };
+  }
+  if (zoneName === "material") {
+    return {
+      left: zones.leftRailLeft,
+      right: zones.leftRailLeft + zones.leftRailWidth,
+      top: zones.materialTop,
+      bottom: zones.materialBottom,
+      width: zones.leftRailWidth,
+      height: Math.max(0, zones.materialBottom - zones.materialTop),
+    };
+  }
+  return null;
+}
+
+function layoutCardsInMeasuredZone(field, zoneName, entries) {
+  const box = getMeasuredZoneBox(field, zoneName);
+  if (!box || entries.length === 0) {
+    return;
+  }
+
+  const pad = 6;
+  const maxX = Math.max(box.left + pad, box.right - pad - FREEHAND_CARD_WIDTH);
+  const minX = Math.min(box.left + pad, maxX);
+  const y = box.top + Math.max(0, (box.height - FREEHAND_CARD_HEIGHT) / 2);
+  const usable = Math.max(0, maxX - minX);
+  const count = entries.length;
+  const stackZones = zoneName === "graveyard" || zoneName === "banishment";
+
+  let startX = minX;
+  let step = 0;
+  if (count === 1) {
+    startX = minX + usable / 2;
+    step = 0;
+  } else if (stackZones) {
+    // Keep stacks inside the narrow rail.
+    const stackSpan = Math.min(usable, (count - 1) * 10);
+    startX = minX + Math.max(0, (usable - stackSpan) / 2);
+    step = stackSpan / (count - 1);
+  } else {
+    const packed = count * FREEHAND_CARD_WIDTH;
+    if (packed <= usable + FREEHAND_CARD_WIDTH) {
+      const rowWidth = packed - FREEHAND_CARD_WIDTH;
+      startX = minX + Math.max(0, (usable - rowWidth) / 2);
+      step = FREEHAND_CARD_WIDTH;
+    } else {
+      startX = minX;
+      step = usable / (count - 1);
+    }
+  }
+
+  entries.forEach((entry, index) => {
+    const rawX = startX + index * step;
+    entry.position = {
+      x: Math.min(maxX, Math.max(minX, rawX)),
+      y,
+      z: 10 + index,
+    };
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (!cardEl) {
+      return;
+    }
+    applyOpeningHandCardPosition(cardEl, entry);
+    applyOpeningHandCardFace(cardEl, entry);
+    applyOpeningHandCardRotation(cardEl, entry);
+    const image = cardEl.querySelector("img");
+    if (image) {
+      image.loading = "eager";
+      const url = getImageUrl(resolveCardImage(entry.card));
+      if (url && image.getAttribute("src") !== url) {
+        image.src = url;
+      }
+    }
+  });
 }
 
 function layoutMultiplayerTableSeat(board) {
   const field = board?.querySelector("[data-oh-field]");
-  if (!field) {
+  if (!field || field.clientWidth < 280) {
     return;
   }
 
@@ -3100,45 +3250,35 @@ function layoutMultiplayerTableSeat(board) {
   void field.offsetWidth;
   dedupeOpeningHandEntries();
 
-  const zoneNames = ["field", "memory", "graveyard", "banishment"];
-  zoneNames.forEach((zoneName) => {
+  ["field", "memory", "graveyard", "banishment"].forEach((zoneName) => {
     const entries = state.openingHandHand
       .filter((entry) => (entry.zone || "hand") === zoneName)
       .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
-    if (entries.length === 0) {
-      return;
-    }
-    const layout = getOpeningHandZoneRowLayout(field, zoneName, entries.length);
-    entries.forEach((entry, index) => {
-      entry.position = {
-        x: layout.startX + index * layout.step,
-        y: layout.y,
-        z: (entry.position?.z || index + 1) + index,
-      };
-      const cardEl = findOpeningHandCardElement(field, entry.instanceId);
-      if (!cardEl) {
-        return;
-      }
-      applyOpeningHandCardPosition(cardEl, entry);
-      applyOpeningHandCardFace(cardEl, entry);
-      applyOpeningHandCardRotation(cardEl, entry);
-      // Eager-load art on the shared board so face-up Field cards aren't blank shells.
-      const image = cardEl.querySelector("img");
-      if (image) {
-        image.loading = "eager";
-        if (!image.getAttribute("src") && entry.card) {
-          const url = getImageUrl(resolveCardImage(entry.card));
-          if (url) {
-            image.src = url;
-          }
-        }
-      }
-    });
+    layoutCardsInMeasuredZone(field, zoneName, entries);
   });
 
-  positionOpeningHandDeckPile(board);
-  positionOpeningHandMaterialPile(board);
-  positionOpeningHandHandCount(board);
+  // Anchor piles from measured zone boxes so counts don't float mid-board.
+  const deckPile = board.querySelector("[data-oh-deck-pile]");
+  const deckBox = getMeasuredZoneBox(field, "deck");
+  if (deckPile && deckBox) {
+    deckPile.style.left = `${deckBox.left + Math.max(0, (deckBox.width - FREEHAND_CARD_WIDTH) / 2)}px`;
+    deckPile.style.top = `${deckBox.top + Math.max(0, (deckBox.height - FREEHAND_CARD_HEIGHT) / 2)}px`;
+  }
+
+  const materialPile = board.querySelector("[data-oh-material-pile]");
+  const materialBox = getMeasuredZoneBox(field, "material");
+  if (materialPile && materialBox) {
+    materialPile.style.left = `${materialBox.left + Math.max(0, (materialBox.width - FREEHAND_CARD_WIDTH) / 2)}px`;
+    materialPile.style.top = `${materialBox.top + Math.max(0, (materialBox.height - FREEHAND_CARD_HEIGHT) / 2)}px`;
+  }
+
+  const handCount = board.querySelector("[data-oh-hand-count]");
+  const handBox = getMeasuredZoneBox(field, "hand");
+  if (handCount && handBox) {
+    handCount.style.left = `${handBox.left + 10}px`;
+    handCount.style.top = `${handBox.bottom - 34}px`;
+  }
+
   updateOpeningHandCounts(board);
   resizeOpeningHandField(board);
 }
