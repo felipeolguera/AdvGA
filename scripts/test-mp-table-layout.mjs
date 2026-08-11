@@ -48,6 +48,7 @@ try {
         left,
         top,
         zoneHit,
+        facedown: card.classList.contains("is-facedown"),
       };
     });
     const deckPile = board.querySelector("[data-oh-deck-pile]");
@@ -76,14 +77,19 @@ try {
   });
 
   const hits = Object.fromEntries(
-    ["field", "memory", "graveyard", "banishment"].map((zone) => [
+    ["field", "memory", "hand", "graveyard", "banishment"].map((zone) => [
       zone,
       info.cards.filter((card) => card.zoneHit === zone).length,
     ]),
   );
+  const handFacedown = info.cards
+    .filter((card) => card.zoneHit === "hand")
+    .every((card) => card.facedown);
   const ok =
     hits.field >= 2 &&
     hits.memory >= 3 &&
+    hits.hand >= 2 &&
+    handFacedown &&
     hits.graveyard >= 1 &&
     hits.banishment >= 1 &&
     info.deckInDeckZone &&
@@ -91,6 +97,7 @@ try {
     info.handCount === "2";
 
   console.log("hits", hits);
+  console.log("handFacedown", handFacedown);
   console.log("PASS", ok);
   if (!ok) {
     process.exitCode = 1;
