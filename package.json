@@ -1,14 +1,21 @@
 {
   "name": "advga",
-  "version": "0.80.0",
+  "version": "0.81.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:android": "CAPACITOR=1 vite build && npx cap sync android",
+    "apk:debug": "npm run build:android && cd android && ./gradlew assembleDebug"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "vite": "latest"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0"
   }
 }

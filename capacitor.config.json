@@ -1,0 +1,12 @@
+{
+  "appId": "com.felipeolguera.advga",
+  "appName": "AdvGA",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#170f0b"
+  }
+}
