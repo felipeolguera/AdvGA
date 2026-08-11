@@ -1374,6 +1374,16 @@ button.result-grid-add {
   pointer-events: none;
 }
 
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-field {
+  overflow: hidden;
+}
+
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-card {
+  /* Keep face-up shells visible while art loads on the shared board. */
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
 .mp-seat-b .opening-hand-field {
   box-shadow: inset 0 0 0 1px rgba(120, 180, 255, 0.18);
 }
