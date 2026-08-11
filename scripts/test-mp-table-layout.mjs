@@ -22,7 +22,7 @@ try {
     const field = board.querySelector("[data-oh-field]");
     const rect = field.getBoundingClientRect();
     const zones = {};
-    for (const key of ["field", "memory", "graveyard", "banishment", "deck", "material", "hand"]) {
+    for (const key of ["champion", "field", "memory", "graveyard", "banishment", "deck", "material", "hand"]) {
       const el = board.querySelector(`[data-oh-zone="${key}"]`);
       const r = el.getBoundingClientRect();
       zones[key] = {
@@ -77,7 +77,7 @@ try {
   });
 
   const hits = Object.fromEntries(
-    ["field", "memory", "hand", "graveyard", "banishment"].map((zone) => [
+    ["champion", "field", "memory", "hand", "graveyard", "banishment"].map((zone) => [
       zone,
       info.cards.filter((card) => card.zoneHit === zone).length,
     ]),
@@ -86,6 +86,7 @@ try {
     .filter((card) => card.zoneHit === "hand")
     .every((card) => card.facedown);
   const ok =
+    hits.champion >= 2 &&
     hits.field >= 2 &&
     hits.memory >= 3 &&
     hits.hand >= 2 &&

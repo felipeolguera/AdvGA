@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.87";
+const APP_VERSION = "0.88";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
@@ -572,7 +572,7 @@ function getTryItShellHtml() {
         <div>
           <p class="eyebrow">Try it!</p>
           <h2 id="material-dialog-title">Material Deck</h2>
-          <p class="hint">Choose a champion or material card to play onto the Field.</p>
+          <p class="hint">Choose a card from Material. Champions and Spirits go to the Champion area; other material goes to Field.</p>
         </div>
         <button class="icon-button" type="button" id="close-material-dialog" aria-label="Close material deck">×</button>
       </header>
@@ -760,6 +760,8 @@ function bootMultiplayerLayoutTest() {
       cards: [
         mkEntry("f1", "Field One", "field", 900, 20),
         mkEntry("f2", "Field Two", "field", 950, 40),
+        mkEntry("ch1", "Champ One", "champion", 20, 20),
+        mkEntry("ch2", "Champ Two", "champion", 30, 40),
         mkEntry("m1", "Mem One", "memory", 800, 200),
         mkEntry("m2", "Mem Two", "memory", 860, 210),
         mkEntry("m3", "Mem Three", "memory", 920, 220),
@@ -2786,12 +2788,16 @@ function cloneMpJson(value) {
 
 function serializeMpCard(card) {
   if (!card || typeof card !== "object") {
-    return { key: "", name: "Card", image: "" };
+    return { key: "", name: "Card", image: "", types: [], subtypes: [] };
   }
   return {
     key: card.key || card.uuid || card.slug || "",
     name: card.name || "Card",
     image: resolveCardImage(card) || "",
+    types: Array.isArray(card.types) ? card.types.map((type) => String(type).toUpperCase()) : [],
+    subtypes: Array.isArray(card.subtypes)
+      ? card.subtypes.map((type) => String(type).toUpperCase())
+      : [],
   };
 }
 
@@ -3111,12 +3117,25 @@ function getMeasuredZoneBox(field, zoneName) {
   const zones = getOpeningHandZones(field);
   if (zoneName === "field") {
     return {
-      left: zones.mainLeft,
+      left: zones.memoryLeft,
       right: zones.mainRight,
       top: zones.fieldTop,
       bottom: zones.fieldBottom,
-      width: Math.max(0, zones.mainRight - zones.mainLeft),
+      width: Math.max(0, zones.mainRight - zones.memoryLeft),
       height: Math.max(0, zones.fieldBottom - zones.fieldTop),
+    };
+  }
+  if (zoneName === "champion") {
+    return {
+      left: zones.leftRailLeft,
+      right: zones.leftRailLeft + zones.leftRailWidth,
+      top: zones.championTop ?? zones.fieldTop,
+      bottom: zones.championBottom ?? zones.fieldBottom,
+      width: zones.leftRailWidth,
+      height: Math.max(
+        0,
+        (zones.championBottom ?? zones.fieldBottom) - (zones.championTop ?? zones.fieldTop),
+      ),
     };
   }
   if (zoneName === "memory") {
@@ -3194,7 +3213,8 @@ function layoutCardsInMeasuredZone(field, zoneName, entries) {
   const y = box.top + Math.max(0, (box.height - FREEHAND_CARD_HEIGHT) / 2);
   const usable = Math.max(0, maxX - minX);
   const count = entries.length;
-  const stackZones = zoneName === "graveyard" || zoneName === "banishment";
+  const stackZones =
+    zoneName === "graveyard" || zoneName === "banishment" || zoneName === "champion";
 
   let startX = minX;
   let step = 0;
@@ -3218,15 +3238,17 @@ function layoutCardsInMeasuredZone(field, zoneName, entries) {
     }
   }
 
+  const maxY = Math.max(y, box.bottom - FREEHAND_CARD_HEIGHT - 4);
   entries.forEach((entry, index) => {
     const rawX = startX + index * step;
     if (zoneName === "hand") {
       entry.facedown = true;
       entry.rotated = false;
     }
+    const yOffset = zoneName === "champion" ? Math.min(index * 14, Math.max(0, maxY - y)) : 0;
     entry.position = {
       x: Math.min(maxX, Math.max(minX, rawX)),
-      y,
+      y: y + yOffset,
       z: 10 + index,
     };
     const cardEl = findOpeningHandCardElement(field, entry.instanceId);
@@ -3257,7 +3279,7 @@ function layoutMultiplayerTableSeat(board) {
   void field.offsetWidth;
   dedupeOpeningHandEntries();
 
-  ["field", "memory", "hand", "graveyard", "banishment"].forEach((zoneName) => {
+  ["champion", "field", "memory", "hand", "graveyard", "banishment"].forEach((zoneName) => {
     const entries = state.openingHandHand
       .filter((entry) => (entry.zone || "hand") === zoneName)
       .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
@@ -3734,6 +3756,7 @@ function createOpeningHandBoard(
   zonesWrap.setAttribute("aria-hidden", "true");
 
   const zoneSpecs = [
+    ["champion", "Champion"],
     ["field", "Field"],
     ["banishment", "Banishment"],
     ["material", "Material"],
@@ -3859,6 +3882,9 @@ function getOpeningHandFallbackZones(field) {
     fieldTop: fieldRow.top,
     fieldBottom: fieldRow.bottom,
     fieldContentTop: fieldRow.contentTop,
+    championTop: fieldRow.top,
+    championBottom: fieldRow.bottom,
+    championContentTop: fieldRow.top + (rowHeight - FREEHAND_CARD_HEIGHT) / 2,
     memoryTop: memoryRow.top,
     memoryBottom: memoryRow.bottom,
     memoryContentTop: memoryRow.contentTop,
@@ -3905,6 +3931,7 @@ function getOpeningHandZones(field) {
     return fallback;
   }
 
+  const championBox = readOpeningHandZoneBox(field, "champion");
   const fieldBox = readOpeningHandZoneBox(field, "field");
   const materialBox = readOpeningHandZoneBox(field, "material");
   const memoryBox = readOpeningHandZoneBox(field, "memory");
@@ -3913,6 +3940,7 @@ function getOpeningHandZones(field) {
   const deckBox = readOpeningHandZoneBox(field, "deck");
   const graveyardBox = readOpeningHandZoneBox(field, "graveyard");
   if (
+    !championBox ||
     !fieldBox ||
     !materialBox ||
     !memoryBox ||
@@ -3942,6 +3970,10 @@ function getOpeningHandZones(field) {
     fieldTop: fieldBox.top,
     fieldBottom: fieldBox.bottom,
     fieldContentTop: fieldBox.contentTop,
+    championTop: championBox.top,
+    championBottom: championBox.bottom,
+    championContentTop:
+      championBox.top + Math.max(0, (championBox.height - FREEHAND_CARD_HEIGHT) / 2),
     materialTop: materialBox.top,
     materialBottom: materialBox.bottom,
     materialContentTop:
@@ -4020,6 +4052,14 @@ function getOpeningHandZoneAt(x, y, field) {
       return centerY < deckMid ? "deck-top" : "deck-bottom";
     }
     return "graveyard";
+  }
+  // Champion occupies the left rail of the Field row.
+  if (
+    centerX < zones.memoryLeft &&
+    centerY >= zones.fieldTop &&
+    centerY < zones.fieldBottom
+  ) {
+    return "champion";
   }
   // Material pile occupies the left rail of the Memory row only.
   if (
@@ -4486,17 +4526,56 @@ function getOpeningHandDealSlot(index, field = null) {
 function getOpeningHandFieldSlot(field, index = 0) {
   const zones = getOpeningHandZones(field);
   const pad = OPENING_HAND_ROW_PAD / 2;
-  const innerLeft = zones.mainLeft + pad;
+  // Field is the center column; Champion owns the left rail above Material.
+  const innerLeft = zones.memoryLeft + pad;
   const usable = Math.max(FREEHAND_CARD_WIDTH, zones.mainRight - pad - innerLeft);
-  // Material plays spawn in the middle of Field.
   const centerX = innerLeft + Math.max(0, (usable - FREEHAND_CARD_WIDTH) / 2);
-  // Small fan so later Field cards don't fully cover earlier ones.
   const offset = index * 18;
   return {
     x: centerX + offset,
     y: getOpeningHandRowCardTop(zones.fieldTop, zones.fieldBottom),
     z: 20 + index,
   };
+}
+
+function getOpeningHandChampionSlot(field, index = 0) {
+  const zones = getOpeningHandZones(field);
+  const top = zones.championTop ?? zones.fieldTop;
+  const bottom = zones.championBottom ?? zones.fieldBottom;
+  const baseY = getOpeningHandRowCardTop(top, bottom);
+  const maxY = Math.max(baseY, bottom - FREEHAND_CARD_HEIGHT - 4);
+  return {
+    x:
+      zones.leftRailLeft +
+      Math.max(0, (zones.leftRailWidth - FREEHAND_CARD_WIDTH) / 2) +
+      Math.min(index * 3, 10),
+    y: Math.min(maxY, baseY + index * 14),
+    z: 30 + index,
+  };
+}
+
+function restackOpeningHandChampionCards(board) {
+  const field = board?.querySelector("[data-oh-field]");
+  if (!field) {
+    return;
+  }
+  layoutOpeningHandZones(field);
+  const entries = state.openingHandHand
+    .filter((entry) => (entry.zone || "hand") === "champion")
+    .sort((left, right) => (left.position?.z || 0) - (right.position?.z || 0));
+  entries.forEach((entry, index) => {
+    entry.zone = "champion";
+    entry.facedown = false;
+    entry.rotated = false;
+    entry.position = getOpeningHandChampionSlot(field, index);
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (!cardEl) {
+      return;
+    }
+    applyOpeningHandCardPosition(cardEl, entry);
+    applyOpeningHandCardFace(cardEl, entry);
+    applyOpeningHandCardRotation(cardEl, entry);
+  });
 }
 
 function closeMaterialDialog() {
@@ -4583,14 +4662,18 @@ async function playOpeningHandMaterialCard(board, instanceId) {
   }
 
   const [source] = state.openingHandMaterial.splice(index, 1);
-  const fieldIndex = countOpeningHandZoneCards("field");
-  const position = getOpeningHandFieldSlot(field, fieldIndex);
+  const toChampion = isChampionAreaCard(source.card);
+  const targetZone = toChampion ? "champion" : "field";
+  const stackIndex = countOpeningHandZoneCards(targetZone);
+  const position = toChampion
+    ? getOpeningHandChampionSlot(field, stackIndex)
+    : getOpeningHandFieldSlot(field, stackIndex);
   const entry = {
     ...source,
     position,
     facedown: false,
     rotated: false,
-    zone: "field",
+    zone: targetZone,
   };
   state.openingHandHand.push(entry);
 
@@ -4613,6 +4696,9 @@ async function playOpeningHandMaterialCard(board, instanceId) {
   cardEl.style.transform = "scale(1) rotate(0deg)";
   await delay(220);
   cardEl.classList.remove("opening-hand-card-dealing");
+  if (toChampion) {
+    restackOpeningHandChampionCards(playBoard);
+  }
   resizeOpeningHandField(playBoard);
   queueMultiplayerSeatPublish();
 }
@@ -5405,6 +5491,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     applyOpeningHandCardFace(cardEl, entry);
     applyOpeningHandCardRotation(cardEl, entry);
     delete field.dataset.activeZone;
+
+    if (zone === "champion" || previousZone === "champion") {
+      restackOpeningHandChampionCards(board);
+    }
 
     // Tap gestures (no drag):
     // - Field double-tap → rotate 90°
@@ -6466,6 +6556,9 @@ function normalizeStoredDeck(deck) {
 function deckCardMetadata(card) {
   return {
     types: Array.isArray(card.types) ? card.types.map((type) => String(type).toUpperCase()) : [],
+    subtypes: Array.isArray(card.subtypes)
+      ? card.subtypes.map((type) => String(type).toUpperCase())
+      : [],
     level: card.level ?? null,
     costType: String(card.cost?.type || card.costType || "").toLowerCase(),
   };
@@ -6502,6 +6595,21 @@ function isMaterialCard(card) {
 
 function isChampionCard(card) {
   return (card.types || []).some((type) => String(type).toUpperCase() === "CHAMPION");
+}
+
+/** Champions and Spirits from Material go to the Champion area. */
+function isChampionAreaCard(card) {
+  if (!card) {
+    return false;
+  }
+  const types = (card.types || []).map((type) => String(type).toUpperCase());
+  const subtypes = (card.subtypes || []).map((type) => String(type).toUpperCase());
+  return (
+    types.includes("CHAMPION") ||
+    types.includes("SPIRIT") ||
+    subtypes.includes("SPIRIT") ||
+    subtypes.includes("CHAMPION")
+  );
 }
 
 function getDeckTotal() {
