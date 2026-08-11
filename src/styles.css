@@ -1269,6 +1269,145 @@ button.result-grid-add {
   padding: 12px 4px 8px;
 }
 
+.mp-lobby {
+  display: grid;
+  gap: 18px;
+  padding: 4px 2px 8px;
+}
+
+.mp-lobby-block {
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.mp-lobby-block h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.mp-lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.mp-join-form {
+  display: grid;
+  gap: 10px;
+}
+
+.mp-join-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.mp-room-input {
+  width: min(100%, 220px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.28);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mp-room-status {
+  margin: 6px 0 0;
+  color: var(--gold-strong);
+}
+
+.mp-table-boards {
+  display: grid;
+  gap: 18px;
+}
+
+.mp-join-links {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.mp-seat-section {
+  display: grid;
+  gap: 8px;
+}
+
+.mp-seat-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mp-seat-heading h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.mp-seat-waiting {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  border: 1px dashed rgba(255, 204, 115, 0.35);
+  border-radius: 16px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.opening-hand-board[data-mp-readonly="true"] {
+  pointer-events: none;
+}
+
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-field {
+  overflow: hidden;
+}
+
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-zone-banishment,
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-zone-graveyard {
+  /* Keep rail zones readable behind stacked cards */
+  z-index: 0;
+}
+
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-card {
+  /* Keep face-up shells visible while art loads on the shared board. */
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+}
+
+.mp-seat-b .opening-hand-field {
+  box-shadow: inset 0 0 0 1px rgba(120, 180, 255, 0.18);
+}
+
+.mp-seat-a .opening-hand-field {
+  box-shadow: inset 0 0 0 1px rgba(120, 200, 140, 0.18);
+}
+
+@media (min-width: 1100px) {
+  .mp-table-boards {
+    gap: 22px;
+  }
+}
+
 .deck-section-header h3 {
   margin: 0;
 }
@@ -1980,6 +2119,19 @@ button.result-grid-add {
   transform: scale(1);
 }
 
+.opening-hand-card-preview-media {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: 100%;
+  transition: transform 240ms ease;
+  transform-origin: center center;
+}
+
+.opening-hand-card-preview-media.is-flipped-for-opponent {
+  transform: rotate(180deg);
+}
+
 .opening-hand-card-preview-image {
   display: block;
   width: 100%;
@@ -1994,6 +2146,17 @@ button.result-grid-add {
   font-size: 1rem;
   font-weight: 800;
   text-align: center;
+}
+
+.opening-hand-card-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.opening-hand-card-preview-flip {
+  min-width: 9.5rem;
 }
 
 .opening-hand-card.is-facedown {

@@ -1,3 +1,12 @@
+import {
+  buildJoinUrl,
+  connectPlaytestRoom,
+  createRoomCode,
+  getSelfPeerId,
+  normalizeRoomCode,
+  readRoomParams,
+} from "./multiplayer.js";
+
 const API_BASE = "https://api.gatcg.com";
 const PAGE_SIZE = 50;
 const EXAMPLE_QUERY = "fire spells that target units";
@@ -6,8 +15,9 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.82";
+const APP_VERSION = "0.89";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
+const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
 const OPENING_HAND_FACE_FLIP_MS = 280;
@@ -208,6 +218,19 @@ const state = {
   tryitMenuOpen: false,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
+  mp: {
+    mode: "lobby", // lobby | solo | multi
+    role: null, // table | a | b
+    roomCode: "",
+    status: "",
+    peerCount: 0,
+    seats: { a: null, b: null },
+    claims: { a: null, b: null },
+    seatRevision: 0,
+    applyingRemote: false,
+    publishTimer: null,
+    connection: null,
+  },
 };
 
 const app = document.querySelector("#app");
@@ -516,12 +539,15 @@ function getTryItShellHtml() {
               <span aria-hidden="true">☰</span>
             </button>
             <div class="tryit-menu-panel" id="tryit-menu-panel" role="menu" hidden>
+              <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-lobby="true">Multiplayer lobby</button>
+              <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-leave-room="true">Leave room</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-settings="true">Settings</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
             </div>
           </div>
         </div>
         <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
+        <p class="hint mp-room-status" id="mp-room-status" hidden></p>
       </div>
     </header>
     <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
@@ -668,12 +694,88 @@ function bootTryItPage() {
     }
   });
   window.addEventListener("resize", () => {
-    const board = getActiveOpeningHandBoard();
-    if (board) {
+    document.querySelectorAll("[data-opening-hand-board]").forEach((board) => {
+      if (board.getClientRects().length === 0) {
+        return;
+      }
+      if (board.dataset.mpReadonly === "true" && board.dataset.mpSeat) {
+        const seatData = state.mp.seats[board.dataset.mpSeat];
+        if (seatData) {
+          withSeatBoardState(seatData, () => layoutMultiplayerTableSeat(board));
+          return;
+        }
+      }
       resizeOpeningHandField(board);
-    }
+    });
   });
-  startOpeningHandSession();
+  window.addEventListener("beforeunload", () => {
+    void leaveMultiplayerRoom({ silent: true });
+  });
+
+  const { room, role } = readRoomParams();
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("mpLayoutTest") === "1") {
+    bootMultiplayerLayoutTest();
+    return;
+  }
+  if (room && role) {
+    void joinMultiplayerRoom({ roomCode: room, role });
+    return;
+  }
+  state.mp.mode = "lobby";
+  renderTryItPage();
+}
+
+function bootMultiplayerLayoutTest() {
+  const sampleImage =
+    "https://api.gatcg.com/cards/images/card.png";
+  const mkCard = (key, name) => ({ key, name, image: sampleImage });
+  const mkEntry = (key, name, zone, x, y) => ({
+    instanceId: `${key}::oh::0`,
+    zone,
+    facedown: zone === "memory",
+    rotated: false,
+    position: { x, y, z: 1 },
+    card: mkCard(key, name),
+  });
+  state.mp.mode = "multi";
+  state.mp.role = "table";
+  state.mp.roomCode = "TEST";
+  state.mp.status = "Layout test";
+  state.mp.peerCount = 0;
+  state.mp.seats = {
+    a: {
+      seat: "a",
+      revision: 1,
+      deckName: "Layout Test A",
+      boardWidth: 390,
+      library: Array.from({ length: 40 }, (_, index) => ({
+        instanceId: `lib-${index}`,
+        card: mkCard(`lib-${index}`, `Lib ${index}`),
+      })),
+      material: Array.from({ length: 3 }, (_, index) => ({
+        instanceId: `mat-${index}`,
+        card: mkCard(`mat-${index}`, `Mat ${index}`),
+      })),
+      cards: [
+        mkEntry("f1", "Field One", "field", 900, 20),
+        mkEntry("f2", "Field Two", "field", 950, 40),
+        mkEntry("m1", "Mem One", "memory", 800, 200),
+        mkEntry("m2", "Mem Two", "memory", 860, 210),
+        mkEntry("m3", "Mem Three", "memory", 920, 220),
+        mkEntry("g1", "Grave One", "graveyard", 1000, 400),
+        mkEntry("b1", "Banish One", "banishment", 1000, 10),
+        mkEntry("h1", "Hand One", "hand", 100, 400),
+        mkEntry("h2", "Hand Two", "hand", 200, 400),
+      ],
+      turn: 1,
+      dealComplete: true,
+    },
+    b: null,
+  };
+  state.mainDeckOpeningHand = true;
+  updateTryItTurnLabel();
+  renderTryItPage();
 }
 
 function bootBuilderPage() {
@@ -2670,6 +2772,700 @@ function openTryItPage() {
   window.location.assign(TRYIT_PAGE_URL);
 }
 
+function isMultiplayerTable() {
+  return state.mp.mode === "multi" && state.mp.role === "table";
+}
+
+function isMultiplayerPlayer() {
+  return state.mp.mode === "multi" && (state.mp.role === "a" || state.mp.role === "b");
+}
+
+function cloneMpJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function serializeMpCard(card) {
+  if (!card || typeof card !== "object") {
+    return { key: "", name: "Card", image: "" };
+  }
+  return {
+    key: card.key || card.uuid || card.slug || "",
+    name: card.name || "Card",
+    image: resolveCardImage(card) || "",
+  };
+}
+
+function serializeMpPileEntry(entry) {
+  return {
+    instanceId: entry.instanceId,
+    card: serializeMpCard(entry.card),
+  };
+}
+
+function serializeMpBoardEntry(entry) {
+  return {
+    instanceId: entry.instanceId,
+    zone: entry.zone || "hand",
+    facedown: Boolean(entry.facedown),
+    rotated: Boolean(entry.rotated),
+    position: entry.position
+      ? {
+          x: Number(entry.position.x) || 0,
+          y: Number(entry.position.y) || 0,
+          z: Number(entry.position.z) || 1,
+        }
+      : { x: 0, y: 0, z: 1 },
+    card: serializeMpCard(entry.card),
+  };
+}
+
+function captureLocalSeatSnapshot() {
+  const board = getActiveOpeningHandBoard();
+  const field = board?.querySelector("[data-oh-field]");
+  return {
+    seat: state.mp.role === "b" ? "b" : "a",
+    revision: state.mp.seatRevision,
+    deckName: state.deckName || "Untitled Deck",
+    boardWidth: field?.clientWidth || 0,
+    library: state.openingHandLibrary.map(serializeMpPileEntry),
+    material: state.openingHandMaterial.map(serializeMpPileEntry),
+    cards: state.openingHandHand.map(serializeMpBoardEntry),
+    turn: state.openingHandTurn,
+    dealComplete: state.openingHandDealComplete,
+  };
+}
+
+function applySeatSnapshotToLocal(seatData) {
+  if (!seatData) {
+    return;
+  }
+  state.openingHandLibrary = cloneMpJson(seatData.library || []);
+  state.openingHandMaterial = cloneMpJson(seatData.material || []);
+  state.openingHandHand = cloneMpJson(seatData.cards || []);
+  state.openingHandTurn = Math.max(1, Number(seatData.turn) || 1);
+  state.openingHandDealComplete = Boolean(seatData.dealComplete);
+  state.mainDeckOpeningHand = true;
+}
+
+function withSeatBoardState(seatData, fn) {
+  const snapshot = {
+    library: state.openingHandLibrary,
+    material: state.openingHandMaterial,
+    hand: state.openingHandHand,
+    turn: state.openingHandTurn,
+    dealComplete: state.openingHandDealComplete,
+    mainDeckOpeningHand: state.mainDeckOpeningHand,
+  };
+  applySeatSnapshotToLocal(seatData);
+  try {
+    return fn();
+  } finally {
+    state.openingHandLibrary = snapshot.library;
+    state.openingHandMaterial = snapshot.material;
+    state.openingHandHand = snapshot.hand;
+    state.openingHandTurn = snapshot.turn;
+    state.openingHandDealComplete = snapshot.dealComplete;
+    state.mainDeckOpeningHand = snapshot.mainDeckOpeningHand;
+  }
+}
+
+function queueMultiplayerSeatPublish({ immediate = false } = {}) {
+  if (!isMultiplayerPlayer() || state.mp.applyingRemote || !state.mp.connection) {
+    return;
+  }
+  if (state.mp.publishTimer != null) {
+    window.clearTimeout(state.mp.publishTimer);
+    state.mp.publishTimer = null;
+  }
+  const publish = () => {
+    state.mp.publishTimer = null;
+    state.mp.seatRevision += 1;
+    const payload = captureLocalSeatSnapshot();
+    state.mp.seats[payload.seat] = payload;
+    void state.mp.connection.sendSeat(payload);
+    void state.mp.connection.sendMeta({
+      turn: state.openingHandTurn,
+      fromSeat: payload.seat,
+    });
+  };
+  if (immediate) {
+    publish();
+    return;
+  }
+  state.mp.publishTimer = window.setTimeout(publish, 80);
+}
+
+function updateMultiplayerChrome() {
+  const statusEl = document.querySelector("#mp-room-status");
+  const actions = document.querySelector("#tryit-actions");
+  const nameEl = document.querySelector(".tryit-deck-name");
+
+  if (nameEl) {
+    if (isMultiplayerTable()) {
+      nameEl.innerHTML = `Shared table · Room <strong>${escapeHtml(state.mp.roomCode)}</strong>`;
+    } else if (isMultiplayerPlayer()) {
+      nameEl.innerHTML = `Player ${escapeHtml(String(state.mp.role).toUpperCase())} · Deck: <strong>${escapeHtml(state.deckName || "Untitled Deck")}</strong>`;
+    } else {
+      nameEl.innerHTML = `Deck: <strong>${escapeHtml(state.deckName || "Untitled Deck")}</strong>`;
+    }
+  }
+
+  if (statusEl) {
+    if (state.mp.mode === "multi") {
+      statusEl.hidden = false;
+      const roleLabel =
+        state.mp.role === "table"
+          ? "Tablet / shared board"
+          : `Player ${String(state.mp.role).toUpperCase()}`;
+      statusEl.textContent = `Room ${state.mp.roomCode} · ${roleLabel} · ${state.mp.peerCount} peer(s)${state.mp.status ? ` · ${state.mp.status}` : ""}`;
+    } else {
+      statusEl.hidden = true;
+      statusEl.textContent = "";
+    }
+  }
+
+  if (actions) {
+    const hidePlayerTools = state.mp.mode === "lobby" || isMultiplayerTable();
+    actions.querySelectorAll(
+      "[data-redeal-opening-hand], [data-organize-opening-hand], [data-recollect-opening-hand], [data-banish-opening-hand]",
+    ).forEach((el) => {
+      el.hidden = hidePlayerTools;
+    });
+    const endTurn = actions.querySelector("[data-end-turn]");
+    if (endTurn) {
+      endTurn.hidden = state.mp.mode === "lobby";
+    }
+  }
+}
+
+function renderMultiplayerLobby() {
+  const root = document.querySelector("#tryit-root");
+  if (!root) {
+    return;
+  }
+  root.replaceChildren();
+
+  const lobby = document.createElement("div");
+  lobby.className = "mp-lobby";
+  lobby.innerHTML = `
+    <div class="mp-lobby-block">
+      <h2>Solo</h2>
+      <p class="hint">Play on this device only, like before.</p>
+      <button class="try-it-button compact" type="button" data-mp-solo="true">Start solo playtest</button>
+    </div>
+    <div class="mp-lobby-block">
+      <h2>Multiplayer</h2>
+      <p class="hint">Phone A and Phone B each play a hand. A tablet joins as the shared board for Field, Memory, Hand (face-down), Deck, Material, Graveyard, and Banishment.</p>
+      <div class="mp-lobby-actions">
+        <button class="try-it-button compact" type="button" data-mp-host-table="true">Host table (tablet)</button>
+      </div>
+      <form class="mp-join-form" data-mp-join-form="true">
+        <label>
+          Room code
+          <input class="mp-room-input" name="room" maxlength="6" autocomplete="off" spellcheck="false" placeholder="e.g. 7K3M" />
+        </label>
+        <div class="mp-lobby-actions">
+          <button class="secondary compact" type="submit" data-mp-join-role="a">Join as Player A</button>
+          <button class="secondary compact" type="submit" data-mp-join-role="b">Join as Player B</button>
+          <button class="ghost compact" type="submit" data-mp-join-role="table">Join as table</button>
+        </div>
+      </form>
+      <p class="hint">Tip: on the tablet, host a room, then open the Player A / B links on each phone (same Wi‑Fi or internet).</p>
+    </div>
+  `;
+  lobby.querySelector("[data-mp-join-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+  });
+  root.append(lobby);
+}
+
+function renderMultiplayerTableBoard() {
+  const root = document.querySelector("#tryit-root");
+  if (!root) {
+    return;
+  }
+  root.replaceChildren();
+
+  const wrap = document.createElement("div");
+  wrap.className = "mp-table-boards";
+
+  const linkRow = document.createElement("div");
+  linkRow.className = "mp-join-links";
+  const urlA = buildJoinUrl({
+    baseUrl: TRYIT_PAGE_URL,
+    roomCode: state.mp.roomCode,
+    role: "a",
+  });
+  const urlB = buildJoinUrl({
+    baseUrl: TRYIT_PAGE_URL,
+    roomCode: state.mp.roomCode,
+    role: "b",
+  });
+  linkRow.innerHTML = `
+    <p class="hint">Room <strong>${escapeHtml(state.mp.roomCode)}</strong> — open these on the phones:</p>
+    <div class="mp-lobby-actions">
+      <button class="ghost compact" type="button" data-mp-copy-link="a">Copy Player A link</button>
+      <button class="ghost compact" type="button" data-mp-copy-link="b">Copy Player B link</button>
+    </div>
+  `;
+  linkRow.querySelector('[data-mp-copy-link="a"]')?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(urlA);
+      state.mp.status = "Player A link copied";
+      updateMultiplayerChrome();
+    } catch {
+      window.prompt("Player A link", urlA);
+    }
+  });
+  linkRow.querySelector('[data-mp-copy-link="b"]')?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(urlB);
+      state.mp.status = "Player B link copied";
+      updateMultiplayerChrome();
+    } catch {
+      window.prompt("Player B link", urlB);
+    }
+  });
+  wrap.append(linkRow);
+
+  // Opponent across the table on top, local-feeling seat A at the bottom.
+  ["b", "a"].forEach((seat) => {
+    const section = document.createElement("section");
+    section.className = `mp-seat-section mp-seat-${seat}`;
+    const heading = document.createElement("div");
+    heading.className = "mp-seat-heading";
+    const seatData = state.mp.seats[seat];
+    const deckLabel = seatData?.deckName || "Waiting for player…";
+    heading.innerHTML = `<h2>Player ${seat.toUpperCase()}</h2><p class="hint">${escapeHtml(deckLabel)}</p>`;
+    section.append(heading);
+
+    if (!seatData) {
+      const waiting = document.createElement("div");
+      waiting.className = "mp-seat-waiting";
+      waiting.textContent = `Waiting for Player ${seat.toUpperCase()} to join…`;
+      section.append(waiting);
+    } else {
+      const board = withSeatBoardState(seatData, () =>
+        createOpeningHandBoard([], {
+          readonly: true,
+          handFacedown: true,
+          seat,
+          skipDeal: true,
+          skipLibraryInit: true,
+        }),
+      );
+      section.append(board);
+    }
+    wrap.append(section);
+  });
+
+  root.append(wrap);
+  scheduleMultiplayerTableLayout(wrap);
+}
+
+function scheduleMultiplayerTableLayout(wrap) {
+  if (!wrap) {
+    return;
+  }
+  const run = () => {
+    wrap.querySelectorAll("[data-opening-hand-board][data-mp-seat]").forEach((board) => {
+      const seat = board.dataset.mpSeat;
+      const seatData = state.mp.seats[seat];
+      if (!seatData || !board.isConnected) {
+        return;
+      }
+      const field = board.querySelector("[data-oh-field]");
+      // Wait until the board has a real measured width — fallback 720px layout
+      // puts Deck / Banishment / Graveyard in the wrong place on tablets.
+      if (!field || field.clientWidth < 280) {
+        return;
+      }
+      withSeatBoardState(seatData, () => {
+        layoutMultiplayerTableSeat(board);
+      });
+    });
+  };
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(run);
+  });
+  window.setTimeout(run, 50);
+  window.setTimeout(run, 200);
+
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(wrap._mpLayoutTimer);
+      wrap._mpLayoutTimer = window.setTimeout(run, 40);
+    });
+    wrap.querySelectorAll("[data-oh-field]").forEach((field) => observer.observe(field));
+    wrap._mpResizeObserver = observer;
+  }
+}
+
+function getMeasuredZoneBox(field, zoneName) {
+  layoutOpeningHandZones(field);
+  const measured = readOpeningHandZoneBox(field, zoneName);
+  if (measured && measured.width > 8 && measured.height > 8) {
+    return measured;
+  }
+  const zones = getOpeningHandZones(field);
+  if (zoneName === "field") {
+    return {
+      left: zones.mainLeft,
+      right: zones.mainRight,
+      top: zones.fieldTop,
+      bottom: zones.fieldBottom,
+      width: Math.max(0, zones.mainRight - zones.mainLeft),
+      height: Math.max(0, zones.fieldBottom - zones.fieldTop),
+    };
+  }
+  if (zoneName === "memory") {
+    return {
+      left: zones.memoryLeft,
+      right: zones.mainRight,
+      top: zones.memoryTop,
+      bottom: zones.memoryBottom,
+      width: Math.max(0, zones.mainRight - zones.memoryLeft),
+      height: Math.max(0, zones.memoryBottom - zones.memoryTop),
+    };
+  }
+  if (zoneName === "hand") {
+    return {
+      left: zones.mainLeft,
+      right: zones.mainRight,
+      top: zones.handTop,
+      bottom: zones.handBottom,
+      width: Math.max(0, zones.mainRight - zones.mainLeft),
+      height: Math.max(0, zones.handBottom - zones.handTop),
+    };
+  }
+  if (zoneName === "banishment") {
+    return {
+      left: zones.railLeft,
+      right: zones.railLeft + zones.railWidth,
+      top: zones.banishmentTop,
+      bottom: zones.banishmentBottom,
+      width: zones.railWidth,
+      height: Math.max(0, zones.banishmentBottom - zones.banishmentTop),
+    };
+  }
+  if (zoneName === "graveyard") {
+    return {
+      left: zones.railLeft,
+      right: zones.railLeft + zones.railWidth,
+      top: zones.graveyardTop,
+      bottom: zones.graveyardBottom,
+      width: zones.railWidth,
+      height: Math.max(0, zones.graveyardBottom - zones.graveyardTop),
+    };
+  }
+  if (zoneName === "deck") {
+    return {
+      left: zones.railLeft,
+      right: zones.railLeft + zones.railWidth,
+      top: zones.deckTop,
+      bottom: zones.deckBottom,
+      width: zones.railWidth,
+      height: Math.max(0, zones.deckBottom - zones.deckTop),
+    };
+  }
+  if (zoneName === "material") {
+    return {
+      left: zones.leftRailLeft,
+      right: zones.leftRailLeft + zones.leftRailWidth,
+      top: zones.materialTop,
+      bottom: zones.materialBottom,
+      width: zones.leftRailWidth,
+      height: Math.max(0, zones.materialBottom - zones.materialTop),
+    };
+  }
+  return null;
+}
+
+function layoutCardsInMeasuredZone(field, zoneName, entries) {
+  const box = getMeasuredZoneBox(field, zoneName);
+  if (!box || entries.length === 0) {
+    return;
+  }
+
+  const pad = 6;
+  const maxX = Math.max(box.left + pad, box.right - pad - FREEHAND_CARD_WIDTH);
+  const minX = Math.min(box.left + pad, maxX);
+  const y = box.top + Math.max(0, (box.height - FREEHAND_CARD_HEIGHT) / 2);
+  const usable = Math.max(0, maxX - minX);
+  const count = entries.length;
+  const stackZones = zoneName === "graveyard" || zoneName === "banishment";
+
+  let startX = minX;
+  let step = 0;
+  if (count === 1) {
+    startX = minX + usable / 2;
+    step = 0;
+  } else if (stackZones) {
+    // Keep stacks inside the narrow rail.
+    const stackSpan = Math.min(usable, (count - 1) * 10);
+    startX = minX + Math.max(0, (usable - stackSpan) / 2);
+    step = stackSpan / (count - 1);
+  } else {
+    const packed = count * FREEHAND_CARD_WIDTH;
+    if (packed <= usable + FREEHAND_CARD_WIDTH) {
+      const rowWidth = packed - FREEHAND_CARD_WIDTH;
+      startX = minX + Math.max(0, (usable - rowWidth) / 2);
+      step = FREEHAND_CARD_WIDTH;
+    } else {
+      startX = minX;
+      step = usable / (count - 1);
+    }
+  }
+
+  entries.forEach((entry, index) => {
+    const rawX = startX + index * step;
+    if (zoneName === "hand") {
+      entry.facedown = true;
+      entry.rotated = false;
+    }
+    entry.position = {
+      x: Math.min(maxX, Math.max(minX, rawX)),
+      y,
+      z: 10 + index,
+    };
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (!cardEl) {
+      return;
+    }
+    applyOpeningHandCardPosition(cardEl, entry);
+    applyOpeningHandCardFace(cardEl, entry);
+    applyOpeningHandCardRotation(cardEl, entry);
+    const image = cardEl.querySelector("img");
+    if (image) {
+      image.loading = "eager";
+      const url = getImageUrl(resolveCardImage(entry.card));
+      if (url && image.getAttribute("src") !== url) {
+        image.src = url;
+      }
+    }
+  });
+}
+
+function layoutMultiplayerTableSeat(board) {
+  const field = board?.querySelector("[data-oh-field]");
+  if (!field || field.clientWidth < 280) {
+    return;
+  }
+
+  layoutOpeningHandZones(field);
+  void field.offsetWidth;
+  dedupeOpeningHandEntries();
+
+  ["field", "memory", "hand", "graveyard", "banishment"].forEach((zoneName) => {
+    const entries = state.openingHandHand
+      .filter((entry) => (entry.zone || "hand") === zoneName)
+      .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
+    layoutCardsInMeasuredZone(field, zoneName, entries);
+  });
+
+  // Anchor piles from measured zone boxes so counts don't float mid-board.
+  const deckPile = board.querySelector("[data-oh-deck-pile]");
+  const deckBox = getMeasuredZoneBox(field, "deck");
+  if (deckPile && deckBox) {
+    deckPile.style.left = `${deckBox.left + Math.max(0, (deckBox.width - FREEHAND_CARD_WIDTH) / 2)}px`;
+    deckPile.style.top = `${deckBox.top + Math.max(0, (deckBox.height - FREEHAND_CARD_HEIGHT) / 2)}px`;
+  }
+
+  const materialPile = board.querySelector("[data-oh-material-pile]");
+  const materialBox = getMeasuredZoneBox(field, "material");
+  if (materialPile && materialBox) {
+    materialPile.style.left = `${materialBox.left + Math.max(0, (materialBox.width - FREEHAND_CARD_WIDTH) / 2)}px`;
+    materialPile.style.top = `${materialBox.top + Math.max(0, (materialBox.height - FREEHAND_CARD_HEIGHT) / 2)}px`;
+  }
+
+  const handCount = board.querySelector("[data-oh-hand-count]");
+  const handBox = getMeasuredZoneBox(field, "hand");
+  if (handCount && handBox) {
+    handCount.style.left = `${handBox.left + 10}px`;
+    handCount.style.top = `${handBox.bottom - 34}px`;
+  }
+
+  updateOpeningHandCounts(board);
+  resizeOpeningHandField(board);
+}
+
+async function joinMultiplayerRoom({ roomCode, role }) {
+  const code = normalizeRoomCode(roomCode) || createRoomCode();
+  const nextRole = role;
+  if (!["table", "a", "b"].includes(nextRole)) {
+    window.alert("Choose table, Player A, or Player B.");
+    return;
+  }
+
+  if (nextRole !== "table") {
+    const mainCount = state.deck.filter(
+      (card) => normalizeDeckSection(card.section) === "main",
+    ).length;
+    if (mainCount === 0) {
+      window.alert("Add cards to your Main Deck before joining as a player.");
+      return;
+    }
+  }
+
+  await leaveMultiplayerRoom({ silent: true });
+
+  state.mp.mode = "multi";
+  state.mp.role = nextRole;
+  state.mp.roomCode = code;
+  state.mp.status = "Connecting…";
+  state.mp.peerCount = 0;
+  state.mp.seats = { a: null, b: null };
+  state.mp.claims = { a: null, b: null };
+  state.mp.seatRevision = 0;
+
+  try {
+    state.mp.connection = connectPlaytestRoom({
+      roomCode: code,
+      role: nextRole,
+      onPresence: ({ peerCount }) => {
+        state.mp.peerCount = peerCount;
+        updateMultiplayerChrome();
+      },
+      onPeerJoin: () => {
+        if (isMultiplayerPlayer()) {
+          queueMultiplayerSeatPublish({ immediate: true });
+        }
+        if (state.mp.connection) {
+          void state.mp.connection.sendHello({
+            role: state.mp.role,
+            deckName: state.deckName || "Untitled Deck",
+            peerId: getSelfPeerId(),
+          });
+        }
+      },
+      onPeerLeave: (peerId) => {
+        ["a", "b"].forEach((seat) => {
+          if (state.mp.claims[seat] === peerId) {
+            state.mp.claims[seat] = null;
+          }
+        });
+        if (isMultiplayerTable()) {
+          renderTryItPage();
+        }
+      },
+      onHello: (data, peerId) => {
+        const seat = data.role === "b" ? "b" : data.role === "a" ? "a" : null;
+        if (!seat) {
+          return;
+        }
+        const existing = state.mp.claims[seat];
+        if (existing && existing !== peerId) {
+          state.mp.status = `Player ${seat.toUpperCase()} seat contested`;
+          updateMultiplayerChrome();
+          return;
+        }
+        state.mp.claims[seat] = peerId;
+        if (isMultiplayerTable()) {
+          state.mp.status = `Player ${seat.toUpperCase()} joined`;
+          updateMultiplayerChrome();
+        }
+      },
+      onSeat: (data) => {
+        const seat = data.seat === "b" ? "b" : data.seat === "a" ? "a" : null;
+        if (!seat) {
+          return;
+        }
+        const current = state.mp.seats[seat];
+        if (current && Number(data.revision || 0) < Number(current.revision || 0)) {
+          return;
+        }
+        state.mp.seats[seat] = data;
+        if (Number.isFinite(Number(data.turn))) {
+          state.openingHandTurn = Math.max(1, Number(data.turn));
+          updateTryItTurnLabel();
+        }
+        if (isMultiplayerTable()) {
+          renderTryItPage();
+          return;
+        }
+        // Players keep controlling their own seat locally; ignore echoes of self.
+        if (state.mp.role === seat) {
+          return;
+        }
+      },
+      onMeta: (data) => {
+        if (Number.isFinite(Number(data.turn))) {
+          state.openingHandTurn = Math.max(1, Number(data.turn));
+          updateTryItTurnLabel();
+        }
+      },
+    });
+  } catch (error) {
+    console.warn("Multiplayer connect failed", error);
+    state.mp.mode = "lobby";
+    state.mp.role = null;
+    state.mp.connection = null;
+    window.alert(error?.message || "Could not join multiplayer room.");
+    renderTryItPage();
+    return;
+  }
+
+  void state.mp.connection.sendHello({
+    role: nextRole,
+    deckName: state.deckName || "Untitled Deck",
+    peerId: getSelfPeerId(),
+  });
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", code);
+  url.searchParams.set("role", nextRole);
+  window.history.replaceState({}, "", url);
+
+  if (nextRole === "table") {
+    state.mainDeckOpeningHand = true;
+    state.openingHandLibrary = [];
+    state.openingHandMaterial = [];
+    state.openingHandHand = [];
+    state.openingHandDealComplete = true;
+    state.mp.status = "Waiting for players";
+    updateTryItTurnLabel();
+    renderTryItPage();
+    return;
+  }
+
+  state.mp.mode = "multi";
+  startOpeningHandSession();
+  state.mp.status = "Connected";
+  queueMultiplayerSeatPublish({ immediate: true });
+}
+
+async function leaveMultiplayerRoom({ silent = false } = {}) {
+  if (state.mp.publishTimer != null) {
+    window.clearTimeout(state.mp.publishTimer);
+    state.mp.publishTimer = null;
+  }
+  const connection = state.mp.connection;
+  state.mp.connection = null;
+  if (connection) {
+    try {
+      await connection.leave();
+    } catch {
+      // ignore
+    }
+  }
+  state.mp.mode = silent ? state.mp.mode : "lobby";
+  state.mp.role = null;
+  state.mp.roomCode = "";
+  state.mp.status = "";
+  state.mp.peerCount = 0;
+  state.mp.seats = { a: null, b: null };
+  state.mp.claims = { a: null, b: null };
+  if (!silent) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("room");
+    url.searchParams.delete("role");
+    window.history.replaceState({}, "", url);
+    state.mp.mode = "lobby";
+    renderTryItPage();
+  }
+}
+
 function startOpeningHandSession(sectionCards = null) {
   const cards =
     sectionCards ||
@@ -2683,6 +3479,9 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = false;
   state.openingHandTurn = 1;
+  if (state.mp.mode === "lobby") {
+    state.mp.mode = "solo";
+  }
   setTryItMenuOpen(false);
   closeMaterialDialog();
   hideOpeningHandCardPreview();
@@ -2690,6 +3489,7 @@ function startOpeningHandSession(sectionCards = null) {
   if (IS_TRYIT_PAGE) {
     updateTryItTurnLabel();
     renderTryItPage();
+    queueMultiplayerSeatPublish({ immediate: true });
   }
 }
 
@@ -2715,9 +3515,17 @@ function renderTryItPage() {
     return;
   }
 
-  const nameEl = document.querySelector(".tryit-deck-name");
-  if (nameEl) {
-    nameEl.innerHTML = `Deck: <strong>${escapeHtml(state.deckName || "Untitled Deck")}</strong>`;
+  updateMultiplayerChrome();
+  updateTryItTurnLabel();
+
+  if (state.mp.mode === "lobby") {
+    renderMultiplayerLobby();
+    return;
+  }
+
+  if (isMultiplayerTable()) {
+    renderMultiplayerTableBoard();
+    return;
   }
 
   const sectionCards = state.deck.filter(
@@ -2740,6 +3548,32 @@ function renderTryItPage() {
 }
 
 function handleTryItActionClick(event) {
+  const soloButton = event.target.closest("[data-mp-solo]");
+  if (soloButton) {
+    startOpeningHandSession();
+    return;
+  }
+
+  const hostTable = event.target.closest("[data-mp-host-table]");
+  if (hostTable) {
+    void joinMultiplayerRoom({ roomCode: createRoomCode(), role: "table" });
+    return;
+  }
+
+  const joinForm = event.target.closest("[data-mp-join-form]");
+  const joinRoleButton = event.target.closest("[data-mp-join-role]");
+  if (joinForm && joinRoleButton) {
+    event.preventDefault();
+    const role = joinRoleButton.dataset.mpJoinRole;
+    const room = normalizeRoomCode(joinForm.querySelector("[name=room]")?.value);
+    if (!room) {
+      window.alert("Enter the room code shown on the tablet.");
+      return;
+    }
+    void joinMultiplayerRoom({ roomCode: room, role });
+    return;
+  }
+
   const endTurnButton = event.target.closest("[data-end-turn]");
   if (endTurnButton) {
     endTryItTurn();
@@ -2750,6 +3584,24 @@ function handleTryItActionClick(event) {
   if (menuToggle) {
     event.stopPropagation();
     setTryItMenuOpen(!state.tryitMenuOpen);
+    return;
+  }
+
+  const lobbyItem = event.target.closest("[data-tryit-menu-lobby]");
+  if (lobbyItem) {
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    void leaveMultiplayerRoom({ silent: true });
+    state.mp.mode = "lobby";
+    renderTryItPage();
+    return;
+  }
+
+  const leaveItem = event.target.closest("[data-tryit-menu-leave-room]");
+  if (leaveItem) {
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    void leaveMultiplayerRoom();
     return;
   }
 
@@ -2769,6 +3621,10 @@ function handleTryItActionClick(event) {
     return;
   }
 
+  if (isMultiplayerTable()) {
+    return;
+  }
+
   const redealButton = event.target.closest("[data-redeal-opening-hand]");
   if (redealButton) {
     startOpeningHandSession();
@@ -2778,18 +3634,21 @@ function handleTryItActionClick(event) {
   const organizeButton = event.target.closest("[data-organize-opening-hand]");
   if (organizeButton) {
     organizeOpeningHandCards(getActiveOpeningHandBoard());
+    queueMultiplayerSeatPublish();
     return;
   }
 
   const recollectButton = event.target.closest("[data-recollect-opening-hand]");
   if (recollectButton) {
     recollectOpeningHandMemory(getActiveOpeningHandBoard());
+    queueMultiplayerSeatPublish();
     return;
   }
 
   const banishButton = event.target.closest("[data-banish-opening-hand]");
   if (banishButton) {
     banishRandomMemoryCard(getActiveOpeningHandBoard());
+    queueMultiplayerSeatPublish();
   }
 }
 
@@ -2807,6 +3666,13 @@ function endTryItTurn() {
   state.openingHandTurn = Math.max(1, Number(state.openingHandTurn) || 1) + 1;
   updateTryItTurnLabel();
   setTryItMenuOpen(false);
+  if (state.mp.connection) {
+    void state.mp.connection.sendMeta({
+      turn: state.openingHandTurn,
+      fromSeat: state.mp.role,
+    });
+  }
+  queueMultiplayerSeatPublish();
 }
 
 function setTryItMenuOpen(open) {
@@ -2822,8 +3688,22 @@ function setTryItMenuOpen(open) {
   }
 }
 
-function createOpeningHandBoard(sectionCards) {
-  if (state.openingHandLibrary.length === 0 && state.openingHandHand.length === 0) {
+function createOpeningHandBoard(
+  sectionCards,
+  {
+    readonly = false,
+    hideHandCards = false,
+    handFacedown = false,
+    seat = "",
+    skipDeal = false,
+    skipLibraryInit = false,
+  } = {},
+) {
+  if (
+    !skipLibraryInit &&
+    state.openingHandLibrary.length === 0 &&
+    state.openingHandHand.length === 0
+  ) {
     const copies = shuffleArray(expandMainDeckCopies(sectionCards));
     state.openingHandLibrary = copies;
     state.openingHandHand = [];
@@ -2832,6 +3712,18 @@ function createOpeningHandBoard(sectionCards) {
   const board = document.createElement("div");
   board.className = "opening-hand-board";
   board.dataset.openingHandBoard = "true";
+  if (readonly) {
+    board.dataset.mpReadonly = "true";
+  }
+  if (hideHandCards) {
+    board.dataset.mpHideHand = "true";
+  }
+  if (handFacedown) {
+    board.dataset.mpHandFacedown = "true";
+  }
+  if (seat) {
+    board.dataset.mpSeat = seat;
+  }
 
   const field = document.createElement("div");
   field.className = "opening-hand-field";
@@ -2882,17 +3774,19 @@ function createOpeningHandBoard(sectionCards) {
   layoutOpeningHandZones(field);
   renderOpeningHandContents(board);
 
-  // Cancel any deal tied to a previous board instance (home↔fullscreen remount).
-  state.openingHandDealToken += 1;
-  const token = state.openingHandDealToken;
-  const needsOpeningDeal =
-    !state.openingHandDealComplete &&
-    state.openingHandHand.length < OPENING_HAND_SIZE &&
-    state.openingHandLibrary.length > 0;
-  if (needsOpeningDeal) {
-    window.requestAnimationFrame(() => {
-      dealOpeningHandCards(board, token);
-    });
+  if (!skipDeal && !readonly) {
+    // Cancel any deal tied to a previous board instance (home↔fullscreen remount).
+    state.openingHandDealToken += 1;
+    const token = state.openingHandDealToken;
+    const needsOpeningDeal =
+      !state.openingHandDealComplete &&
+      state.openingHandHand.length < OPENING_HAND_SIZE &&
+      state.openingHandLibrary.length > 0;
+    if (needsOpeningDeal) {
+      window.requestAnimationFrame(() => {
+        dealOpeningHandCards(board, token);
+      });
+    }
   }
 
   return board;
@@ -3224,8 +4118,17 @@ function renderOpeningHandContents(board) {
     .forEach((node) => node.remove());
 
   dedupeOpeningHandEntries();
+  const hideHandCards = board.dataset.mpHideHand === "true";
+  const handFacedown = board.dataset.mpHandFacedown === "true";
+  const readonly = board.dataset.mpReadonly === "true";
   state.openingHandHand.forEach((entry, index) => {
-    field.append(createOpeningHandCard(entry, index, field));
+    const zone = entry.zone || "hand";
+    if (hideHandCards && zone === "hand") {
+      return;
+    }
+    const renderEntry =
+      handFacedown && zone === "hand" ? { ...entry, facedown: true, rotated: false } : entry;
+    field.append(createOpeningHandCard(renderEntry, index, field, { readonly }));
   });
 
   const pile = createOpeningHandPileButton({
@@ -3235,6 +4138,9 @@ function renderOpeningHandContents(board) {
     ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Tap or drag to Hand; drag to Memory face-down.`,
     emptyLabel: "Deck is empty",
   });
+  if (readonly) {
+    pile.disabled = true;
+  }
 
   const materialPile = createOpeningHandPileButton({
     count: state.openingHandMaterial.length,
@@ -3243,11 +4149,15 @@ function renderOpeningHandContents(board) {
     ariaLabel: `Open Material Deck (${state.openingHandMaterial.length} left)`,
     emptyLabel: "Material Deck is empty",
   });
-  materialPile.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openMaterialDialog(board);
-  });
+  if (!readonly) {
+    materialPile.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openMaterialDialog(board);
+    });
+  } else {
+    materialPile.disabled = true;
+  }
 
   const handCount = document.createElement("span");
   handCount.className = "opening-hand-hand-count";
@@ -3259,7 +4169,9 @@ function renderOpeningHandContents(board) {
   positionOpeningHandMaterialPile(board);
   positionOpeningHandHandCount(board);
   updateOpeningHandCounts(board);
-  enableOpeningHandDeckDrag(pile, board);
+  if (!readonly) {
+    enableOpeningHandDeckDrag(pile, board);
+  }
 }
 
 function positionOpeningHandDeckPile(board) {
@@ -3377,7 +4289,7 @@ function updateOpeningHandCounts(board) {
   positionOpeningHandMaterialPile(board);
 }
 
-function createOpeningHandCard(entry, index, field = null) {
+function createOpeningHandCard(entry, index, field = null, { readonly = false } = {}) {
   const item = document.createElement("article");
   item.className = "deck-grid-card deck-freehand-card opening-hand-card";
   item.dataset.ohCard = entry.instanceId;
@@ -3397,22 +4309,26 @@ function createOpeningHandCard(entry, index, field = null) {
   if (imageUrl) {
     const image = document.createElement("img");
     image.draggable = false;
-    image.loading = "lazy";
+    image.loading = readonly ? "eager" : "lazy";
     image.src = imageUrl;
-    image.alt = entry.card.name;
+    image.alt = entry.card?.name || "Card";
     image.onerror = () => {
       image.remove();
-      imageWrap.textContent = entry.card.name.slice(0, 2).toUpperCase();
+      imageWrap.textContent = String(entry.card?.name || "??").slice(0, 2).toUpperCase();
     };
     imageWrap.append(image);
   } else {
-    imageWrap.textContent = entry.card.name.slice(0, 2).toUpperCase();
+    imageWrap.textContent = String(entry.card?.name || "??").slice(0, 2).toUpperCase();
   }
 
   item.append(imageWrap);
   applyOpeningHandCardFace(item, entry);
   applyOpeningHandCardRotation(item, entry);
-  enableOpeningHandCardDrag(item, entry);
+  if (!readonly) {
+    enableOpeningHandCardDrag(item, entry);
+  } else {
+    enableTableCardHoldPreview(item, entry);
+  }
   return item;
 }
 
@@ -3423,6 +4339,13 @@ function applyOpeningHandCardFace(cardEl, entry) {
   const image = cardEl.querySelector("img");
   if (image) {
     image.alt = facedown ? "Face-down card" : entry.card.name;
+  }
+  const tableBoard = cardEl.closest("[data-opening-hand-board][data-mp-readonly='true']");
+  if (tableBoard) {
+    cardEl.title = facedown
+      ? "Hold 1s to reveal card"
+      : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
+    return;
   }
   const zone = entry.zone || "hand";
   if (zone === "field" || zone === "memory") {
@@ -3471,6 +4394,7 @@ function toggleOpeningHandCardFace(cardEl, entry) {
   window.setTimeout(() => {
     entry.facedown = nextFacedown;
     applyOpeningHandCardFace(cardEl, entry);
+    queueMultiplayerSeatPublish();
   }, halfMs);
 
   window.setTimeout(() => {
@@ -3499,6 +4423,7 @@ function toggleOpeningHandCardRotation(cardEl, entry) {
   }
   entry.rotated = !entry.rotated;
   applyOpeningHandCardRotation(cardEl, entry);
+  queueMultiplayerSeatPublish();
 }
 
 function getOpeningHandRowCardTop(zoneTop, zoneBottom) {
@@ -3689,6 +4614,7 @@ async function playOpeningHandMaterialCard(board, instanceId) {
   await delay(220);
   cardEl.classList.remove("opening-hand-card-dealing");
   resizeOpeningHandField(playBoard);
+  queueMultiplayerSeatPublish();
 }
 
 function updateOpeningHandMaterialPile(board) {
@@ -3839,6 +4765,7 @@ async function dealOpeningHandCards(board, token) {
   // Final equal reflow so every dealt card uses the same measured Hand width.
   reflowOpeningHandZoneCards(board, "hand");
   resizeOpeningHandField(board);
+  queueMultiplayerSeatPublish({ immediate: true });
 }
 
 async function drawOpeningHandCard(
@@ -3946,6 +4873,7 @@ async function drawOpeningHandCard(
   if (shouldOrganize) {
     flashOpeningHandCardGlow(board, entry.instanceId);
   }
+  queueMultiplayerSeatPublish();
   return entry;
 }
 
@@ -4027,6 +4955,7 @@ async function returnOpeningHandCardToDeck(board, entry, cardEl, placement = "bo
   cardEl.remove();
   updateOpeningHandDeckPile(board);
   resizeOpeningHandField(board);
+  queueMultiplayerSeatPublish();
 }
 
 function findOpeningHandCardElement(field, instanceId) {
@@ -4221,9 +5150,9 @@ function onOpeningHandCardPreviewKeydown(event) {
   }
 }
 
-function showOpeningHandCardPreview(entry) {
+function showOpeningHandCardPreview(entry, { revealFacedown = false } = {}) {
   hideOpeningHandCardPreview();
-  if (!entry?.card || entry.facedown) {
+  if (!entry?.card || (entry.facedown && !revealFacedown)) {
     return;
   }
   const imageUrl = getImageUrl(resolveCardImage(entry.card));
@@ -4237,6 +5166,11 @@ function showOpeningHandCardPreview(entry) {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-label", `${entry.card.name || "Card"} preview`);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      hideOpeningHandCardPreview();
+    }
+  });
 
   const closeButton = document.createElement("button");
   closeButton.type = "button";
@@ -4252,6 +5186,9 @@ function showOpeningHandCardPreview(entry) {
   const frame = document.createElement("div");
   frame.className = "opening-hand-card-preview-frame";
 
+  const media = document.createElement("div");
+  media.className = "opening-hand-card-preview-media";
+
   const image = document.createElement("img");
   image.className = "opening-hand-card-preview-image";
   image.src = imageUrl;
@@ -4262,7 +5199,29 @@ function showOpeningHandCardPreview(entry) {
   caption.className = "opening-hand-card-preview-caption";
   caption.textContent = entry.card.name || "Card";
 
-  frame.append(image, caption);
+  const actions = document.createElement("div");
+  actions.className = "opening-hand-card-preview-actions";
+
+  const flipButton = document.createElement("button");
+  flipButton.type = "button";
+  flipButton.className = "secondary compact opening-hand-card-preview-flip";
+  flipButton.setAttribute("aria-pressed", "false");
+  flipButton.setAttribute(
+    "aria-label",
+    "Flip card for the opposite player to read",
+  );
+  flipButton.textContent = "Flip for opponent";
+  flipButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const flipped = media.classList.toggle("is-flipped-for-opponent");
+    flipButton.setAttribute("aria-pressed", flipped ? "true" : "false");
+    flipButton.textContent = flipped ? "Flip upright" : "Flip for opponent";
+  });
+
+  actions.append(flipButton);
+  media.append(image, caption);
+  frame.append(media, actions);
   overlay.append(closeButton, frame);
   document.body.append(overlay);
   // Force paint so the enter transition runs.
@@ -4271,6 +5230,81 @@ function showOpeningHandCardPreview(entry) {
   document.addEventListener("keydown", onOpeningHandCardPreviewKeydown);
   state.openingHandPreviewEscBound = true;
   closeButton.focus();
+}
+
+/** Tablet/host only: hold a card ~1s to open a full-size lightbox (reveals face-down too). */
+function enableTableCardHoldPreview(cardEl, entry) {
+  let pointerId = null;
+  let holdTimer = null;
+  let originX = 0;
+  let originY = 0;
+
+  const clearHoldTimer = () => {
+    if (holdTimer != null) {
+      window.clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+  };
+
+  const endHold = (event) => {
+    if (pointerId != null && event?.pointerId != null && pointerId !== event.pointerId) {
+      return;
+    }
+    pointerId = null;
+    clearHoldTimer();
+    try {
+      if (event?.pointerId != null) {
+        cardEl.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // ignore
+    }
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", endHold);
+    window.removeEventListener("pointercancel", endHold);
+  };
+
+  const onPointerMove = (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    if (Math.hypot(event.clientX - originX, event.clientY - originY) > 10) {
+      endHold(event);
+    }
+  };
+
+  cardEl.addEventListener("pointerdown", (event) => {
+    if (event.button != null && event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pointerId = event.pointerId;
+    originX = event.clientX;
+    originY = event.clientY;
+    clearHoldTimer();
+    try {
+      cardEl.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", endHold);
+    window.addEventListener("pointercancel", endHold);
+
+    const holdPointerId = event.pointerId;
+    holdTimer = window.setTimeout(() => {
+      holdTimer = null;
+      if (pointerId !== holdPointerId) {
+        return;
+      }
+      showOpeningHandCardPreview(entry, { revealFacedown: true });
+    }, TABLE_HOLD_PREVIEW_MS);
+  });
+
+  cardEl.title = entry.facedown
+    ? "Hold 1s to reveal card"
+    : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
 }
 
 function enableOpeningHandCardDrag(cardEl, entry) {
@@ -4429,6 +5463,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
 
     updateOpeningHandCounts(board);
     resizeOpeningHandField(board);
+    queueMultiplayerSeatPublish();
   };
 
   cardEl.addEventListener("pointerdown", (event) => {

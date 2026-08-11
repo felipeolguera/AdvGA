@@ -1,6 +1,6 @@
 {
   "name": "advga",
-  "version": "0.82.0",
+  "version": "0.89.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
-    "@capacitor/core": "^8.5.0"
+    "@capacitor/core": "^8.5.0",
+    "@trystero-p2p/mqtt": "^0.25.3",
+    "trystero": "^0.25.3"
   }
 }
