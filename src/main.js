@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.87";
+const APP_VERSION = "0.89";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
@@ -5186,6 +5186,9 @@ function showOpeningHandCardPreview(entry, { revealFacedown = false } = {}) {
   const frame = document.createElement("div");
   frame.className = "opening-hand-card-preview-frame";
 
+  const media = document.createElement("div");
+  media.className = "opening-hand-card-preview-media";
+
   const image = document.createElement("img");
   image.className = "opening-hand-card-preview-image";
   image.src = imageUrl;
@@ -5196,7 +5199,29 @@ function showOpeningHandCardPreview(entry, { revealFacedown = false } = {}) {
   caption.className = "opening-hand-card-preview-caption";
   caption.textContent = entry.card.name || "Card";
 
-  frame.append(image, caption);
+  const actions = document.createElement("div");
+  actions.className = "opening-hand-card-preview-actions";
+
+  const flipButton = document.createElement("button");
+  flipButton.type = "button";
+  flipButton.className = "secondary compact opening-hand-card-preview-flip";
+  flipButton.setAttribute("aria-pressed", "false");
+  flipButton.setAttribute(
+    "aria-label",
+    "Flip card for the opposite player to read",
+  );
+  flipButton.textContent = "Flip for opponent";
+  flipButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const flipped = media.classList.toggle("is-flipped-for-opponent");
+    flipButton.setAttribute("aria-pressed", flipped ? "true" : "false");
+    flipButton.textContent = flipped ? "Flip upright" : "Flip for opponent";
+  });
+
+  actions.append(flipButton);
+  media.append(image, caption);
+  frame.append(media, actions);
   overlay.append(closeButton, frame);
   document.body.append(overlay);
   // Force paint so the enter transition runs.
