@@ -6,12 +6,17 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.81";
+const APP_VERSION = "0.82";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
 const OPENING_HAND_FACE_FLIP_MS = 280;
-const CARD_BACK_URL = `${import.meta.env.BASE_URL}card-back.jpg`;
+/** Resolve public assets to absolute URLs so CSS `url()` vars are not relative to the stylesheet. */
+function resolvePublicAssetUrl(relativePath) {
+  const baseUrl = new URL(import.meta.env.BASE_URL || "./", window.location.href);
+  return new URL(relativePath, baseUrl).href;
+}
+const CARD_BACK_URL = resolvePublicAssetUrl("card-back.jpg");
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
 const TRYIT_PAGE_URL = `${import.meta.env.BASE_URL}tryit.html`;
