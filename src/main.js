@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.83";
+const APP_VERSION = "0.84";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -694,9 +694,17 @@ function bootTryItPage() {
   });
   window.addEventListener("resize", () => {
     document.querySelectorAll("[data-opening-hand-board]").forEach((board) => {
-      if (board.getClientRects().length > 0) {
-        resizeOpeningHandField(board);
+      if (board.getClientRects().length === 0) {
+        return;
       }
+      if (board.dataset.mpReadonly === "true" && board.dataset.mpSeat) {
+        const seatData = state.mp.seats[board.dataset.mpSeat];
+        if (seatData) {
+          withSeatBoardState(seatData, () => layoutMultiplayerTableSeat(board));
+          return;
+        }
+      }
+      resizeOpeningHandField(board);
     });
   });
   window.addEventListener("beforeunload", () => {
@@ -2718,14 +2726,52 @@ function cloneMpJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function serializeMpCard(card) {
+  if (!card || typeof card !== "object") {
+    return { key: "", name: "Card", image: "" };
+  }
+  return {
+    key: card.key || card.uuid || card.slug || "",
+    name: card.name || "Card",
+    image: resolveCardImage(card) || "",
+  };
+}
+
+function serializeMpPileEntry(entry) {
+  return {
+    instanceId: entry.instanceId,
+    card: serializeMpCard(entry.card),
+  };
+}
+
+function serializeMpBoardEntry(entry) {
+  return {
+    instanceId: entry.instanceId,
+    zone: entry.zone || "hand",
+    facedown: Boolean(entry.facedown),
+    rotated: Boolean(entry.rotated),
+    position: entry.position
+      ? {
+          x: Number(entry.position.x) || 0,
+          y: Number(entry.position.y) || 0,
+          z: Number(entry.position.z) || 1,
+        }
+      : { x: 0, y: 0, z: 1 },
+    card: serializeMpCard(entry.card),
+  };
+}
+
 function captureLocalSeatSnapshot() {
+  const board = getActiveOpeningHandBoard();
+  const field = board?.querySelector("[data-oh-field]");
   return {
     seat: state.mp.role === "b" ? "b" : "a",
     revision: state.mp.seatRevision,
     deckName: state.deckName || "Untitled Deck",
-    library: cloneMpJson(state.openingHandLibrary),
-    material: cloneMpJson(state.openingHandMaterial),
-    cards: cloneMpJson(state.openingHandHand),
+    boardWidth: field?.clientWidth || 0,
+    library: state.openingHandLibrary.map(serializeMpPileEntry),
+    material: state.openingHandMaterial.map(serializeMpPileEntry),
+    cards: state.openingHandHand.map(serializeMpBoardEntry),
     turn: state.openingHandTurn,
     dealComplete: state.openingHandDealComplete,
   };
@@ -2956,6 +3002,145 @@ function renderMultiplayerTableBoard() {
   });
 
   root.append(wrap);
+
+  // Phone coordinates don't match the tablet board width — reflow after layout.
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      wrap.querySelectorAll("[data-opening-hand-board][data-mp-seat]").forEach((board) => {
+        const seat = board.dataset.mpSeat;
+        const seatData = state.mp.seats[seat];
+        if (!seatData || !board.isConnected) {
+          return;
+        }
+        withSeatBoardState(seatData, () => {
+          layoutMultiplayerTableSeat(board);
+        });
+      });
+    });
+  });
+}
+
+function getOpeningHandZoneRowLayout(field, zoneName, count) {
+  const zones = getOpeningHandZones(field);
+  const pad = OPENING_HAND_ROW_PAD / 2;
+  const column = getOpeningHandMainColumnBounds(field);
+  const railCenteredX =
+    zones.railLeft + Math.max(0, (zones.railWidth - FREEHAND_CARD_WIDTH) / 2);
+  const leftRailCenteredX =
+    zones.leftRailLeft + Math.max(0, (zones.leftRailWidth - FREEHAND_CARD_WIDTH) / 2);
+
+  let innerLeft = column.mainLeft + pad;
+  let innerRight = column.mainRight - pad;
+  let top = zones.handTop;
+  let bottom = zones.handBottom;
+
+  if (zoneName === "field") {
+    top = zones.fieldTop;
+    bottom = zones.fieldBottom;
+  } else if (zoneName === "memory") {
+    top = zones.memoryTop;
+    bottom = zones.memoryBottom;
+    innerLeft = column.memoryLeft + pad;
+  } else if (zoneName === "graveyard") {
+    return {
+      startX: railCenteredX,
+      step: 4,
+      y: getOpeningHandRowCardTop(zones.graveyardTop, zones.graveyardBottom),
+      stack: true,
+    };
+  } else if (zoneName === "banishment") {
+    return {
+      startX: railCenteredX,
+      step: 4,
+      y: getOpeningHandRowCardTop(zones.banishmentTop, zones.banishmentBottom),
+      stack: true,
+    };
+  } else if (zoneName === "material") {
+    return {
+      startX: leftRailCenteredX,
+      step: 4,
+      y: getOpeningHandRowCardTop(zones.materialTop, zones.materialBottom),
+      stack: true,
+    };
+  }
+
+  const usable = Math.max(FREEHAND_CARD_WIDTH, innerRight - innerLeft);
+  const y = getOpeningHandRowCardTop(top, bottom);
+  const safeCount = Math.max(1, count);
+  if (safeCount <= 1) {
+    return {
+      startX: innerLeft + Math.max(0, (usable - FREEHAND_CARD_WIDTH) / 2),
+      step: 0,
+      y,
+    };
+  }
+  const packedWidth = safeCount * FREEHAND_CARD_WIDTH;
+  if (packedWidth <= usable) {
+    return {
+      startX: innerLeft + (usable - packedWidth) / 2,
+      step: FREEHAND_CARD_WIDTH,
+      y,
+    };
+  }
+  const overlapStep = (usable - FREEHAND_CARD_WIDTH) / (safeCount - 1);
+  return {
+    startX: innerLeft,
+    step: Number.isFinite(overlapStep) ? Math.max(12, overlapStep) : 12,
+    y,
+  };
+}
+
+function layoutMultiplayerTableSeat(board) {
+  const field = board?.querySelector("[data-oh-field]");
+  if (!field) {
+    return;
+  }
+
+  layoutOpeningHandZones(field);
+  void field.offsetWidth;
+  dedupeOpeningHandEntries();
+
+  const zoneNames = ["field", "memory", "graveyard", "banishment"];
+  zoneNames.forEach((zoneName) => {
+    const entries = state.openingHandHand
+      .filter((entry) => (entry.zone || "hand") === zoneName)
+      .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
+    if (entries.length === 0) {
+      return;
+    }
+    const layout = getOpeningHandZoneRowLayout(field, zoneName, entries.length);
+    entries.forEach((entry, index) => {
+      entry.position = {
+        x: layout.startX + index * layout.step,
+        y: layout.y,
+        z: (entry.position?.z || index + 1) + index,
+      };
+      const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+      if (!cardEl) {
+        return;
+      }
+      applyOpeningHandCardPosition(cardEl, entry);
+      applyOpeningHandCardFace(cardEl, entry);
+      applyOpeningHandCardRotation(cardEl, entry);
+      // Eager-load art on the shared board so face-up Field cards aren't blank shells.
+      const image = cardEl.querySelector("img");
+      if (image) {
+        image.loading = "eager";
+        if (!image.getAttribute("src") && entry.card) {
+          const url = getImageUrl(resolveCardImage(entry.card));
+          if (url) {
+            image.src = url;
+          }
+        }
+      }
+    });
+  });
+
+  positionOpeningHandDeckPile(board);
+  positionOpeningHandMaterialPile(board);
+  positionOpeningHandHandCount(board);
+  updateOpeningHandCounts(board);
+  resizeOpeningHandField(board);
 }
 
 async function joinMultiplayerRoom({ roomCode, role }) {
@@ -3970,16 +4155,16 @@ function createOpeningHandCard(entry, index, field = null, { readonly = false } 
   if (imageUrl) {
     const image = document.createElement("img");
     image.draggable = false;
-    image.loading = "lazy";
+    image.loading = readonly ? "eager" : "lazy";
     image.src = imageUrl;
-    image.alt = entry.card.name;
+    image.alt = entry.card?.name || "Card";
     image.onerror = () => {
       image.remove();
-      imageWrap.textContent = entry.card.name.slice(0, 2).toUpperCase();
+      imageWrap.textContent = String(entry.card?.name || "??").slice(0, 2).toUpperCase();
     };
     imageWrap.append(image);
   } else {
-    imageWrap.textContent = entry.card.name.slice(0, 2).toUpperCase();
+    imageWrap.textContent = String(entry.card?.name || "??").slice(0, 2).toUpperCase();
   }
 
   item.append(imageWrap);
