@@ -15,8 +15,9 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.86";
+const APP_VERSION = "0.87";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
+const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
 const OPENING_HAND_FACE_FLIP_MS = 280;
@@ -726,7 +727,9 @@ function bootTryItPage() {
 }
 
 function bootMultiplayerLayoutTest() {
-  const mkCard = (key, name) => ({ key, name, image: "" });
+  const sampleImage =
+    "https://api.gatcg.com/cards/images/card.png";
+  const mkCard = (key, name) => ({ key, name, image: sampleImage });
   const mkEntry = (key, name, zone, x, y) => ({
     instanceId: `${key}::oh::0`,
     zone,
@@ -4323,6 +4326,8 @@ function createOpeningHandCard(entry, index, field = null, { readonly = false } 
   applyOpeningHandCardRotation(item, entry);
   if (!readonly) {
     enableOpeningHandCardDrag(item, entry);
+  } else {
+    enableTableCardHoldPreview(item, entry);
   }
   return item;
 }
@@ -4334,6 +4339,13 @@ function applyOpeningHandCardFace(cardEl, entry) {
   const image = cardEl.querySelector("img");
   if (image) {
     image.alt = facedown ? "Face-down card" : entry.card.name;
+  }
+  const tableBoard = cardEl.closest("[data-opening-hand-board][data-mp-readonly='true']");
+  if (tableBoard) {
+    cardEl.title = facedown
+      ? "Hold 1s to reveal card"
+      : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
+    return;
   }
   const zone = entry.zone || "hand";
   if (zone === "field" || zone === "memory") {
@@ -5138,9 +5150,9 @@ function onOpeningHandCardPreviewKeydown(event) {
   }
 }
 
-function showOpeningHandCardPreview(entry) {
+function showOpeningHandCardPreview(entry, { revealFacedown = false } = {}) {
   hideOpeningHandCardPreview();
-  if (!entry?.card || entry.facedown) {
+  if (!entry?.card || (entry.facedown && !revealFacedown)) {
     return;
   }
   const imageUrl = getImageUrl(resolveCardImage(entry.card));
@@ -5154,6 +5166,11 @@ function showOpeningHandCardPreview(entry) {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-label", `${entry.card.name || "Card"} preview`);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      hideOpeningHandCardPreview();
+    }
+  });
 
   const closeButton = document.createElement("button");
   closeButton.type = "button";
@@ -5188,6 +5205,81 @@ function showOpeningHandCardPreview(entry) {
   document.addEventListener("keydown", onOpeningHandCardPreviewKeydown);
   state.openingHandPreviewEscBound = true;
   closeButton.focus();
+}
+
+/** Tablet/host only: hold a card ~1s to open a full-size lightbox (reveals face-down too). */
+function enableTableCardHoldPreview(cardEl, entry) {
+  let pointerId = null;
+  let holdTimer = null;
+  let originX = 0;
+  let originY = 0;
+
+  const clearHoldTimer = () => {
+    if (holdTimer != null) {
+      window.clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+  };
+
+  const endHold = (event) => {
+    if (pointerId != null && event?.pointerId != null && pointerId !== event.pointerId) {
+      return;
+    }
+    pointerId = null;
+    clearHoldTimer();
+    try {
+      if (event?.pointerId != null) {
+        cardEl.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // ignore
+    }
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", endHold);
+    window.removeEventListener("pointercancel", endHold);
+  };
+
+  const onPointerMove = (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    if (Math.hypot(event.clientX - originX, event.clientY - originY) > 10) {
+      endHold(event);
+    }
+  };
+
+  cardEl.addEventListener("pointerdown", (event) => {
+    if (event.button != null && event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pointerId = event.pointerId;
+    originX = event.clientX;
+    originY = event.clientY;
+    clearHoldTimer();
+    try {
+      cardEl.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", endHold);
+    window.addEventListener("pointercancel", endHold);
+
+    const holdPointerId = event.pointerId;
+    holdTimer = window.setTimeout(() => {
+      holdTimer = null;
+      if (pointerId !== holdPointerId) {
+        return;
+      }
+      showOpeningHandCardPreview(entry, { revealFacedown: true });
+    }, TABLE_HOLD_PREVIEW_MS);
+  });
+
+  cardEl.title = entry.facedown
+    ? "Hold 1s to reveal card"
+    : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
 }
 
 function enableOpeningHandCardDrag(cardEl, entry) {

@@ -1386,6 +1386,9 @@ button.result-grid-add {
 
 .opening-hand-board[data-mp-readonly="true"] .opening-hand-card {
   /* Keep face-up shells visible while art loads on the shared board. */
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
   z-index: 5;
