@@ -27,8 +27,8 @@ a constructed deck list.
 1. On the **tablet**, open Playtest → **Host table (tablet)**. Note the room code.
 2. On **Phone A**, open Playtest → enter the code → **Join as Player A** (needs your deck).
 3. On **Phone B**, join the same code as **Player B**.
-4. Phones keep private hands; the tablet shows both players’ Field, Memory, Deck,
-   Material, Graveyard, and Banishment (hands hidden).
+4. Phones keep private hands face-up locally; the tablet shows both players’
+   Field, Memory, Hand (face-down), Deck, Material, Graveyard, and Banishment.
 
 Deep links work too: `tryit.html?room=ABCD&role=table|a|b`.
 

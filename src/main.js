@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.85";
+const APP_VERSION = "0.86";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -2952,7 +2952,7 @@ function renderMultiplayerLobby() {
     </div>
     <div class="mp-lobby-block">
       <h2>Multiplayer</h2>
-      <p class="hint">Phone A and Phone B each play a hand. A tablet joins as the shared board for Field, Memory, Deck, Material, Graveyard, and Banishment.</p>
+      <p class="hint">Phone A and Phone B each play a hand. A tablet joins as the shared board for Field, Memory, Hand (face-down), Deck, Material, Graveyard, and Banishment.</p>
       <div class="mp-lobby-actions">
         <button class="try-it-button compact" type="button" data-mp-host-table="true">Host table (tablet)</button>
       </div>
@@ -3045,7 +3045,7 @@ function renderMultiplayerTableBoard() {
       const board = withSeatBoardState(seatData, () =>
         createOpeningHandBoard([], {
           readonly: true,
-          hideHandCards: true,
+          handFacedown: true,
           seat,
           skipDeal: true,
           skipLibraryInit: true,
@@ -3217,6 +3217,10 @@ function layoutCardsInMeasuredZone(field, zoneName, entries) {
 
   entries.forEach((entry, index) => {
     const rawX = startX + index * step;
+    if (zoneName === "hand") {
+      entry.facedown = true;
+      entry.rotated = false;
+    }
     entry.position = {
       x: Math.min(maxX, Math.max(minX, rawX)),
       y,
@@ -3250,7 +3254,7 @@ function layoutMultiplayerTableSeat(board) {
   void field.offsetWidth;
   dedupeOpeningHandEntries();
 
-  ["field", "memory", "graveyard", "banishment"].forEach((zoneName) => {
+  ["field", "memory", "hand", "graveyard", "banishment"].forEach((zoneName) => {
     const entries = state.openingHandHand
       .filter((entry) => (entry.zone || "hand") === zoneName)
       .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
@@ -3686,6 +3690,7 @@ function createOpeningHandBoard(
   {
     readonly = false,
     hideHandCards = false,
+    handFacedown = false,
     seat = "",
     skipDeal = false,
     skipLibraryInit = false,
@@ -3709,6 +3714,9 @@ function createOpeningHandBoard(
   }
   if (hideHandCards) {
     board.dataset.mpHideHand = "true";
+  }
+  if (handFacedown) {
+    board.dataset.mpHandFacedown = "true";
   }
   if (seat) {
     board.dataset.mpSeat = seat;
@@ -4108,13 +4116,16 @@ function renderOpeningHandContents(board) {
 
   dedupeOpeningHandEntries();
   const hideHandCards = board.dataset.mpHideHand === "true";
+  const handFacedown = board.dataset.mpHandFacedown === "true";
   const readonly = board.dataset.mpReadonly === "true";
   state.openingHandHand.forEach((entry, index) => {
     const zone = entry.zone || "hand";
     if (hideHandCards && zone === "hand") {
       return;
     }
-    field.append(createOpeningHandCard(entry, index, field, { readonly }));
+    const renderEntry =
+      handFacedown && zone === "hand" ? { ...entry, facedown: true, rotated: false } : entry;
+    field.append(createOpeningHandCard(renderEntry, index, field, { readonly }));
   });
 
   const pile = createOpeningHandPileButton({
