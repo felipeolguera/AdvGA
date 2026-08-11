@@ -2131,6 +2131,19 @@ button.result-grid-add {
   transform: scale(1);
 }
 
+.opening-hand-card-preview-media {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: 100%;
+  transition: transform 240ms ease;
+  transform-origin: center center;
+}
+
+.opening-hand-card-preview-media.is-flipped-for-opponent {
+  transform: rotate(180deg);
+}
+
 .opening-hand-card-preview-image {
   display: block;
   width: 100%;
@@ -2145,6 +2158,17 @@ button.result-grid-add {
   font-size: 1rem;
   font-weight: 800;
   text-align: center;
+}
+
+.opening-hand-card-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.opening-hand-card-preview-flip {
+  min-width: 9.5rem;
 }
 
 .opening-hand-card.is-facedown {
