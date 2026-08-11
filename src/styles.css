@@ -1792,7 +1792,7 @@ button.result-grid-add {
   grid-template-columns: var(--oh-rail-width) minmax(0, 1fr) var(--oh-rail-width);
   grid-template-rows: repeat(3, var(--oh-row-height));
   grid-template-areas:
-    "field field banishment"
+    "champion field banishment"
     "material memory deck"
     "hand hand graveyard";
   gap: var(--oh-zone-gap);
@@ -1812,6 +1812,11 @@ button.result-grid-add {
 .opening-hand-zone-field {
   grid-area: field;
   background: rgba(120, 200, 140, 0.07);
+}
+
+.opening-hand-zone-champion {
+  grid-area: champion;
+  background: rgba(255, 196, 80, 0.1);
 }
 
 .opening-hand-zone-material {
@@ -1882,6 +1887,7 @@ button.result-grid-add {
 }
 
 .opening-hand-field[data-active-zone="field"] .opening-hand-zone-field,
+.opening-hand-field[data-active-zone="champion"] .opening-hand-zone-champion,
 .opening-hand-field[data-active-zone="memory"] .opening-hand-zone-memory,
 .opening-hand-field[data-active-zone="material"] .opening-hand-zone-material,
 .opening-hand-field[data-active-zone="hand"] .opening-hand-zone-hand,
@@ -1930,6 +1936,12 @@ button.result-grid-add {
 
 .opening-hand-tag-field {
   color: rgba(215, 245, 227, 0.8);
+}
+
+.opening-hand-tag-champion {
+  color: rgba(255, 220, 140, 0.88);
+  font-size: clamp(0.62rem, 1.2vw, 0.8rem);
+  letter-spacing: 0.08em;
 }
 
 .opening-hand-tag-material {
