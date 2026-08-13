@@ -1754,6 +1754,7 @@ button.result-grid-add {
 }
 
 .opening-hand-board {
+  --oh-board-height: 502px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
@@ -1767,7 +1768,7 @@ button.result-grid-add {
   justify-items: center;
   gap: 8px;
   width: 64px;
-  min-height: var(--oh-board-height, 502px);
+  min-height: var(--oh-board-height);
   padding: 12px 6px;
   border: 1px solid var(--line);
   border-radius: 18px;
