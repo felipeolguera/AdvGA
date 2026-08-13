@@ -3107,7 +3107,7 @@ function renderMultiplayerDualPlay() {
   );
 
   updateMultiplayerOpponentBoard(wrap);
-  scheduleMultiplayerOpponentLayout(wrap);
+  scheduleMultiplayerDualLayout(wrap);
 }
 
 function updateMultiplayerOpponentBoard(wrap = document.querySelector("[data-mp-dual]")) {
@@ -3155,25 +3155,32 @@ function updateMultiplayerOpponentBoard(wrap = document.querySelector("[data-mp-
   mount.append(board);
 }
 
-function scheduleMultiplayerOpponentLayout(wrap) {
+function scheduleMultiplayerDualLayout(wrap) {
   if (!wrap) {
     return;
   }
   const run = () => {
-    const board = wrap.querySelector(
+    const selfBoard = wrap.querySelector(
+      "[data-mp-self-mount] [data-opening-hand-board]",
+    );
+    if (selfBoard?.isConnected) {
+      relayoutOpeningHandBoard(selfBoard, { handFacedown: false, minWidth: 160 });
+    }
+
+    const oppBoard = wrap.querySelector(
       "[data-mp-opponent-mount] [data-opening-hand-board][data-mp-seat]",
     );
-    if (!board || !board.isConnected) {
+    if (!oppBoard?.isConnected) {
       return;
     }
-    const seat = board.dataset.mpSeat;
+    const seat = oppBoard.dataset.mpSeat;
     const seatData = state.mp.seats[seat];
-    const field = board.querySelector("[data-oh-field]");
-    if (!seatData || !field || field.clientWidth < 200) {
+    const field = oppBoard.querySelector("[data-oh-field]");
+    if (!seatData || !field || field.clientWidth < 160) {
       return;
     }
     withSeatBoardState(seatData, () => {
-      layoutMultiplayerTableSeat(board);
+      layoutMultiplayerTableSeat(oppBoard);
     });
   };
 
@@ -3189,10 +3196,11 @@ function scheduleMultiplayerOpponentLayout(wrap) {
       window.clearTimeout(wrap._mpLayoutTimer);
       wrap._mpLayoutTimer = window.setTimeout(run, 40);
     });
-    const field = wrap.querySelector("[data-mp-opponent-mount] [data-oh-field]");
-    if (field) {
-      observer.observe(field);
-    }
+    wrap
+      .querySelectorAll(
+        "[data-mp-self-mount] [data-oh-field], [data-mp-opponent-mount] [data-oh-field]",
+      )
+      .forEach((field) => observer.observe(field));
     wrap._mpDualResizeObserver = observer;
   }
 }
@@ -3290,7 +3298,7 @@ function getMeasuredZoneBox(field, zoneName) {
   return null;
 }
 
-function layoutCardsInMeasuredZone(field, zoneName, entries) {
+function layoutCardsInMeasuredZone(field, zoneName, entries, { handFacedown = false } = {}) {
   const box = getMeasuredZoneBox(field, zoneName);
   if (!box || entries.length === 0) {
     return;
@@ -3330,14 +3338,14 @@ function layoutCardsInMeasuredZone(field, zoneName, entries) {
   const maxY = Math.max(y, box.bottom - FREEHAND_CARD_HEIGHT - 4);
   entries.forEach((entry, index) => {
     const rawX = startX + index * step;
-    if (zoneName === "hand") {
+    if (zoneName === "hand" && handFacedown) {
       entry.facedown = true;
       entry.rotated = false;
     }
     const yOffset = zoneName === "champion" ? Math.min(index * 14, Math.max(0, maxY - y)) : 0;
     entry.position = {
       x: Math.min(maxX, Math.max(minX, rawX)),
-      y: y + yOffset,
+      y: Math.min(maxY, y + yOffset),
       z: 10 + index,
     };
     const cardEl = findOpeningHandCardElement(field, entry.instanceId);
@@ -3358,9 +3366,9 @@ function layoutCardsInMeasuredZone(field, zoneName, entries) {
   });
 }
 
-function layoutMultiplayerTableSeat(board) {
+function relayoutOpeningHandBoard(board, { handFacedown = false, minWidth = 200 } = {}) {
   const field = board?.querySelector("[data-oh-field]");
-  if (!field || field.clientWidth < 280) {
+  if (!field || field.clientWidth < minWidth) {
     return;
   }
 
@@ -3372,7 +3380,7 @@ function layoutMultiplayerTableSeat(board) {
     const entries = state.openingHandHand
       .filter((entry) => (entry.zone || "hand") === zoneName)
       .sort((left, right) => (left.position?.x || 0) - (right.position?.x || 0));
-    layoutCardsInMeasuredZone(field, zoneName, entries);
+    layoutCardsInMeasuredZone(field, zoneName, entries, { handFacedown });
   });
 
   // Anchor piles from measured zone boxes so counts don't float mid-board.
@@ -3399,6 +3407,13 @@ function layoutMultiplayerTableSeat(board) {
 
   updateOpeningHandCounts(board);
   resizeOpeningHandField(board);
+}
+
+function layoutMultiplayerTableSeat(board) {
+  relayoutOpeningHandBoard(board, {
+    handFacedown: board?.dataset?.mpHandFacedown === "true",
+    minWidth: 200,
+  });
 }
 
 async function joinMultiplayerRoom({ roomCode, role }) {
@@ -3461,6 +3476,7 @@ async function joinMultiplayerRoom({ roomCode, role }) {
         state.mp.status = "Opponent left";
         updateMultiplayerChrome();
         updateMultiplayerOpponentBoard();
+        scheduleMultiplayerDualLayout(document.querySelector("[data-mp-dual]"));
       },
       onHello: (data, peerId) => {
         const seat = data.role === "b" ? "b" : data.role === "a" ? "a" : null;
@@ -3498,7 +3514,7 @@ async function joinMultiplayerRoom({ roomCode, role }) {
           return;
         }
         updateMultiplayerOpponentBoard();
-        scheduleMultiplayerOpponentLayout(document.querySelector("[data-mp-dual]"));
+        scheduleMultiplayerDualLayout(document.querySelector("[data-mp-dual]"));
       },
       onMeta: (data) => {
         if (Number.isFinite(Number(data.turn))) {
@@ -4072,22 +4088,71 @@ function getOpeningHandFallbackZones(field) {
   };
 }
 
+function getOffsetRelativeToAncestor(element, ancestor) {
+  let top = 0;
+  let left = 0;
+  let node = element;
+  while (node && node !== ancestor) {
+    left += node.offsetLeft;
+    top += node.offsetTop;
+    node = node.offsetParent;
+  }
+  if (node !== ancestor) {
+    return null;
+  }
+  return { left, top };
+}
+
+function getOpeningHandFieldScale(field) {
+  if (!field) {
+    return { x: 1, y: 1 };
+  }
+  const rect = field.getBoundingClientRect();
+  const layoutW = Math.max(1, field.clientWidth);
+  const layoutH = Math.max(1, field.clientHeight || OPENING_HAND_BOARD_HEIGHT);
+  return {
+    x: rect.width / layoutW || 1,
+    y: rect.height / layoutH || 1,
+  };
+}
+
 function readOpeningHandZoneBox(field, key) {
   const zone = field.querySelector(`[data-oh-zone="${key}"]`);
   if (!zone || zone.offsetHeight <= 0) {
     return null;
   }
+  // Prefer layout offsets so CSS zoom / ancestor rotate do not skew card math.
+  // getBoundingClientRect() under zoom returns visual pixels while style.left/top
+  // are layout pixels — that mismatch was shoving dual-board cards upward.
+  const offset = getOffsetRelativeToAncestor(zone, field);
+  if (offset) {
+    const width = zone.offsetWidth;
+    const height = zone.offsetHeight;
+    return {
+      top: offset.top,
+      left: offset.left,
+      bottom: offset.top + height,
+      right: offset.left + width,
+      width,
+      height,
+      contentTop: offset.top + OPENING_HAND_ROW_PAD,
+    };
+  }
+
   const fieldRect = field.getBoundingClientRect();
   const rect = zone.getBoundingClientRect();
-  const top = rect.top - fieldRect.top;
-  const left = rect.left - fieldRect.left;
+  const scale = getOpeningHandFieldScale(field);
+  const top = (rect.top - fieldRect.top) / scale.y;
+  const left = (rect.left - fieldRect.left) / scale.x;
+  const width = rect.width / scale.x;
+  const height = rect.height / scale.y;
   return {
     top,
     left,
-    bottom: top + rect.height,
-    right: left + rect.width,
-    width: rect.width,
-    height: rect.height,
+    bottom: top + height,
+    right: left + width,
+    width,
+    height,
     contentTop: top + OPENING_HAND_ROW_PAD,
   };
 }
@@ -4255,9 +4320,10 @@ function isOpeningHandMemoryPosition(x, y, field) {
 
 function getOpeningHandFieldPointFromClient(clientX, clientY, field) {
   const rect = field.getBoundingClientRect();
+  const scale = getOpeningHandFieldScale(field);
   return {
-    x: clientX - rect.left - FREEHAND_CARD_WIDTH / 2,
-    y: clientY - rect.top - FREEHAND_CARD_HEIGHT / 2,
+    x: (clientX - rect.left) / scale.x - FREEHAND_CARD_WIDTH / 2,
+    y: (clientY - rect.top) / scale.y - FREEHAND_CARD_HEIGHT / 2,
   };
 }
 
@@ -5613,8 +5679,9 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     if (!field) {
       return;
     }
-    let nextX = startX + (event.clientX - originPointerX);
-    let nextY = startY + (event.clientY - originPointerY);
+    const scale = getOpeningHandFieldScale(field);
+    let nextX = startX + (event.clientX - originPointerX) / scale.x;
+    let nextY = startY + (event.clientY - originPointerY) / scale.y;
     if (Math.hypot(event.clientX - originPointerX, event.clientY - originPointerY) > 8) {
       dragMoved = true;
     }
