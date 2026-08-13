@@ -26,7 +26,7 @@ export function getSelfPeerId() {
 
 /**
  * Peer-to-peer playtest room over WebRTC (MQTT signaling).
- * Roles: table (shared board), a / b (player phones).
+ * Roles: a / b (two phones connected directly).
  */
 export function connectPlaytestRoom({
   roomCode,
@@ -42,8 +42,8 @@ export function connectPlaytestRoom({
   if (!code) {
     throw new Error("Room code is required.");
   }
-  if (!["table", "a", "b"].includes(role)) {
-    throw new Error("Role must be table, a, or b.");
+  if (!["a", "b"].includes(role)) {
+    throw new Error("Role must be a or b.");
   }
 
   const room = joinRoom({ appId: APP_ID }, `${ROOM_PREFIX}${code}`);
@@ -132,6 +132,6 @@ export function readRoomParams(search = window.location.search) {
   const params = new URLSearchParams(search);
   const room = normalizeRoomCode(params.get("room"));
   const roleRaw = String(params.get("role") || "").toLowerCase();
-  const role = ["table", "a", "b"].includes(roleRaw) ? roleRaw : null;
+  const role = ["a", "b"].includes(roleRaw) ? roleRaw : null;
   return { room, role };
 }

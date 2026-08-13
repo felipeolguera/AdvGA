@@ -19,19 +19,19 @@ a constructed deck list.
 - Responsive card grid with result badges, loading skeletons, lightbox details,
   and in-deck quantity indicators.
 - Local browser storage so your current deck persists between sessions.
-- Multiplayer Playtest: tablet shared board + Player A / Player B phones over a
-  peer-to-peer room (WebRTC, MQTT signaling). No game server required.
+- Multiplayer Playtest: two phones connect directly over a peer-to-peer room
+  (WebRTC, MQTT signaling). Portrait dual board — you at the bottom, opponent
+  rotated opposite. Solo playtest is unchanged.
 
 ## Multiplayer Playtest
 
-1. On the **tablet**, open Playtest → **Host table (tablet)**. Note the room code.
-2. On **Phone A**, open Playtest → enter the code → **Join as Player A** (needs your deck).
-3. On **Phone B**, join the same code as **Player B**.
-4. Phones keep private hands face-up locally; the tablet shows both players’
-   Field, Memory, Hand (face-down), Deck, Material, Graveyard, Banishment, and
-   damage counters.
+1. On **Phone A**, open Playtest → **Create room (Player A)** (needs your deck).
+2. On **Phone B**, enter the room code → **Join as Player B**.
+3. Each phone shows your interactive board at the bottom and the opponent’s
+   board (Field, Memory, Hand face-down, Champion, Banishment, Graveyard, Deck,
+   Material, damage) rotated at the top.
 
-Deep links work too: `tryit.html?room=ABCD&role=table|a|b`.
+Deep links: `tryit.html?room=ABCD&role=a|b`.
 
 ## Deck rules tracked
 
