@@ -1755,7 +1755,102 @@ button.result-grid-add {
 
 .opening-hand-board {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
+  align-items: stretch;
+}
+
+.opening-hand-damage {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  justify-items: center;
+  gap: 8px;
+  width: 64px;
+  min-height: var(--oh-board-height, 502px);
+  padding: 12px 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 204, 115, 0.1), transparent 42%),
+    rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+}
+
+.opening-hand-damage-label {
+  margin: 0;
+  color: rgba(255, 220, 140, 0.88);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.opening-hand-damage-value {
+  margin: 0;
+  color: var(--gold-strong);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.opening-hand-damage-controls {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.opening-hand-damage-btn {
+  min-width: 0;
+  width: 100%;
+  padding-inline: 0;
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-damage {
+  pointer-events: none;
+}
+
+.opening-hand-board[data-mp-readonly="true"] .opening-hand-damage-controls {
+  opacity: 0.45;
+}
+
+@media (max-width: 520px) {
+  .opening-hand-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+
+  .opening-hand-damage {
+    width: auto;
+    min-height: 0;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: none;
+    align-items: center;
+    padding: 8px 10px;
+  }
+
+  .opening-hand-damage-label {
+    justify-self: start;
+  }
+
+  .opening-hand-damage-value {
+    font-size: 1.6rem;
+  }
+
+  .opening-hand-damage-controls {
+    grid-auto-flow: column;
+    width: auto;
+  }
+
+  .opening-hand-damage-btn {
+    width: 42px;
+  }
 }
 
 .opening-hand-field {

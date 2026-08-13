@@ -66,6 +66,7 @@ try {
       materialInMaterialZone:
         materialCx >= zones.material.left && materialCx <= zones.material.right,
       handCount: board.querySelector("[data-oh-hand-count]")?.textContent,
+      damage: board.querySelector("[data-oh-damage-value]")?.textContent,
       zones,
     };
   });
