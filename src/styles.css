@@ -1520,7 +1520,8 @@ body:has(.tryit-page.is-mp-dual) {
 .mp-dual-seat-scale .opening-hand-board {
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: none;
-  width: 640px;
+  /* Near-square target so zoom-to-fit can fill seat height without cropping damage. */
+  width: 520px;
   max-width: none;
   flex: 0 0 auto;
 }

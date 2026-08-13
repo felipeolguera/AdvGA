@@ -3213,15 +3213,11 @@ function fitMultiplayerDualSeatScales(wrap) {
     return;
   }
 
-  const fitW = minAvailW / maxNaturalW;
-  const fitH = minAvailH / maxNaturalH;
-  let scale = Math.min(fitW, fitH);
-  // If letterboxing is large, grow toward height and allow a little side crop.
-  const letterbox = minAvailH - maxNaturalH * scale;
-  if (letterbox > minAvailH * 0.1) {
-    scale = Math.min(fitH, fitW * 1.18, 1.25);
-  }
-  scale = Math.max(0.32, Math.min(scale, 1.25));
+  // Uniform fit — keep full board (incl. damage rail) visible inside the seat.
+  const scale = Math.max(
+    0.32,
+    Math.min(minAvailW / maxNaturalW, minAvailH / maxNaturalH, 1.25),
+  );
 
   hosts.forEach((scaleHost) => {
     if (typeof CSS !== "undefined" && CSS.supports?.("zoom", "1")) {
