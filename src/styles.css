@@ -1182,6 +1182,7 @@ body:has(.tryit-page.is-mp-dual) {
   overflow: hidden;
 }
 
+.page-shell.tryit-page.is-mp-dual,
 .tryit-page.is-mp-dual {
   gap: 0;
   width: 100%;
@@ -1215,7 +1216,7 @@ body:has(.tryit-page.is-mp-dual) {
   min-height: 0;
   height: 100%;
   width: 100%;
-  padding: 4px 4px 6px;
+  padding: 2px 0 4px;
   overflow: hidden;
   border-radius: 0;
 }

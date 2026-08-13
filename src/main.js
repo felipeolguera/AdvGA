@@ -6,6 +6,7 @@ import {
   normalizeRoomCode,
   readRoomParams,
 } from "./multiplayer.js";
+import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
 const PAGE_SIZE = 50;
@@ -15,7 +16,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.93";
+const APP_VERSION = "0.94";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
