@@ -3155,6 +3155,47 @@ function updateMultiplayerOpponentBoard(wrap = document.querySelector("[data-mp-
   mount.append(board);
 }
 
+function getDualSeatAvailableSize(seat) {
+  const label = seat.querySelector(".mp-dual-seat-label");
+  return {
+    availW: Math.max(1, seat.clientWidth - 2),
+    availH: Math.max(1, seat.clientHeight - (label?.offsetHeight || 0) - 4),
+  };
+}
+
+function sizeDualBoardsForSeatWidth(wrap) {
+  if (!wrap) {
+    return;
+  }
+  let minAvailW = Number.POSITIVE_INFINITY;
+  let minAvailH = Number.POSITIVE_INFINITY;
+  wrap.querySelectorAll(".mp-dual-seat").forEach((seat) => {
+    const { availW, availH } = getDualSeatAvailableSize(seat);
+    minAvailW = Math.min(minAvailW, availW);
+    minAvailH = Math.min(minAvailH, availH);
+  });
+  if (!Number.isFinite(minAvailW) || !Number.isFinite(minAvailH)) {
+    return;
+  }
+
+  // Choose a layout width so height-fit zoom also spans the full seat width.
+  const scale = Math.max(0.32, Math.min(minAvailH / OPENING_HAND_BOARD_HEIGHT, 1.25));
+  const targetW = Math.max(480, Math.round(minAvailW / scale));
+
+  wrap.querySelectorAll(".mp-dual-seat").forEach((seat) => {
+    const scaleHost = seat.querySelector(".mp-dual-seat-scale");
+    if (!scaleHost) {
+      return;
+    }
+    scaleHost.style.zoom = "1";
+    scaleHost.style.transform = "";
+    const board = scaleHost.querySelector("[data-opening-hand-board]");
+    if (board) {
+      board.style.width = `${targetW}px`;
+    }
+  });
+}
+
 function fitMultiplayerDualSeatScales(wrap) {
   if (!wrap) {
     return;
@@ -3164,63 +3205,23 @@ function fitMultiplayerDualSeatScales(wrap) {
     return;
   }
 
-  let maxNaturalW = 1;
-  let maxNaturalH = 1;
   let minAvailW = Number.POSITIVE_INFINITY;
   let minAvailH = Number.POSITIVE_INFINITY;
-  const hosts = [];
+  seats.forEach((seat) => {
+    const { availW, availH } = getDualSeatAvailableSize(seat);
+    minAvailW = Math.min(minAvailW, availW);
+    minAvailH = Math.min(minAvailH, availH);
+  });
+
+  // Height drives zoom; board width was already chosen so width fills at this scale.
+  const scale = Math.max(0.32, Math.min(minAvailH / OPENING_HAND_BOARD_HEIGHT, 1.25));
+  void minAvailW;
 
   seats.forEach((seat) => {
     const scaleHost = seat.querySelector(".mp-dual-seat-scale");
     if (!scaleHost) {
       return;
     }
-    scaleHost.style.zoom = "1";
-    scaleHost.style.transform = "";
-    scaleHost.style.width = "max-content";
-    scaleHost.style.height = "max-content";
-
-    const content =
-      scaleHost.querySelector("[data-opening-hand-board]") ||
-      scaleHost.querySelector(".mp-dual-waiting") ||
-      scaleHost.firstElementChild;
-    if (!content) {
-      scaleHost.style.width = "";
-      scaleHost.style.height = "";
-      return;
-    }
-
-    const label = seat.querySelector(".mp-dual-seat-label");
-    const availW = Math.max(1, seat.clientWidth - 2);
-    const availH = Math.max(
-      1,
-      seat.clientHeight - (label?.offsetHeight || 0) - 4,
-    );
-
-    const naturalW = Math.max(content.scrollWidth, content.offsetWidth, 1);
-    const naturalH = Math.max(content.scrollHeight, content.offsetHeight, 1);
-
-    maxNaturalW = Math.max(maxNaturalW, naturalW);
-    maxNaturalH = Math.max(maxNaturalH, naturalH);
-    minAvailW = Math.min(minAvailW, availW);
-    minAvailH = Math.min(minAvailH, availH);
-    hosts.push(scaleHost);
-
-    scaleHost.style.width = "";
-    scaleHost.style.height = "";
-  });
-
-  if (hosts.length === 0) {
-    return;
-  }
-
-  // Uniform fit — keep full board (incl. damage rail) visible inside the seat.
-  const scale = Math.max(
-    0.32,
-    Math.min(minAvailW / maxNaturalW, minAvailH / maxNaturalH, 1.25),
-  );
-
-  hosts.forEach((scaleHost) => {
     if (typeof CSS !== "undefined" && CSS.supports?.("zoom", "1")) {
       scaleHost.style.zoom = String(scale);
       scaleHost.style.transform = "";
@@ -3230,28 +3231,6 @@ function fitMultiplayerDualSeatScales(wrap) {
       scaleHost.style.transformOrigin = "center center";
     }
     scaleHost.dataset.mpFitScale = String(scale);
-  });
-}
-
-function sizeDualBoardsForSeatWidth(wrap) {
-  wrap?.querySelectorAll(".mp-dual-seat").forEach((seat) => {
-    const scaleHost = seat.querySelector(".mp-dual-seat-scale");
-    const board = scaleHost?.querySelector("[data-opening-hand-board]");
-    if (!scaleHost || !board) {
-      return;
-    }
-    scaleHost.style.zoom = "1";
-    scaleHost.style.transform = "";
-    const label = seat.querySelector(".mp-dual-seat-label");
-    const availW = Math.max(1, seat.clientWidth - 2);
-    const availH = Math.max(
-      1,
-      seat.clientHeight - (label?.offsetHeight || 0) - 4,
-    );
-    const boardH = Math.max(board.offsetHeight, OPENING_HAND_BOARD_HEIGHT, 1);
-    const heightScale = Math.min(availH / boardH, 1.25);
-    const targetW = Math.max(480, Math.round(availW / Math.max(heightScale, 0.32)));
-    board.style.width = `${targetW}px`;
   });
 }
 
