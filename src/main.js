@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.92";
+const APP_VERSION = "0.93";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
@@ -2993,9 +2993,9 @@ function updateMultiplayerChrome() {
     ).forEach((el) => {
       el.hidden = hidePlayerTools;
     });
-    // Dual portrait is tight — park Redeal / Banish in the menu flow later; hide for now.
+    // Dual portrait is tight — keep End turn + menu; stash the rest.
     actions.querySelectorAll(
-      "[data-redeal-opening-hand], [data-banish-opening-hand]",
+      "[data-redeal-opening-hand], [data-banish-opening-hand], [data-organize-opening-hand], [data-recollect-opening-hand]",
     ).forEach((el) => {
       el.hidden = hidePlayerTools || dual;
     });
@@ -3155,6 +3155,82 @@ function updateMultiplayerOpponentBoard(wrap = document.querySelector("[data-mp-
   mount.append(board);
 }
 
+function fitMultiplayerDualSeatScales(wrap) {
+  if (!wrap) {
+    return;
+  }
+  const seats = [...wrap.querySelectorAll(".mp-dual-seat")];
+  if (seats.length === 0) {
+    return;
+  }
+
+  let maxNaturalW = 1;
+  let maxNaturalH = 1;
+  let minAvailW = Number.POSITIVE_INFINITY;
+  let minAvailH = Number.POSITIVE_INFINITY;
+  const hosts = [];
+
+  seats.forEach((seat) => {
+    const scaleHost = seat.querySelector(".mp-dual-seat-scale");
+    if (!scaleHost) {
+      return;
+    }
+    scaleHost.style.zoom = "1";
+    scaleHost.style.transform = "";
+    scaleHost.style.width = "max-content";
+    scaleHost.style.height = "max-content";
+
+    const content =
+      scaleHost.querySelector("[data-opening-hand-board]") ||
+      scaleHost.querySelector(".mp-dual-waiting") ||
+      scaleHost.firstElementChild;
+    if (!content) {
+      scaleHost.style.width = "";
+      scaleHost.style.height = "";
+      return;
+    }
+
+    const label = seat.querySelector(".mp-dual-seat-label");
+    const availW = Math.max(1, seat.clientWidth - 2);
+    const availH = Math.max(
+      1,
+      seat.clientHeight - (label?.offsetHeight || 0) - 4,
+    );
+    const naturalW = Math.max(content.scrollWidth, content.offsetWidth, 1);
+    const naturalH = Math.max(content.scrollHeight, content.offsetHeight, 1);
+
+    maxNaturalW = Math.max(maxNaturalW, naturalW);
+    maxNaturalH = Math.max(maxNaturalH, naturalH);
+    minAvailW = Math.min(minAvailW, availW);
+    minAvailH = Math.min(minAvailH, availH);
+    hosts.push(scaleHost);
+
+    scaleHost.style.width = "";
+    scaleHost.style.height = "";
+  });
+
+  if (hosts.length === 0) {
+    return;
+  }
+
+  const scale = Math.max(
+    0.32,
+    Math.min(minAvailW / maxNaturalW, minAvailH / maxNaturalH, 1.25),
+  );
+
+  hosts.forEach((scaleHost) => {
+    if (typeof CSS !== "undefined" && CSS.supports?.("zoom", "1")) {
+      scaleHost.style.zoom = String(scale);
+      scaleHost.style.transform = "";
+    } else {
+      scaleHost.style.zoom = "";
+      scaleHost.style.transform = `scale(${scale})`;
+      scaleHost.style.transformOrigin = "center center";
+    }
+    scaleHost.dataset.mpFitScale = String(scale);
+  });
+}
+
 function scheduleMultiplayerDualLayout(wrap) {
   if (!wrap) {
     return;
@@ -3164,24 +3240,35 @@ function scheduleMultiplayerDualLayout(wrap) {
       "[data-mp-self-mount] [data-opening-hand-board]",
     );
     if (selfBoard?.isConnected) {
+      // Measure/layout at natural size before fitting the seat scale.
+      const selfScale = selfBoard.closest(".mp-dual-seat-scale");
+      if (selfScale) {
+        selfScale.style.zoom = "1";
+        selfScale.style.transform = "";
+      }
       relayoutOpeningHandBoard(selfBoard, { handFacedown: false, minWidth: 160 });
     }
 
     const oppBoard = wrap.querySelector(
       "[data-mp-opponent-mount] [data-opening-hand-board][data-mp-seat]",
     );
-    if (!oppBoard?.isConnected) {
-      return;
+    if (oppBoard?.isConnected) {
+      const oppScale = oppBoard.closest(".mp-dual-seat-scale");
+      if (oppScale) {
+        oppScale.style.zoom = "1";
+        oppScale.style.transform = "";
+      }
+      const seat = oppBoard.dataset.mpSeat;
+      const seatData = state.mp.seats[seat];
+      const field = oppBoard.querySelector("[data-oh-field]");
+      if (seatData && field && field.clientWidth >= 160) {
+        withSeatBoardState(seatData, () => {
+          layoutMultiplayerTableSeat(oppBoard);
+        });
+      }
     }
-    const seat = oppBoard.dataset.mpSeat;
-    const seatData = state.mp.seats[seat];
-    const field = oppBoard.querySelector("[data-oh-field]");
-    if (!seatData || !field || field.clientWidth < 160) {
-      return;
-    }
-    withSeatBoardState(seatData, () => {
-      layoutMultiplayerTableSeat(oppBoard);
-    });
+
+    fitMultiplayerDualSeatScales(wrap);
   };
 
   window.requestAnimationFrame(() => {
@@ -3196,11 +3283,8 @@ function scheduleMultiplayerDualLayout(wrap) {
       window.clearTimeout(wrap._mpLayoutTimer);
       wrap._mpLayoutTimer = window.setTimeout(run, 40);
     });
-    wrap
-      .querySelectorAll(
-        "[data-mp-self-mount] [data-oh-field], [data-mp-opponent-mount] [data-oh-field]",
-      )
-      .forEach((field) => observer.observe(field));
+    observer.observe(wrap);
+    wrap.querySelectorAll(".mp-dual-seat").forEach((seat) => observer.observe(seat));
     wrap._mpDualResizeObserver = observer;
   }
 }

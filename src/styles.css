@@ -1176,12 +1176,24 @@ button.result-grid-add {
   display: none;
 }
 
+html:has(.tryit-page.is-mp-dual),
+body:has(.tryit-page.is-mp-dual) {
+  height: 100%;
+  overflow: hidden;
+}
+
 .tryit-page.is-mp-dual {
-  gap: 8px;
+  gap: 0;
+  width: min(100% - 10px, 720px);
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 4px 0 6px;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .tryit-page.is-mp-dual .tryit-page-header {
-  padding: 6px 10px;
+  padding: 4px 8px;
 }
 
 .tryit-page.is-mp-dual .tryit-chrome-full {
@@ -1189,24 +1201,57 @@ button.result-grid-add {
 }
 
 .tryit-page.is-mp-dual .tryit-playmat-panel {
-  padding: 8px 10px 12px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 4px;
+  min-height: 0;
+  height: 100%;
+  padding: 4px 6px 6px;
+  overflow: hidden;
 }
 
 .tryit-page.is-mp-dual .tryit-page-actions {
-  margin-bottom: 6px;
+  margin-bottom: 0;
   gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.tryit-page.is-mp-dual .tryit-turn-controls {
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
+.tryit-page.is-mp-dual .tryit-page-actions .ghost.compact,
+.tryit-page.is-mp-dual .tryit-page-actions .secondary.compact {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+}
+
+.tryit-page.is-mp-dual .tryit-turn-label {
+  min-width: 0;
+  font-size: 0.85rem;
 }
 
 .tryit-page.is-mp-dual .tryit-back-link,
 .tryit-page.is-mp-dual [data-redeal-opening-hand],
-.tryit-page.is-mp-dual [data-banish-opening-hand] {
+.tryit-page.is-mp-dual [data-banish-opening-hand],
+.tryit-page.is-mp-dual [data-organize-opening-hand],
+.tryit-page.is-mp-dual [data-recollect-opening-hand] {
   display: none !important;
 }
 
 .tryit-page.is-mp-dual .app-version {
-  top: 6px;
-  right: 8px;
-  font-size: 0.7rem;
+  top: 4px;
+  right: 6px;
+  font-size: 0.68rem;
+}
+
+.tryit-page.is-mp-dual #tryit-root {
+  display: grid;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .tryit-page-heading h1 {
@@ -1386,15 +1431,19 @@ button.result-grid-add {
 .mp-dual-play {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 4px;
-  min-height: min(78vh, 720px);
+  gap: 2px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .mp-dual-seat {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 2px;
   min-height: 0;
-  align-content: start;
+  height: 100%;
+  overflow: hidden;
 }
 
 .mp-dual-seat-label {
@@ -1403,26 +1452,26 @@ button.result-grid-add {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   text-align: center;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 800;
+  line-height: 1.1;
 }
 
 .mp-dual-seat-scale {
   width: 100%;
-  zoom: 0.48;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Scale is set in JS so each seat fills its half of the screen. */
+  zoom: 1;
 }
 
 @supports not (zoom: 1) {
   .mp-dual-seat-scale {
-    transform: scale(0.48);
-    transform-origin: top center;
-    width: 208.333%;
-    margin-left: -54.166%;
-  }
-
-  .mp-dual-opponent .mp-dual-seat-scale {
-    transform: scale(0.48);
-    transform-origin: top center;
+    transform-origin: center center;
   }
 }
 
@@ -1435,10 +1484,11 @@ button.result-grid-add {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
   color: var(--muted);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 800;
 }
 
@@ -1450,29 +1500,29 @@ button.result-grid-add {
 }
 
 .mp-dual-waiting {
-  min-height: 120px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .mp-seat-waiting {
   display: grid;
   place-items: center;
-  min-height: 160px;
+  min-height: 120px;
+  height: 100%;
   border: 1px dashed rgba(255, 204, 115, 0.35);
   border-radius: 16px;
   color: var(--muted);
   background: rgba(0, 0, 0, 0.12);
 }
 
-@media (min-width: 420px) {
-  .mp-dual-seat-scale {
-    zoom: 0.54;
-  }
-}
-
 /* Keep the concept side-rail damage counter even on narrow phone viewports. */
 .mp-dual-seat-scale .opening-hand-board {
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: none;
+  width: 640px;
+  max-width: none;
+  flex: 0 0 auto;
 }
 
 .mp-dual-seat-scale .opening-hand-damage {
