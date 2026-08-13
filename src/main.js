@@ -3215,7 +3215,6 @@ function fitMultiplayerDualSeatScales(wrap) {
 
   // Height drives zoom; board width was already chosen so width fills at this scale.
   const scale = Math.max(0.32, Math.min(minAvailH / OPENING_HAND_BOARD_HEIGHT, 1.25));
-  void minAvailW;
 
   seats.forEach((seat) => {
     const scaleHost = seat.querySelector(".mp-dual-seat-scale");
