@@ -1184,12 +1184,20 @@ body:has(.tryit-page.is-mp-dual) {
 
 .tryit-page.is-mp-dual {
   gap: 0;
-  width: min(100% - 10px, 720px);
+  width: 100%;
+  max-width: none;
+  margin: 0;
   height: 100dvh;
   max-height: 100dvh;
   padding: 4px 0 6px;
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 0;
+}
+
+.tryit-page.is-mp-dual.panel,
+.tryit-page.is-mp-dual .panel {
+  border-radius: 0;
 }
 
 .tryit-page.is-mp-dual .tryit-page-header {
@@ -1206,8 +1214,10 @@ body:has(.tryit-page.is-mp-dual) {
   gap: 4px;
   min-height: 0;
   height: 100%;
-  padding: 4px 6px 6px;
+  width: 100%;
+  padding: 4px 4px 6px;
   overflow: hidden;
+  border-radius: 0;
 }
 
 .tryit-page.is-mp-dual .tryit-page-actions {
@@ -1520,8 +1530,8 @@ body:has(.tryit-page.is-mp-dual) {
 .mp-dual-seat-scale .opening-hand-board {
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: none;
-  /* Near-square target so zoom-to-fit can fill seat height without cropping damage. */
-  width: 520px;
+  /* Width is set in JS so zoom-to-fit can fill the full seat width. */
+  width: 100%;
   max-width: none;
   flex: 0 0 auto;
 }
@@ -2827,6 +2837,13 @@ button.deck-card-thumbnail:focus-visible {
   .page-shell {
     width: min(100% - 22px, 680px);
     padding: 28px 0;
+  }
+
+  .page-shell.tryit-page.is-mp-dual {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 4px 0 6px;
   }
 
   .hero,

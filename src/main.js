@@ -3196,6 +3196,7 @@ function fitMultiplayerDualSeatScales(wrap) {
       1,
       seat.clientHeight - (label?.offsetHeight || 0) - 4,
     );
+
     const naturalW = Math.max(content.scrollWidth, content.offsetWidth, 1);
     const naturalH = Math.max(content.scrollHeight, content.offsetHeight, 1);
 
@@ -3232,16 +3233,39 @@ function fitMultiplayerDualSeatScales(wrap) {
   });
 }
 
+function sizeDualBoardsForSeatWidth(wrap) {
+  wrap?.querySelectorAll(".mp-dual-seat").forEach((seat) => {
+    const scaleHost = seat.querySelector(".mp-dual-seat-scale");
+    const board = scaleHost?.querySelector("[data-opening-hand-board]");
+    if (!scaleHost || !board) {
+      return;
+    }
+    scaleHost.style.zoom = "1";
+    scaleHost.style.transform = "";
+    const label = seat.querySelector(".mp-dual-seat-label");
+    const availW = Math.max(1, seat.clientWidth - 2);
+    const availH = Math.max(
+      1,
+      seat.clientHeight - (label?.offsetHeight || 0) - 4,
+    );
+    const boardH = Math.max(board.offsetHeight, OPENING_HAND_BOARD_HEIGHT, 1);
+    const heightScale = Math.min(availH / boardH, 1.25);
+    const targetW = Math.max(480, Math.round(availW / Math.max(heightScale, 0.32)));
+    board.style.width = `${targetW}px`;
+  });
+}
+
 function scheduleMultiplayerDualLayout(wrap) {
   if (!wrap) {
     return;
   }
   const run = () => {
+    sizeDualBoardsForSeatWidth(wrap);
+
     const selfBoard = wrap.querySelector(
       "[data-mp-self-mount] [data-opening-hand-board]",
     );
     if (selfBoard?.isConnected) {
-      // Measure/layout at natural size before fitting the seat scale.
       const selfScale = selfBoard.closest(".mp-dual-seat-scale");
       if (selfScale) {
         selfScale.style.zoom = "1";
