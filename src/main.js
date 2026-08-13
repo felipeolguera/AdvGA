@@ -15,7 +15,7 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.90";
+const APP_VERSION = "0.91";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
@@ -215,6 +215,7 @@ const state = {
   openingHandDealComplete: true,
   openingHandPreviewEscBound: false,
   openingHandTurn: 1,
+  openingHandDamage: 0,
   tryitMenuOpen: false,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
@@ -771,6 +772,7 @@ function bootMultiplayerLayoutTest() {
         mkEntry("h2", "Hand Two", "hand", 200, 400),
       ],
       turn: 1,
+      damage: 3,
       dealComplete: true,
     },
     b: null,
@@ -2837,6 +2839,7 @@ function captureLocalSeatSnapshot() {
     material: state.openingHandMaterial.map(serializeMpPileEntry),
     cards: state.openingHandHand.map(serializeMpBoardEntry),
     turn: state.openingHandTurn,
+    damage: Math.max(0, Number(state.openingHandDamage) || 0),
     dealComplete: state.openingHandDealComplete,
   };
 }
@@ -2849,6 +2852,7 @@ function applySeatSnapshotToLocal(seatData) {
   state.openingHandMaterial = cloneMpJson(seatData.material || []);
   state.openingHandHand = cloneMpJson(seatData.cards || []);
   state.openingHandTurn = Math.max(1, Number(seatData.turn) || 1);
+  state.openingHandDamage = Math.max(0, Number(seatData.damage) || 0);
   state.openingHandDealComplete = Boolean(seatData.dealComplete);
   state.mainDeckOpeningHand = true;
 }
@@ -2859,6 +2863,7 @@ function withSeatBoardState(seatData, fn) {
     material: state.openingHandMaterial,
     hand: state.openingHandHand,
     turn: state.openingHandTurn,
+    damage: state.openingHandDamage,
     dealComplete: state.openingHandDealComplete,
     mainDeckOpeningHand: state.mainDeckOpeningHand,
   };
@@ -2870,6 +2875,7 @@ function withSeatBoardState(seatData, fn) {
     state.openingHandMaterial = snapshot.material;
     state.openingHandHand = snapshot.hand;
     state.openingHandTurn = snapshot.turn;
+    state.openingHandDamage = snapshot.damage;
     state.openingHandDealComplete = snapshot.dealComplete;
     state.mainDeckOpeningHand = snapshot.mainDeckOpeningHand;
   }
@@ -3501,6 +3507,7 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = false;
   state.openingHandTurn = 1;
+  state.openingHandDamage = 0;
   if (state.mp.mode === "lobby") {
     state.mp.mode = "solo";
   }
@@ -3710,6 +3717,97 @@ function setTryItMenuOpen(open) {
   }
 }
 
+function normalizeOpeningHandDamage(value) {
+  const next = Math.trunc(Number(value));
+  if (!Number.isFinite(next)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(99, next));
+}
+
+function createOpeningHandDamageCounter({ readonly = false } = {}) {
+  const rail = document.createElement("div");
+  rail.className = "opening-hand-damage";
+  rail.dataset.ohDamage = "true";
+  rail.setAttribute("role", "group");
+  rail.setAttribute("aria-label", "Damage counter");
+
+  const label = document.createElement("p");
+  label.className = "opening-hand-damage-label";
+  label.textContent = "Damage";
+
+  const value = document.createElement("p");
+  value.className = "opening-hand-damage-value";
+  value.dataset.ohDamageValue = "true";
+  value.setAttribute("aria-live", "polite");
+  value.textContent = "0";
+
+  const controls = document.createElement("div");
+  controls.className = "opening-hand-damage-controls";
+
+  const dec = document.createElement("button");
+  dec.className = "ghost compact opening-hand-damage-btn";
+  dec.type = "button";
+  dec.dataset.ohDamageDelta = "-1";
+  dec.setAttribute("aria-label", "Decrease damage");
+  dec.textContent = "−";
+
+  const inc = document.createElement("button");
+  inc.className = "ghost compact opening-hand-damage-btn";
+  inc.type = "button";
+  inc.dataset.ohDamageDelta = "1";
+  inc.setAttribute("aria-label", "Increase damage");
+  inc.textContent = "+";
+
+  if (readonly) {
+    dec.disabled = true;
+    inc.disabled = true;
+  } else {
+    const onDelta = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const delta = Number(event.currentTarget.dataset.ohDamageDelta) || 0;
+      adjustOpeningHandDamage(delta, event.currentTarget.closest("[data-opening-hand-board]"));
+    };
+    dec.addEventListener("click", onDelta);
+    inc.addEventListener("click", onDelta);
+  }
+
+  controls.append(dec, inc);
+  rail.append(label, value, controls);
+  return rail;
+}
+
+function updateOpeningHandDamageCounter(board = null) {
+  const target = board || getActiveOpeningHandBoard();
+  const valueEl = target?.querySelector("[data-oh-damage-value]");
+  if (!valueEl) {
+    return;
+  }
+  const damage = normalizeOpeningHandDamage(state.openingHandDamage);
+  state.openingHandDamage = damage;
+  valueEl.textContent = String(damage);
+  if (target.dataset.mpReadonly === "true") {
+    return;
+  }
+  const dec = target.querySelector('[data-oh-damage-delta="-1"]');
+  const inc = target.querySelector('[data-oh-damage-delta="1"]');
+  if (dec) {
+    dec.disabled = damage <= 0;
+  }
+  if (inc) {
+    inc.disabled = damage >= 99;
+  }
+}
+
+function adjustOpeningHandDamage(delta, board = null) {
+  state.openingHandDamage = normalizeOpeningHandDamage(
+    normalizeOpeningHandDamage(state.openingHandDamage) + Number(delta || 0),
+  );
+  updateOpeningHandDamageCounter(board);
+  queueMultiplayerSeatPublish();
+}
+
 function createOpeningHandBoard(
   sectionCards,
   {
@@ -3793,9 +3891,11 @@ function createOpeningHandBoard(
   });
 
   field.append(zonesWrap);
-  board.append(field);
+  const damageCounter = createOpeningHandDamageCounter({ readonly });
+  board.append(damageCounter, field);
   layoutOpeningHandZones(field);
   renderOpeningHandContents(board);
+  updateOpeningHandDamageCounter(board);
 
   if (!skipDeal && !readonly) {
     // Cancel any deal tied to a previous board instance (home↔fullscreen remount).
