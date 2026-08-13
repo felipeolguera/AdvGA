@@ -1197,6 +1197,12 @@ button.result-grid-add {
   gap: 6px;
 }
 
+.tryit-page.is-mp-dual .tryit-back-link,
+.tryit-page.is-mp-dual [data-redeal-opening-hand],
+.tryit-page.is-mp-dual [data-banish-opening-hand] {
+  display: none !important;
+}
+
 .tryit-page.is-mp-dual .app-version {
   top: 6px;
   right: 8px;
