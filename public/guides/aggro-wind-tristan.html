@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wind Aggro — Tristan Shadowdancer — Play Guide | AdvGA</title>
+  <style>
+
+:root {
+  color-scheme: dark;
+  --bg: #100f18;
+  --panel: rgba(31, 29, 45, 0.92);
+  --text: #f7efe4;
+  --muted: #c8b9a8;
+  --line: rgba(255,255,255,0.14);
+  --gold: #f4b85d;
+  --gold-strong: #ffcc73;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(227,100,93,0.18), transparent 34rem),
+    radial-gradient(circle at 85% 10%, rgba(244,184,93,0.12), transparent 28rem),
+    linear-gradient(135deg, #100f18 0%, #191827 48%, #111017 100%);
+  line-height: 1.55;
+}
+a { color: var(--gold-strong); }
+.wrap { width: min(980px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 64px; }
+.eyebrow { margin: 0 0 6px; color: var(--gold-strong); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+h1 { margin: 0 0 10px; font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -0.03em; line-height: 1.1; }
+h2 { margin: 2rem 0 0.7rem; font-size: 1.35rem; color: var(--gold-strong); }
+h3 { margin: 1.4rem 0 0.55rem; font-size: 1.05rem; }
+.lead, p, li { color: var(--muted); }
+.lead { font-size: 1.05rem; max-width: 46rem; }
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--panel);
+  margin: 14px 0;
+}
+.nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 8px; }
+.nav a {
+  display: inline-grid; place-items: center; min-height: 40px; padding: 0 14px;
+  border-radius: 12px; border: 1px solid rgba(255,204,115,0.45);
+  text-decoration: none; color: var(--gold-strong); background: rgba(244,184,93,0.1);
+  font-weight: 800; font-size: 0.9rem;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 14px;
+  margin: 12px 0 8px;
+}
+.card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.card img {
+  width: 100%;
+  aspect-ratio: 0.716;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0a0a0b;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+}
+.card .meta { display: grid; gap: 2px; }
+.card strong { color: var(--text); font-size: 0.86rem; line-height: 1.25; }
+.card .qty {
+  display: inline-block; margin-right: 4px; color: #170f0b;
+  background: var(--gold-strong); border-radius: 999px; padding: 1px 7px;
+  font-size: 0.72rem; font-weight: 900;
+}
+.card .sub { font-size: 0.72rem; color: var(--muted); }
+.card-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0,0,0,0.18);
+}
+.card-row img {
+  width: 110px; aspect-ratio: 0.716; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--line); background: #0a0a0b;
+}
+.card-row h4 { margin: 0 0 4px; color: var(--text); font-size: 1rem; }
+.card-row .sub { margin: 0 0 6px; font-size: 0.78rem; }
+.card-row .blurb { margin: 0; font-size: 0.92rem; color: var(--muted); }
+.note { font-size: 0.9rem; }
+ul { padding-left: 1.15rem; }
+footer { margin-top: 36px; font-size: 0.85rem; color: var(--muted); }
+@media (max-width: 640px) {
+  .card-row { grid-template-columns: 88px minmax(0,1fr); }
+  .card-row img { width: 88px; }
+}
+
+body { background: radial-gradient(circle at top left, #5cb88a2e, transparent 34rem), radial-gradient(circle at 85% 10%, #a8e6c31f, transparent 28rem), linear-gradient(135deg, #100f18 0%, #191827 48%, #111017 100%); }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">Grand Archive · All sets · Aggro</p>
+    <h1>Wind Aggro — Tristan Shadowdancer — Play Guide</h1>
+    <p class="lead">All-sets Wind Assassin aggro: stack preparation, ambush with Cloaked Executioner, and chain Combo Strike wake-ups.</p>
+    <div class="nav"><a href="../">Open AdvGA</a><a href="aggro-fire-lorraine.html">Fire aggro guide</a><a href="aggro-water-mordred.html">Water aggro guide</a><a href="prd-lorraine-arclight.html">PRD Lorraine</a><a href="prd-dante-hemomancer.html">PRD Dante</a></div>
+<div class="panel note">
+  <strong style="color:var(--text)">Load in AdvGA:</strong> Deck Builder → <em>Load Wind Aggro (Tristan)</em>. Guides section lists every play guide.
+  Standard shell: Material 12 · Main 60 · Sideboard 15.
+</div>
+<h2>Game plan</h2>
+<p>Put preparation on Tristan from Lookout / Outlook / Boots / Surveil. Swing with 2-cost Assassin attacks, then use Hired Blade draws and Shadowdancer shadows to finish.</p>
+<h2>Champion line</h2>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/8lbewemhus.jpg" alt="Spirit of Wind" loading="lazy" /><div><h4>Spirit of Wind</h4><p class="sub">CHAMPION · WIND · SPIRIT · 0 memory</p><p class="blurb">On Enter: Draw seven cards.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/5dgq56cjg0.jpg" alt="Tristan, Underhanded" loading="lazy" /><div><h4>Tristan, Underhanded</h4><p class="sub">CHAMPION · NORM · ASSASSIN · 1 memory</p><p class="blurb">On Enter: You may put a preparation counter on Tristan. If you don’t, you gain agility 3 for this turn. *(Agility 3 — Return three cards from your memory to your ha</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/bo2fb4qwwv.jpg" alt="Tristan, Hired Blade" loading="lazy" /><div><h4>Tristan, Hired Blade</h4><p class="sub">CHAMPION · NORM · ASSASSIN · 2 memory</p><p class="blurb">Tristan Lineage
+
+On Enter: If CARDNAME has two or more preparation counters on her, draw a card. Then if CARDNAME has four or more preparation counters on her, draw</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/y68ixy5c8s.jpg" alt="Tristan, Shadowdancer" loading="lazy" /><div><h4>Tristan, Shadowdancer</h4><p class="sub">CHAMPION · UMBRA · ASSASSIN · 3 memory</p><p class="blurb">Tristan Lineage
+
+On Enter: Summon two Ominous Shadow tokens and put a preparation counter on CARDNAME.
+
+Remove two preparation counters from CARDNAME: Change the ta</p></div></article>
+<h2>Three engines</h2>
+<h3>Preparation</h3><article class="card-row"><img src="https://api.gatcg.com/cards/images/F1VUvyxhjk.jpg" alt="Winbless Lookout" loading="lazy" /><div><h4><span class="qty">4</span> Winbless Lookout</h4><p class="sub">ALLY · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Enters with prep + Glimpse.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/v2qqhh06fy.jpg" alt="Corhazi Outlook" loading="lazy" /><div><h4><span class="qty">4</span> Corhazi Outlook</h4><p class="sub">ALLY · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Prep on enter; can lock activations.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/RrWe92vun7.jpg" alt="Surveil the Winds" loading="lazy" /><div><h4><span class="qty">3</span> Surveil the Winds</h4><p class="sub">ACTION · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Fast draw + prep.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/qqhh06fycy.jpg" alt="Windwalker Boots" loading="lazy" /><div><h4><span class="qty">1</span> Windwalker Boots</h4><p class="sub">REGALIA, ITEM · WIND · ASSASSIN · 0 memory</p><p class="blurb">Passive prep if Tristan stays awake.</p></div></article><h3>Assassin attacks</h3><article class="card-row"><img src="https://api.gatcg.com/cards/images/U2YyE6Vjis.jpg" alt="Betraying Blade" loading="lazy" /><div><h4><span class="qty">4</span> Betraying Blade</h4><p class="sub">ATTACK · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Can buy another prep On Attack.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/r9hcpdtipt.jpg" alt="Combo Strike" loading="lazy" /><div><h4><span class="qty">4</span> Combo Strike</h4><p class="sub">ATTACK · WIND · ASSASSIN, WARRIOR · 2 reserve</p><p class="blurb">L2+ On Kill wakes Tristan for another swing.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/XVdRymzXiF.jpg" alt="Fracturing Slash" loading="lazy" /><div><h4><span class="qty">4</span> Fracturing Slash</h4><p class="sub">ATTACK · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Efficient 3-power Assassin cut.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/a5uijxhkus.jpg" alt="Poised Strike" loading="lazy" /><div><h4><span class="qty">4</span> Poised Strike</h4><p class="sub">ATTACK · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Another dense 2-cost dagger.</p></div></article><h3>Ambush board</h3><article class="card-row"><img src="https://api.gatcg.com/cards/images/s5d53zb9pe.jpg" alt="Cloaked Executioner" loading="lazy" /><div><h4><span class="qty">4</span> Cloaked Executioner</h4><p class="sub">ALLY · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Fast Ambush body.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/7TUjHwx67b.jpg" alt="Turbulent Bounty Hunter" loading="lazy" /><div><h4><span class="qty">3</span> Turbulent Bounty Hunter</h4><p class="sub">ALLY · WIND · ASSASSIN · 2 reserve</p><p class="blurb">Grows when it gets kills.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/tk2qdhwebs.jpg" alt="Razorblade Execution" loading="lazy" /><div><h4><span class="qty">3</span> Razorblade Execution</h4><p class="sub">ATTACK · WIND · ASSASSIN · 3 reserve</p><p class="blurb">Imbue finisher that refunds prep.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/7uychawtts.jpg" alt="Veiling Breeze" loading="lazy" /><div><h4><span class="qty">3</span> Veiling Breeze</h4><p class="sub">ACTION · WIND · ASSASSIN · 1 reserve</p><p class="blurb">Reveal Wind from memory to prevent damage.</p></div></article>
+<h2>Material deck</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/8lbewemhus.jpg" alt="Spirit of Wind" loading="lazy" /><div class="meta"><strong>Spirit of Wind</strong><span class="sub">CHAMPION · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/5dgq56cjg0.jpg" alt="Tristan, Underhanded" loading="lazy" /><div class="meta"><strong>Tristan, Underhanded</strong><span class="sub">CHAMPION · NORM · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/bo2fb4qwwv.jpg" alt="Tristan, Hired Blade" loading="lazy" /><div class="meta"><strong>Tristan, Hired Blade</strong><span class="sub">CHAMPION · NORM · 2 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/y68ixy5c8s.jpg" alt="Tristan, Shadowdancer" loading="lazy" /><div class="meta"><strong>Tristan, Shadowdancer</strong><span class="sub">CHAMPION · UMBRA · 3 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/erzrplxvb0.jpg" alt="Zephyr&#x27;s Edge" loading="lazy" /><div class="meta"><strong>Zephyr&#x27;s Edge</strong><span class="sub">REGALIA, WEAPON · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/dpfi0iqlyw.jpg" alt="Gearstride Gloves" loading="lazy" /><div class="meta"><strong>Gearstride Gloves</strong><span class="sub">REGALIA, ITEM · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/qqhh06fycy.jpg" alt="Windwalker Boots" loading="lazy" /><div class="meta"><strong>Windwalker Boots</strong><span class="sub">REGALIA, ITEM · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/4pzmq492ol.jpg" alt="Ceremonial Stormblade" loading="lazy" /><div class="meta"><strong>Ceremonial Stormblade</strong><span class="sub">REGALIA, WEAPON · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/aowYEGJgPe.jpg" alt="Sundering Moon" loading="lazy" /><div class="meta"><strong>Sundering Moon</strong><span class="sub">REGALIA, WEAPON · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/ychawttsvl.jpg" alt="Sword of Seeking" loading="lazy" /><div class="meta"><strong>Sword of Seeking</strong><span class="sub">REGALIA, WEAPON · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/OMMUK6OQNM.jpg" alt="Revoker Bell" loading="lazy" /><div class="meta"><strong>Revoker Bell</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/kz4PVDG1n6.jpg" alt="Discharger" loading="lazy" /><div class="meta"><strong>Discharger</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article></div>
+<h2>Main deck</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/U2YyE6Vjis.jpg" alt="Betraying Blade" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Betraying Blade</strong><span class="sub">ATTACK · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/r9hcpdtipt.jpg" alt="Combo Strike" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Combo Strike</strong><span class="sub">ATTACK · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/XVdRymzXiF.jpg" alt="Fracturing Slash" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Fracturing Slash</strong><span class="sub">ATTACK · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/a5uijxhkus.jpg" alt="Poised Strike" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Poised Strike</strong><span class="sub">ATTACK · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/s5d53zb9pe.jpg" alt="Cloaked Executioner" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Cloaked Executioner</strong><span class="sub">ALLY · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/F1VUvyxhjk.jpg" alt="Winbless Lookout" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Winbless Lookout</strong><span class="sub">ALLY · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/v2qqhh06fy.jpg" alt="Corhazi Outlook" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Corhazi Outlook</strong><span class="sub">ALLY · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/7TUjHwx67b.jpg" alt="Turbulent Bounty Hunter" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Turbulent Bounty Hunter</strong><span class="sub">ALLY · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/RrWe92vun7.jpg" alt="Surveil the Winds" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Surveil the Winds</strong><span class="sub">ACTION · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/7uychawtts.jpg" alt="Veiling Breeze" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Veiling Breeze</strong><span class="sub">ACTION · WIND · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/tk2qdhwebs.jpg" alt="Razorblade Execution" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Razorblade Execution</strong><span class="sub">ATTACK · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/krhrajj6kl.jpg" alt="Whirlwind Reaper" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Whirlwind Reaper</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/tvp7hc1pq4.jpg" alt="Charged Assailant" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Charged Assailant</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/94h6lahmjr.jpg" alt="Shimmercloak Assassin" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Shimmercloak Assassin</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/9myigd7zql.jpg" alt="Galewhisper Rogue" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Galewhisper Rogue</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/3mgz76sk0p.jpg" alt="Stifling Trap" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Stifling Trap</strong><span class="sub">ACTION · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/gxk4f16jph.jpg" alt="Arrow Trap" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Arrow Trap</strong><span class="sub">ACTION · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/xhsejw2vgd.jpg" alt="Sirocco Operative" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Sirocco Operative</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/2rU3BpZOMo.jpg" alt="Updraft Slice" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Updraft Slice</strong><span class="sub">ATTACK · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/3vane3r6ej.jpg" alt="Expeditious Opening" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Expeditious Opening</strong><span class="sub">ACTION · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/1fz2bix6xo.jpg" alt="Bushwhack Bandit" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Bushwhack Bandit</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/2iq0nzqsa2.jpg" alt="Parcenet, Royal Maid" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Parcenet, Royal Maid</strong><span class="sub">UNIQUE, ALLY · WIND · 2 reserve</span></div></article></div>
+<h2>Sideboard</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/m76tlztmw3.jpg" alt="Blackmarket Broker" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Blackmarket Broker</strong><span class="sub">ALLY · WIND · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/1fz2bix6xo.jpg" alt="Bushwhack Bandit" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Bushwhack Bandit</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/4o1n4gygok.jpg" alt="Extortion Scheme" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Extortion Scheme</strong><span class="sub">ACTION · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mNEi7tQRyT.jpg" alt="Luster&#x27;s Shroud" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Luster&#x27;s Shroud</strong><span class="sub">ACTION · WIND · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/wViAsugAWh.jpg" alt="Facet Together" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Facet Together</strong><span class="sub">ACTION · WIND · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/2h04dbz8qq.jpg" alt="Ensnaring Fumes" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Ensnaring Fumes</strong><span class="sub">ACTION · WIND · 5 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/woAE81eHUp.jpg" alt="StrideTech W" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>StrideTech W</strong><span class="sub">ITEM · WIND · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/9myigd7zql.jpg" alt="Galewhisper Rogue" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Galewhisper Rogue</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/krhrajj6kl.jpg" alt="Whirlwind Reaper" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Whirlwind Reaper</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/tvp7hc1pq4.jpg" alt="Charged Assailant" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Charged Assailant</strong><span class="sub">ALLY · WIND · 3 reserve</span></div></article></div>
+<p class="note">Side in traps and denser Assassin 3-drops for midrange; Veiling / Stifling packages vs burn.</p>
+<h2>Opening checklist</h2>
+<ul><li>Spirit of Wind → Lookout / Outlook / Cloaked curve.</li><li>Tristan L1: take prep or Agility 3 depending on hand.</li><li>Materialize Gearstride Gloves + a 0-cost Sword when ready to attack.</li><li>Level Hired Blade with 2+ prep for card advantage; Shadowdancer closes.</li></ul>
+<h2>Common mistakes</h2>
+<ul><li>Resting Tristan every turn and starving Windwalker Boots.</li><li>Playing Combo Strike before level 2 (no wake-up).</li><li>Spending Corhazi’s prep lock when you needed the counters for Hired Blade.</li></ul>
+    <footer>Card images © Grand Archive / Weebs of the Shore via api.gatcg.com · AdvGA exploration guide</footer>
+  </main>
+</body>
+</html>

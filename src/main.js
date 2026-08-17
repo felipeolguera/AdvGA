@@ -6,7 +6,8 @@ import {
   normalizeRoomCode,
   readRoomParams,
 } from "./multiplayer.js";
-import { PRD_DECK_SUGGESTIONS } from "./prdDeckSuggestions.js";
+import { AGGRO_DECK_SUGGESTIONS } from "./aggroDeckSuggestions.js";
+import { PLAY_GUIDES, PRD_DECK_SUGGESTIONS } from "./prdDeckSuggestions.js";
 import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
@@ -19,7 +20,8 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.99";
+const APP_VERSION = "1.00";
+const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
@@ -395,27 +397,22 @@ function getBuilderShellHtml() {
           Deck name
           <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
         </label>
-        <div class="deck-suggestions" aria-label="PRD deck suggestions">
-          <p class="deck-suggestions-label">.asphodel/paradise suggestions</p>
+        <div class="deck-suggestions" aria-label="Deck suggestions">
+          <p class="deck-suggestions-label">Deck suggestions</p>
           <div class="deck-suggestions-actions">
-            ${PRD_DECK_SUGGESTIONS.map(
+            ${DECK_SUGGESTIONS.map(
               (suggestion) => `
               <button
                 class="secondary compact"
                 type="button"
-                data-prd-suggestion="${escapeHtml(suggestion.id)}"
+                data-deck-suggestion="${escapeHtml(suggestion.id)}"
                 title="${escapeHtml(suggestion.description)}"
               >${escapeHtml(suggestion.label)}</button>
-              ${
-                suggestion.guideHref
-                  ? `<a class="ghost compact deck-suggestion-guide" href="${escapeHtml(resolvePublicAssetUrl(suggestion.guideHref))}" target="_blank" rel="noopener noreferrer">${escapeHtml(suggestion.guideLabel || "Guide")}</a>`
-                  : ""
-              }
             `,
             ).join("")}
           </div>
           <p class="hint deck-suggestions-hint">
-            One-click legal shells for the new set’s featured champions (Dante · Lorraine). Replaces your current list.
+            One-click shells: Fire / Water / Wind aggro (all sets) plus PRD Dante &amp; Lorraine. Replaces your current list. Play guides live in the Guides section below.
           </p>
         </div>
         <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
@@ -428,6 +425,49 @@ function getBuilderShellHtml() {
         </div>
         <div class="deck-list deck-list-home" id="deck-list"></div>
         <div class="deck-toast deck-toast-home" id="deck-toast-home" role="status" aria-live="polite" hidden>Added</div>
+      </div>
+    </details>
+
+    <details class="panel collapsible-section guides-panel" id="play-guides">
+      <summary class="section-summary">
+        <div>
+          <p class="eyebrow">How to play</p>
+          <h2>Guides</h2>
+        </div>
+      </summary>
+      <div class="section-body">
+        <p class="hint guides-intro">
+          Illustrated play guides with card art. Open any guide in a new tab; load the matching list from Deck suggestions above.
+        </p>
+        <div class="guides-groups">
+          ${["Aggro", "PRD"]
+            .map((group) => {
+              const guides = PLAY_GUIDES.filter((guide) => guide.group === group);
+              if (!guides.length) {
+                return "";
+              }
+              return `
+            <section class="guides-group" aria-label="${escapeHtml(group)} guides">
+              <p class="guides-group-label">${escapeHtml(group)}</p>
+              <ul class="guides-list">
+                ${guides
+                  .map(
+                    (guide) => `
+                  <li class="guides-item">
+                    <a class="guides-link" href="${escapeHtml(resolvePublicAssetUrl(guide.href))}" target="_blank" rel="noopener noreferrer">
+                      <span class="guides-title">${escapeHtml(guide.title)}</span>
+                      <span class="guides-blurb">${escapeHtml(guide.blurb)}</span>
+                    </a>
+                  </li>
+                `,
+                  )
+                  .join("")}
+              </ul>
+            </section>
+          `;
+            })
+            .join("")}
+        </div>
       </div>
     </details>
 
@@ -1119,9 +1159,9 @@ function bootBuilderPage() {
     await importDeckFromText(importText.value);
   });
 
-  document.querySelectorAll("[data-prd-suggestion]").forEach((button) => {
+  document.querySelectorAll("[data-deck-suggestion]").forEach((button) => {
     button.addEventListener("click", async () => {
-      const suggestion = PRD_DECK_SUGGESTIONS.find((entry) => entry.id === button.dataset.prdSuggestion);
+      const suggestion = DECK_SUGGESTIONS.find((entry) => entry.id === button.dataset.deckSuggestion);
       if (!suggestion) {
         return;
       }
