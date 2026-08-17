@@ -11,6 +11,7 @@ a constructed deck list.
   legality, speed, rarity, stats, costs, and effect text.
 - Quick Filters include Set (with .asphodel/paradise / PRD featured) plus a
   one-tap **Cards in PRD** search for the new release.
+- Library **Show all** option loads every matching card instead of paging 50 at a time.
 - Interchangeable phrase order such as `2 cost ally` and `ally that cost 2`.
 - Parsed filter chips, search explanations, advanced filter controls, sorting,
   keyword helpers, recent searches, and shareable search URLs.

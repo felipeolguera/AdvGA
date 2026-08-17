@@ -346,6 +346,35 @@ h1 {
   background: rgba(244, 184, 93, 0.12);
 }
 
+.library-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.library-load-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+
+.library-load-all input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--gold-strong);
+  cursor: pointer;
+}
+
 .library-sort {
   display: grid;
   gap: 6px;
@@ -493,6 +522,8 @@ button.result-grid-add {
 .actions {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 28px;
 }
 
