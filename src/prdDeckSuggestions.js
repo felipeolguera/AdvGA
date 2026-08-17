@@ -162,3 +162,42 @@ export const PRD_DECK_SUGGESTIONS = [
     guideLabel: "Lorraine guide",
   },
 ];
+
+/** All illustrated play guides (shown in the Guides section). */
+export const PLAY_GUIDES = [
+  {
+    id: "guide-fire-aggro",
+    title: "Fire Aggro — Lorraine Blademaster",
+    blurb: "All-sets Fire Warrior: discard fuel, champion attacks, Sword pressure.",
+    href: "guides/aggro-fire-lorraine.html",
+    group: "Aggro",
+  },
+  {
+    id: "guide-water-aggro",
+    title: "Water Aggro — Mordred Flawless",
+    blurb: "All-sets Water Warrior: Deluge attacks and floating-memory swings.",
+    href: "guides/aggro-water-mordred.html",
+    group: "Aggro",
+  },
+  {
+    id: "guide-wind-aggro",
+    title: "Wind Aggro — Tristan Shadowdancer",
+    blurb: "All-sets Wind Assassin: preparation, ambush, Combo Strike chains.",
+    href: "guides/aggro-wind-tristan.html",
+    group: "Aggro",
+  },
+  {
+    id: "guide-prd-lorraine",
+    title: "PRD Lorraine Arclight",
+    blurb: ".asphodel/paradise Fire / Arcane Warrior starter shell.",
+    href: "guides/prd-lorraine-arclight.html",
+    group: "PRD",
+  },
+  {
+    id: "guide-prd-dante",
+    title: "PRD Dante Hemomancer",
+    blurb: ".asphodel/paradise Water / Exia Mage starter shell.",
+    href: "guides/prd-dante-hemomancer.html",
+    group: "PRD",
+  },
+];

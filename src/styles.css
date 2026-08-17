@@ -953,6 +953,66 @@ button.result-grid-add {
   font-size: 0.86rem;
 }
 
+.guides-panel .guides-intro {
+  margin: 0 0 12px;
+}
+
+.guides-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.guides-group-label {
+  margin: 0 0 8px;
+  color: var(--gold-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guides-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.guides-link {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 204, 115, 0.28);
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  background:
+    linear-gradient(135deg, rgba(244, 184, 93, 0.1), transparent 60%),
+    rgba(0, 0, 0, 0.16);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.guides-link:hover,
+.guides-link:focus-visible {
+  border-color: rgba(255, 204, 115, 0.55);
+  background:
+    linear-gradient(135deg, rgba(244, 184, 93, 0.16), transparent 60%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.guides-title {
+  color: var(--text);
+  font-weight: 800;
+  font-size: 0.98rem;
+}
+
+.guides-blurb {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
 .deck-name-field input {
   min-height: 44px;
   border: 1px solid var(--line);

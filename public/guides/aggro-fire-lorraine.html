@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fire Aggro — Lorraine Blademaster — Play Guide | AdvGA</title>
+  <style>
+
+:root {
+  color-scheme: dark;
+  --bg: #100f18;
+  --panel: rgba(31, 29, 45, 0.92);
+  --text: #f7efe4;
+  --muted: #c8b9a8;
+  --line: rgba(255,255,255,0.14);
+  --gold: #f4b85d;
+  --gold-strong: #ffcc73;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(227,100,93,0.18), transparent 34rem),
+    radial-gradient(circle at 85% 10%, rgba(244,184,93,0.12), transparent 28rem),
+    linear-gradient(135deg, #100f18 0%, #191827 48%, #111017 100%);
+  line-height: 1.55;
+}
+a { color: var(--gold-strong); }
+.wrap { width: min(980px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 64px; }
+.eyebrow { margin: 0 0 6px; color: var(--gold-strong); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+h1 { margin: 0 0 10px; font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -0.03em; line-height: 1.1; }
+h2 { margin: 2rem 0 0.7rem; font-size: 1.35rem; color: var(--gold-strong); }
+h3 { margin: 1.4rem 0 0.55rem; font-size: 1.05rem; }
+.lead, p, li { color: var(--muted); }
+.lead { font-size: 1.05rem; max-width: 46rem; }
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--panel);
+  margin: 14px 0;
+}
+.nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 8px; }
+.nav a {
+  display: inline-grid; place-items: center; min-height: 40px; padding: 0 14px;
+  border-radius: 12px; border: 1px solid rgba(255,204,115,0.45);
+  text-decoration: none; color: var(--gold-strong); background: rgba(244,184,93,0.1);
+  font-weight: 800; font-size: 0.9rem;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 14px;
+  margin: 12px 0 8px;
+}
+.card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.card img {
+  width: 100%;
+  aspect-ratio: 0.716;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0a0a0b;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+}
+.card .meta { display: grid; gap: 2px; }
+.card strong { color: var(--text); font-size: 0.86rem; line-height: 1.25; }
+.card .qty {
+  display: inline-block; margin-right: 4px; color: #170f0b;
+  background: var(--gold-strong); border-radius: 999px; padding: 1px 7px;
+  font-size: 0.72rem; font-weight: 900;
+}
+.card .sub { font-size: 0.72rem; color: var(--muted); }
+.card-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0,0,0,0.18);
+}
+.card-row img {
+  width: 110px; aspect-ratio: 0.716; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--line); background: #0a0a0b;
+}
+.card-row h4 { margin: 0 0 4px; color: var(--text); font-size: 1rem; }
+.card-row .sub { margin: 0 0 6px; font-size: 0.78rem; }
+.card-row .blurb { margin: 0; font-size: 0.92rem; color: var(--muted); }
+.note { font-size: 0.9rem; }
+ul { padding-left: 1.15rem; }
+footer { margin-top: 36px; font-size: 0.85rem; color: var(--muted); }
+@media (max-width: 640px) {
+  .card-row { grid-template-columns: 88px minmax(0,1fr); }
+  .card-row img { width: 88px; }
+}
+
+body { background: radial-gradient(circle at top left, #e3645d2e, transparent 34rem), radial-gradient(circle at 85% 10%, #f4b85d1f, transparent 28rem), linear-gradient(135deg, #100f18 0%, #191827 48%, #111017 100%); }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">Grand Archive · All sets · Aggro</p>
+    <h1>Fire Aggro — Lorraine Blademaster — Play Guide</h1>
+    <p class="lead">All-sets Fire Warrior aggro: discard to grow swords and buffs, then smash with Lorraine’s attack package.</p>
+    <div class="nav"><a href="../">Open AdvGA</a><a href="aggro-water-mordred.html">Water aggro guide</a><a href="aggro-wind-tristan.html">Wind aggro guide</a><a href="prd-lorraine-arclight.html">PRD Lorraine</a><a href="prd-dante-hemomancer.html">PRD Dante</a></div>
+<div class="panel note">
+  <strong style="color:var(--text)">Load in AdvGA:</strong> Deck Builder → <em>Load Fire Aggro (Lorraine)</em>. Guides section lists every play guide.
+  Standard shell: Material 12 · Main 60 · Sideboard 15.
+</div>
+<h2>Game plan</h2>
+<p>Open with cheap Fire allies and Emberslash. Level to Blademaster for +POWER On Enter, fill the graveyard with Fire discards, then close with Blazing Lunge / Rending Flames and Ascendant Wings sword swarm.</p>
+<h2>Champion line</h2>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/gx83sfhvfi.jpg" alt="Spirit of Fire" loading="lazy" /><div><h4>Spirit of Fire</h4><p class="sub">CHAMPION · FIRE · SPIRIT · 0 memory</p><p class="blurb">On Enter: Draw seven cards.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/lP5xsEHLGu.jpg" alt="Lorraine, Wandering Warrior" loading="lazy" /><div><h4>Lorraine, Wandering Warrior</h4><p class="sub">CHAMPION · NORM · WARRIOR · 1 memory</p><p class="blurb">On Enter: Materialize a weapon card with memory cost 0 from your material deck.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/drwpb887a0.jpg" alt="Lorraine, Blademaster" loading="lazy" /><div><h4>Lorraine, Blademaster</h4><p class="sub">CHAMPION · NORM · WARRIOR · 2 memory</p><p class="blurb">Lorraine Lineage *(Lorraine, Blademaster must be leveled from a previous level &quot;Lorraine&quot; champion.)*
+
+On Enter: Until end of turn, CARDNAME&#x27;s attacks get +2 [POWER] and ga</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/Wa5g8PP0Q1.jpg" alt="Lorraine, Ascendant Wings" loading="lazy" /><div><h4>Lorraine, Ascendant Wings</h4><p class="sub">CHAMPION · NORM · WARRIOR · 4 memory</p><p class="blurb">Lorraine Lineage
+
+(2024): Generate any amount of Sword regalia cards and put them onto the field. For the rest of the game, Sword weapons you control can attack as though t</p></div></article>
+<h2>Three engines</h2>
+<h3>Discard engine</h3><article class="card-row"><img src="https://api.gatcg.com/cards/images/mtvkqpheTi.jpg" alt="Package Courier" loading="lazy" /><div><h4><span class="qty">4</span> Package Courier</h4><p class="sub">ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">On Enter discard → draw to feed Fire GY.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/zb25m5c8lj.jpg" alt="Hasty Messenger" loading="lazy" /><div><h4><span class="qty">3</span> Hasty Messenger</h4><p class="sub">ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Attack discard → draw keeps the loop going.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/7cBvJ9vaN3.jpg" alt="Scars of Old" loading="lazy" /><div><h4><span class="qty">3</span> Scars of Old</h4><p class="sub">ACTION · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Draw/discard; Class Bonus buffs damaged allies.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/lXApwwuDjS.jpg" alt="Tindered Soldier" loading="lazy" /><div><h4><span class="qty">4</span> Tindered Soldier</h4><p class="sub">ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Picks up a buff whenever you discard Fire.</p></div></article><h3>Champion attacks</h3><article class="card-row"><img src="https://api.gatcg.com/cards/images/mJ3UeqCaXQ.jpg" alt="Emberslash" loading="lazy" /><div><h4><span class="qty">4</span> Emberslash</h4><p class="sub">ATTACK · FIRE · WARRIOR · 1 reserve</p><p class="blurb">Cheapest Warrior attack; Class Bonus filters.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/E378PvpTMl.jpg" alt="Stoked Slice" loading="lazy" /><div><h4><span class="qty">4</span> Stoked Slice</h4><p class="sub">ATTACK · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Banishes Fire from GY to pump all allies.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/rj87jd0g7l.jpg" alt="Blazing Lunge" loading="lazy" /><div><h4><span class="qty">3</span> Blazing Lunge</h4><p class="sub">ATTACK · FIRE · WARRIOR · 3 reserve</p><p class="blurb">Big swing; can make damage unpreventable.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/1MUDSt76qU.jpg" alt="Inflamed Bladehand" loading="lazy" /><div><h4><span class="qty">3</span> Inflamed Bladehand</h4><p class="sub">ALLY · FIRE · WARRIOR · 3 reserve</p><p class="blurb">Pumps hard whenever Lorraine attacks.</p></div></article><h3>Sword pressure</h3><article class="card-row"><img src="https://api.gatcg.com/cards/images/fsyrc9a8c1.jpg" alt="Forgelight Blade" loading="lazy" /><div><h4><span class="qty">1</span> Forgelight Blade</h4><p class="sub">REGALIA, WEAPON · FIRE · WARRIOR · 0 memory</p><p class="blurb">Free L1 Sword (costs champion damage).</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/8jmoiza4th.jpg" alt="Firetongue" loading="lazy" /><div><h4><span class="qty">1</span> Firetongue</h4><p class="sub">REGALIA, WEAPON · FIRE · WARRIOR · 1 memory</p><p class="blurb">Grows durability from Fire GY.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/2We3ybSDda.jpg" alt="Dragon&#x27;s Dawn" loading="lazy" /><div><h4><span class="qty">1</span> Dragon&#x27;s Dawn</h4><p class="sub">REGALIA, WEAPON · FIRE · WARRIOR · 1 memory</p><p class="blurb">Late Sword that can ping unpreventable.</p></div></article><article class="card-row"><img src="https://api.gatcg.com/cards/images/0iWIhF3Wt8.jpg" alt="Rampant Bladehand" loading="lazy" /><div><h4><span class="qty">2</span> Rampant Bladehand</h4><p class="sub">ALLY · FIRE · WARRIOR · 3 reserve</p><p class="blurb">Spends weapon durability for +POWER.</p></div></article>
+<h2>Material deck</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/gx83sfhvfi.jpg" alt="Spirit of Fire" loading="lazy" /><div class="meta"><strong>Spirit of Fire</strong><span class="sub">CHAMPION · FIRE · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/lP5xsEHLGu.jpg" alt="Lorraine, Wandering Warrior" loading="lazy" /><div class="meta"><strong>Lorraine, Wandering Warrior</strong><span class="sub">CHAMPION · NORM · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/drwpb887a0.jpg" alt="Lorraine, Blademaster" loading="lazy" /><div class="meta"><strong>Lorraine, Blademaster</strong><span class="sub">CHAMPION · NORM · 2 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/Wa5g8PP0Q1.jpg" alt="Lorraine, Ascendant Wings" loading="lazy" /><div class="meta"><strong>Lorraine, Ascendant Wings</strong><span class="sub">CHAMPION · NORM · 4 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/fsyrc9a8c1.jpg" alt="Forgelight Blade" loading="lazy" /><div class="meta"><strong>Forgelight Blade</strong><span class="sub">REGALIA, WEAPON · FIRE · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/8jmoiza4th.jpg" alt="Firetongue" loading="lazy" /><div class="meta"><strong>Firetongue</strong><span class="sub">REGALIA, WEAPON · FIRE · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/2We3ybSDda.jpg" alt="Dragon&#x27;s Dawn" loading="lazy" /><div class="meta"><strong>Dragon&#x27;s Dawn</strong><span class="sub">REGALIA, WEAPON · FIRE · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/ychawttsvl.jpg" alt="Sword of Seeking" loading="lazy" /><div class="meta"><strong>Sword of Seeking</strong><span class="sub">REGALIA, WEAPON · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/GJrnQaQ5oq.jpg" alt="Banner of Ares" loading="lazy" /><div class="meta"><strong>Banner of Ares</strong><span class="sub">REGALIA, ITEM · WIND · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/OMMUK6OQNM.jpg" alt="Revoker Bell" loading="lazy" /><div class="meta"><strong>Revoker Bell</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/kz4PVDG1n6.jpg" alt="Discharger" loading="lazy" /><div class="meta"><strong>Discharger</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mkjvcXkILy.jpg" alt="Battery Core X" loading="lazy" /><div class="meta"><strong>Battery Core X</strong><span class="sub">REGALIA, ITEM · NORM · 1 memory</span></div></article></div>
+<h2>Main deck</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/mJ3UeqCaXQ.jpg" alt="Emberslash" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Emberslash</strong><span class="sub">ATTACK · FIRE · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/E378PvpTMl.jpg" alt="Stoked Slice" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Stoked Slice</strong><span class="sub">ATTACK · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/LO7WQE2iBp.jpg" alt="Blistering Insurgent" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Blistering Insurgent</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mtvkqpheTi.jpg" alt="Package Courier" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Package Courier</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/lXApwwuDjS.jpg" alt="Tindered Soldier" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Tindered Soldier</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/tczb25m5c8.jpg" alt="Strapping Conscript" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Strapping Conscript</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/zb25m5c8lj.jpg" alt="Hasty Messenger" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Hasty Messenger</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/7cBvJ9vaN3.jpg" alt="Scars of Old" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Scars of Old</strong><span class="sub">ACTION · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/rj87jd0g7l.jpg" alt="Blazing Lunge" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Blazing Lunge</strong><span class="sub">ATTACK · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/OiOzavefYK.jpg" alt="Rending Flames" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Rending Flames</strong><span class="sub">ATTACK · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/1bhio41ln9.jpg" alt="Fiery Momentum" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Fiery Momentum</strong><span class="sub">ATTACK · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/1MUDSt76qU.jpg" alt="Inflamed Bladehand" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Inflamed Bladehand</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/1x041sk6lk.jpg" alt="Heated Vengeance" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Heated Vengeance</strong><span class="sub">ATTACK · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/0iWIhF3Wt8.jpg" alt="Rampant Bladehand" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Rampant Bladehand</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mQgeupa1I5.jpg" alt="Outfitted Ravager" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Outfitted Ravager</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/5wqgwuidru.jpg" alt="Ritai Berserker" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Ritai Berserker</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/pjvYLaHE1k.jpg" alt="Devastating Blow" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Devastating Blow</strong><span class="sub">ATTACK · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/l32hksynna.jpg" alt="General at Arms" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>General at Arms</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/Nlsg4dUAvK.jpg" alt="Plutus, Fortune&#x27;s Favor" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Plutus, Fortune&#x27;s Favor</strong><span class="sub">UNIQUE, ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/c2Row0E8Sl.jpg" alt="Molten Impact" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Molten Impact</strong><span class="sub">ACTION · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/m3zjl7lpvn.jpg" alt="Flame Sweep" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Flame Sweep</strong><span class="sub">ATTACK · FIRE · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/p0dgUM1Alr.jpg" alt="Bill, Chimney Sweep" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Bill, Chimney Sweep</strong><span class="sub">UNIQUE, ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/o1nlgqlqy0.jpg" alt="Flamebound Draug" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Flamebound Draug</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article></div>
+<h2>Sideboard</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/rcdzdhnf18.jpg" alt="Manic Zealot" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Manic Zealot</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/4g764wnl6g.jpg" alt="Indiscriminate Gyre" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Indiscriminate Gyre</strong><span class="sub">ATTACK · FIRE · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/slzybrcuh8.jpg" alt="Ash Filcher" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Ash Filcher</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/paqm8uowyt.jpg" alt="Wandering Glaivier" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Wandering Glaivier</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/gocb33mr0k.jpg" alt="Airship Captain" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Airship Captain</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/vn9fgfiy38.jpg" alt="Arthur, Young Heir" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Arthur, Young Heir</strong><span class="sub">UNIQUE, ALLY · FIRE · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/l39s1u0aby.jpg" alt="Three of Hearts" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Three of Hearts</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/r8y2vca8a9.jpg" alt="Two of Hearts" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Two of Hearts</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/7p3rtuae7d.jpg" alt="Sword Saint of Everflame" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Sword Saint of Everflame</strong><span class="sub">ALLY · FIRE · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/5wqgwuidru.jpg" alt="Ritai Berserker" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Ritai Berserker</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article></div>
+<p class="note">Side in Manic Zealot for race games, Gyre/Sweep for wide boards, and denser midrange allies when the opponent stalls.</p>
+<h2>Opening checklist</h2>
+<ul><li>Spirit of Fire → curve Emberslash / Courier / Insurgent / Tindered.</li><li>L1 materialize Forgelight Blade, start attacking.</li><li>Level Blademaster when you can convert the On Enter pump into a kill.</li><li>Hold Ascendant Wings until you have Swords ready to swarm.</li></ul>
+<h2>Common mistakes</h2>
+<ul><li>Playing Dragon’s Dawn without three Fire in GY.</li><li>Burning every discard without leaving Fire for Stoked Slice / Firetongue.</li><li>Leveling Ascendant Wings with empty material swords.</li></ul>
+    <footer>Card images © Grand Archive / Weebs of the Shore via api.gatcg.com · AdvGA exploration guide</footer>
+  </main>
+</body>
+</html>

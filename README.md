@@ -12,11 +12,15 @@ a constructed deck list.
 - Quick Filters include Set (with .asphodel/paradise / PRD featured) plus a
   one-tap **Cards in PRD** search for the new release.
 - Library **Show all** option loads every matching card instead of paging 50 at a time.
-- One-click **.asphodel/paradise** deck suggestions (Dante Water/Exia Mage, Lorraine Fire/Arcane Warrior).
-- Illustrated play guides with card art:
+- One-click deck suggestions: Fire / Water / Wind **aggro** shells (all sets) plus
+  **.asphodel/paradise** Dante & Lorraine starters.
+- Dedicated **Guides** section with illustrated play guides (card art):
+  [Fire Aggro](docs/aggro-fire-lorraine-guide.md) ·
+  [Water Aggro](docs/aggro-water-mordred-guide.md) ·
+  [Wind Aggro](docs/aggro-wind-tristan-guide.md) ·
   [Lorraine Arclight](docs/prd-lorraine-arclight-guide.md) ·
   [Dante Hemomancer](docs/prd-dante-hemomancer-guide.md)
-  (HTML versions under `public/guides/`).
+  (HTML under `public/guides/`).
 - Interchangeable phrase order such as `2 cost ally` and `ally that cost 2`.
 - Parsed filter chips, search explanations, advanced filter controls, sorting,
   keyword helpers, recent searches, and shareable search URLs.
