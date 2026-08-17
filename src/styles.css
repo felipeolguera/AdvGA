@@ -937,6 +937,15 @@ button.result-grid-add {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+}
+
+.deck-suggestion-guide {
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .deck-suggestions-hint {
