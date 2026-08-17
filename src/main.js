@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.00";
+const APP_VERSION = "1.01";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -606,6 +606,18 @@ function getBuilderShellHtml() {
     </form>
   </dialog>
 
+  <div class="deck-load-overlay" id="deck-load-overlay" hidden aria-hidden="true">
+    <div class="deck-load-card" role="status" aria-live="polite" aria-busy="true">
+      <div class="deck-load-spinner" aria-hidden="true"></div>
+      <p class="deck-load-title" id="deck-load-title">Loading deck</p>
+      <p class="deck-load-detail" id="deck-load-detail">Looking up cards…</p>
+      <div class="deck-load-progress" aria-hidden="true">
+        <div class="deck-load-progress-bar" id="deck-load-progress-bar"></div>
+      </div>
+      <p class="deck-load-count" id="deck-load-count"></p>
+    </div>
+  </div>
+
   <button class="scroll-top-button" type="button" id="scroll-top" aria-label="Move to top">↑</button>
 `;
 }
@@ -751,6 +763,11 @@ const importStatusEl = document.querySelector("#import-status");
 const closeImportDialogButton = document.querySelector("#close-import-dialog");
 const cancelImportButton = document.querySelector("#cancel-import");
 const confirmImportButton = document.querySelector("#confirm-import");
+const deckLoadOverlay = document.querySelector("#deck-load-overlay");
+const deckLoadTitle = document.querySelector("#deck-load-title");
+const deckLoadDetail = document.querySelector("#deck-load-detail");
+const deckLoadProgressBar = document.querySelector("#deck-load-progress-bar");
+const deckLoadCount = document.querySelector("#deck-load-count");
 const materialDialog = document.querySelector("#material-dialog");
 const materialDialogGrid = document.querySelector("#material-dialog-grid");
 const materialDialogEmpty = document.querySelector("#material-dialog-empty");
@@ -1175,9 +1192,11 @@ function bootBuilderPage() {
       button.disabled = true;
       button.textContent = "Loading…";
       try {
-        openImportDialog();
-        importText.value = suggestion.listText;
-        await importDeckFromText(suggestion.listText);
+        await importDeckFromText(suggestion.listText, {
+          label: suggestion.shortLabel,
+          showOverlay: true,
+          closeImportDialog: false,
+        });
         showDeckToast(`Loaded ${suggestion.shortLabel}`);
         document.querySelector("#deck-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
       } finally {
@@ -6646,65 +6665,153 @@ function openImportDialog() {
   importText.focus();
 }
 
-async function importDeckFromText(rawText) {
+function showDeckLoadOverlay({ title = "Loading deck", detail = "Looking up cards…", progress = 0, current = 0, total = 0 } = {}) {
+  if (!deckLoadOverlay) {
+    return;
+  }
+  deckLoadOverlay.hidden = false;
+  deckLoadOverlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("deck-load-active");
+  if (deckLoadTitle) {
+    deckLoadTitle.textContent = title;
+  }
+  updateDeckLoadOverlay({ detail, progress, current, total });
+}
+
+function updateDeckLoadOverlay({ detail, progress, current, total } = {}) {
+  if (deckLoadDetail && detail != null) {
+    deckLoadDetail.textContent = detail;
+  }
+  if (deckLoadProgressBar && progress != null) {
+    const pct = Math.max(0, Math.min(100, Number(progress) || 0));
+    deckLoadProgressBar.style.width = `${pct}%`;
+  }
+  if (deckLoadCount && current != null && total != null && total > 0) {
+    deckLoadCount.textContent = `${current} / ${total}`;
+  } else if (deckLoadCount) {
+    deckLoadCount.textContent = "";
+  }
+}
+
+function hideDeckLoadOverlay() {
+  if (!deckLoadOverlay) {
+    return;
+  }
+  deckLoadOverlay.hidden = true;
+  deckLoadOverlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("deck-load-active");
+  if (deckLoadProgressBar) {
+    deckLoadProgressBar.style.width = "0%";
+  }
+  if (deckLoadCount) {
+    deckLoadCount.textContent = "";
+  }
+}
+
+async function importDeckFromText(rawText, options = {}) {
+  const {
+    label = "deck",
+    showOverlay = true,
+    closeImportDialog: shouldCloseImportDialog = true,
+  } = options;
+
   const parsed = parseDeckImport(rawText);
   if (parsed.entries.length === 0) {
     importStatusEl.textContent = "No card lines found. Use formats like “4 Backstep” under a section heading.";
     return;
   }
 
+  const total = parsed.entries.length;
   confirmImportButton.disabled = true;
-  importStatusEl.textContent = `Looking up ${parsed.entries.length} card line${parsed.entries.length === 1 ? "" : "s"}...`;
+  importStatusEl.textContent = `Looking up ${total} card line${total === 1 ? "" : "s"}...`;
+
+  if (showOverlay) {
+    showDeckLoadOverlay({
+      title: `Loading ${label}`,
+      detail: "Resolving cards from the Grand Archive API…",
+      progress: 0,
+      current: 0,
+      total,
+    });
+  }
 
   const nextDeck = [];
   const missing = [];
 
-  for (const entry of parsed.entries) {
-    try {
-      const card = await lookupCardByName(entry.name);
-      if (!card) {
+  try {
+    for (let index = 0; index < parsed.entries.length; index += 1) {
+      const entry = parsed.entries[index];
+      const current = index + 1;
+      const progress = Math.round((current / total) * 100);
+      const detail = `Looking up ${entry.name}…`;
+
+      importStatusEl.textContent = `Looking up ${current} / ${total}…`;
+      if (showOverlay) {
+        updateDeckLoadOverlay({ detail, progress, current, total });
+      }
+
+      try {
+        const card = await lookupCardByName(entry.name);
+        if (!card) {
+          missing.push(entry.name);
+          continue;
+        }
+        const key = getCardKey(card);
+        const existing = nextDeck.find((item) => item.key === key && item.section === entry.section);
+        const maxQuantity = getMaxQuantityForSection(entry.section, card);
+        if (existing) {
+          existing.quantity = Math.min(maxQuantity, existing.quantity + entry.quantity);
+        } else {
+          nextDeck.push({
+            key,
+            name: card.name,
+            image: resolveCardImage(card),
+            line: formatCardLine(card),
+            quantity: Math.min(maxQuantity, entry.quantity),
+            section: entry.section,
+            ...deckCardMetadata(card),
+          });
+        }
+      } catch {
         missing.push(entry.name);
-        continue;
       }
-      const key = getCardKey(card);
-      const existing = nextDeck.find((item) => item.key === key && item.section === entry.section);
-      const maxQuantity = getMaxQuantityForSection(entry.section, card);
-      if (existing) {
-        existing.quantity = Math.min(maxQuantity, existing.quantity + entry.quantity);
-      } else {
-        nextDeck.push({
-          key,
-          name: card.name,
-          image: resolveCardImage(card),
-          line: formatCardLine(card),
-          quantity: Math.min(maxQuantity, entry.quantity),
-          section: entry.section,
-          ...deckCardMetadata(card),
-        });
-      }
-    } catch {
-      missing.push(entry.name);
     }
-  }
 
-  state.deck = nextDeck;
-  if (parsed.deckName) {
-    state.deckName = parsed.deckName;
-    deckNameInput.value = state.deckName;
-    saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
-  }
-  saveDeck();
-  renderDeck();
-  renderCards();
+    if (showOverlay) {
+      updateDeckLoadOverlay({
+        detail: missing.length ? "Finishing import…" : "Building your deck…",
+        progress: 100,
+        current: total,
+        total,
+      });
+    }
 
-  if (missing.length) {
-    importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}. Missing: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}`;
+    state.deck = nextDeck;
+    if (parsed.deckName) {
+      state.deckName = parsed.deckName;
+      deckNameInput.value = state.deckName;
+      saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
+    }
+    saveDeck();
+    renderDeck();
+    renderCards();
+
+    if (missing.length) {
+      importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}. Missing: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}`;
+      return;
+    }
+
+    importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}.`;
+    if (shouldCloseImportDialog && importDialog?.open) {
+      window.setTimeout(() => importDialog.close(), 700);
+    }
+  } finally {
+    if (showOverlay) {
+      await new Promise((resolve) => window.setTimeout(resolve, 280));
+      hideDeckLoadOverlay();
+    }
     confirmImportButton.disabled = false;
-    return;
   }
-
-  importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}.`;
-  window.setTimeout(() => importDialog.close(), 700);
 }
 
 function parseDeckImport(rawText) {
