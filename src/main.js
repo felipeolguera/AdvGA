@@ -16,7 +16,9 @@ const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.94";
+const APP_VERSION = "0.95";
+const FEATURED_SET_PREFIX = "PRD";
+const PRD_QUICK_SEARCH = "cards in PRD";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
@@ -117,7 +119,10 @@ const FALLBACK_OPTIONS = {
     "WATER",
     "WIND",
   ].map((value) => ({ text: titleCase(value), value })),
-  set: [{ text: "Radiant Origins", value: "RDO", display: "Radiant Origins" }],
+  set: [
+    { text: ".asphodel/paradise", value: "PRD", display: ".asphodel/paradise" },
+    { text: "Radiant Origins", value: "RDO", display: "Radiant Origins" },
+  ],
   rarity: [],
   subtype: [{ text: "Spell", value: "SPELL" }],
   type: [
@@ -136,6 +141,9 @@ const FALLBACK_OPTIONS = {
 const OPTION_ALIASES = {
   element: {
     NORM: ["normal", "normal element"],
+  },
+  set: {
+    PRD: ["asphodel paradise", "asphodel/paradise", ".asphodel/paradise", "asphodel"],
   },
 };
 
@@ -247,7 +255,7 @@ function getBuilderShellHtml() {
           <p class="eyebrow">Grand Archive TCG Deck Builder</p>
           <h1 id="app-title">Card search</h1>
           <p class="hero-copy summary-copy">
-            Search by plain English, then refine with filters and keywords.
+            Browse .asphodel/paradise (PRD), search in plain English, then refine with filters.
           </p>
         </div>
       </summary>
@@ -256,7 +264,7 @@ function getBuilderShellHtml() {
           <p class="eyebrow">Grand Archive TCG Deck Builder</p>
           <h2 class="hero-product-title">Grand Archive Advanced Book by RPGgamerPH</h2>
           <p class="hero-copy">
-            Search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
+            Jump into .asphodel/paradise (PRD), search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
           </p>
         </div>
         <form class="search-card" id="search-form">
@@ -270,7 +278,7 @@ function getBuilderShellHtml() {
                 list="search-suggestions"
                 spellcheck="true"
                 value="${escapeHtml(state.query)}"
-                placeholder="normal ally that cost 2 in RDO"
+                placeholder="normal ally that cost 2 in PRD"
               />
               <button
                 class="clear-search hidden"
@@ -297,6 +305,12 @@ function getBuilderShellHtml() {
                 />
               </label>
               <label>
+                Set
+                <select id="quick-filter-set" name="set">
+                  <option value="">Any</option>
+                </select>
+              </label>
+              <label>
                 Element
                 <select id="quick-filter-element" name="element">
                   <option value="">Any</option>
@@ -316,7 +330,7 @@ function getBuilderShellHtml() {
               </label>
             </div>
             <p class="hint search-filter-hint">
-              Use <strong>AND</strong> in Effect to require multiple words (example: <code>hand AND memory</code>).
+              Use <strong>AND</strong> in Effect to require multiple words (example: <code>hand AND memory</code>). Pick a Set to browse one release (try <code>PRD</code>).
             </p>
             <div class="search-filter-actions">
               <button type="button" id="apply-search-filters">Apply filters</button>
@@ -325,8 +339,11 @@ function getBuilderShellHtml() {
           </div>
           <datalist id="search-suggestions"></datalist>
           <div class="quick-searches" aria-label="Example searches">
-            <button type="button" data-example="normal ally that cost 2 in RDO">
-              normal ally that cost 2 in RDO
+            <button type="button" class="quick-search-featured" data-example="${PRD_QUICK_SEARCH}">
+              Cards in PRD
+            </button>
+            <button type="button" data-example="normal ally that cost 2 in PRD">
+              normal ally that cost 2 in PRD
             </button>
             <button type="button" data-example="normal spells that target units in RDO set">
               normal spells that target units in RDO set
@@ -601,6 +618,7 @@ const clearSearchButton = document.querySelector("#clear-search");
 const toggleSearchFiltersButton = document.querySelector("#toggle-search-filters");
 const searchFiltersEl = document.querySelector("#search-filters");
 const quickFilterEffect = document.querySelector("#quick-filter-effect");
+const quickFilterSet = document.querySelector("#quick-filter-set");
 const quickFilterElement = document.querySelector("#quick-filter-element");
 const quickFilterType = document.querySelector("#quick-filter-type");
 const quickFilterSubtype = document.querySelector("#quick-filter-subtype");
@@ -877,6 +895,7 @@ function bootBuilderPage() {
 
   clearSearchFiltersButton.addEventListener("click", () => {
     quickFilterEffect.value = "";
+    quickFilterSet.value = "";
     quickFilterElement.value = "";
     quickFilterType.value = "";
     quickFilterSubtype.value = "";
@@ -884,7 +903,7 @@ function bootBuilderPage() {
     runSearch(input.value.trim(), { reset: true, remember: false, scrollToLibrary: true });
   });
 
-  [quickFilterEffect, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
+  [quickFilterEffect, quickFilterSet, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
     field?.addEventListener("change", updateSearchFiltersButtonState);
     field?.addEventListener("input", updateSearchFiltersButtonState);
   });
@@ -1775,6 +1794,7 @@ function parseEffectAndTerms(effectValue) {
 function hasActiveQuickFilters() {
   return Boolean(
     quickFilterEffect?.value.trim() ||
+      quickFilterSet?.value ||
       quickFilterElement?.value ||
       quickFilterType?.value ||
       quickFilterSubtype?.value,
@@ -1783,6 +1803,7 @@ function hasActiveQuickFilters() {
 
 function applyQuickFilters(parsed) {
   const effectValue = quickFilterEffect?.value.trim() || "";
+  const setPrefix = quickFilterSet?.value || "";
   const element = quickFilterElement?.value || "";
   const type = quickFilterType?.value || "";
   const subtype = quickFilterSubtype?.value || "";
@@ -1798,17 +1819,39 @@ function applyQuickFilters(parsed) {
     parsed.effectTerms = [];
   }
 
+  if (setPrefix) {
+    parsed.filters.prefix = [setPrefix];
+    upsertQuickFilterLabel(parsed, "Set", setPrefix, formatSetOptionLabel(
+      state.options.set.find((option) => option.value === setPrefix) || {
+        value: setPrefix,
+        text: setPrefix,
+      },
+    ));
+  }
   if (element) {
     parsed.filters.element = [element];
+    upsertQuickFilterLabel(parsed, "Element", element, titleCase(element));
   }
   if (type) {
     parsed.filters.type = [type];
+    upsertQuickFilterLabel(parsed, "Type", type, titleCase(type));
   }
   if (subtype) {
     parsed.filters.subtype = [subtype];
+    upsertQuickFilterLabel(parsed, "Subtype", subtype, titleCase(subtype));
   }
 
   return parsed;
+}
+
+function upsertQuickFilterLabel(parsed, field, value, text) {
+  parsed.matchedLabels = parsed.matchedLabels.filter((match) => match.field !== field);
+  parsed.matchedLabels.push({
+    field,
+    phrases: [value, text],
+    text,
+    value,
+  });
 }
 
 function updateSearchFiltersVisibility() {
@@ -1951,13 +1994,14 @@ function renderAdvancedOptions() {
   fillSelect("#filter-type", state.options.type, "Any type");
   fillSelect("#filter-subtype", state.options.subtype, "Any subtype");
   fillSelect("#filter-class", state.options.class, "Any class");
-  fillSelect("#filter-set", state.options.set, "Any set");
+  fillSelect("#filter-set", sortSetsForDisplay(state.options.set), "Any set", formatSetOptionLabel);
   fillSelect("#filter-speed", SPEED_OPTIONS, "Any speed");
   fillSelect(
     "#filter-stat",
     STAT_DEFINITIONS.map((stat) => ({ text: stat.label, value: stat.key })),
     "No stat filter",
   );
+  fillSelect("#quick-filter-set", sortSetsForDisplay(state.options.set), "Any", formatSetOptionLabel);
   fillSelect("#quick-filter-element", state.options.element, "Any");
   fillSelect("#quick-filter-type", state.options.type, "Any");
   fillSelect("#quick-filter-subtype", state.options.subtype, "Any");
@@ -1984,12 +2028,53 @@ function renderSearchSuggestions() {
   );
 }
 
-function fillSelect(selector, options, placeholder) {
+function fillSelect(selector, options, placeholder, formatLabel = null) {
   const select = document.querySelector(selector);
+  if (!select) {
+    return;
+  }
   select.replaceChildren(createOption("", placeholder));
   for (const option of options || []) {
-    select.append(createOption(option.value, option.display || option.text || option.value));
+    const label = formatLabel
+      ? formatLabel(option)
+      : option.display || option.text || option.value;
+    select.append(createOption(option.value, label));
   }
+}
+
+function formatSetOptionLabel(option) {
+  const name = option.display || option.text || option.value || "";
+  const prefix = option.value || "";
+  if (prefix && name && !name.toUpperCase().includes(String(prefix).toUpperCase())) {
+    return `${prefix} · ${name}`;
+  }
+  return name || prefix;
+}
+
+function sortSetsForDisplay(sets = []) {
+  return [...sets].sort((left, right) => {
+    const leftRank = setLaunchRank(left?.value);
+    const rightRank = setLaunchRank(right?.value);
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+    return String(left?.display || left?.text || "").localeCompare(
+      String(right?.display || right?.text || ""),
+      undefined,
+      { sensitivity: "base" },
+    );
+  });
+}
+
+function setLaunchRank(prefix) {
+  const value = String(prefix || "");
+  if (value === FEATURED_SET_PREFIX) {
+    return 0;
+  }
+  if (value.startsWith(FEATURED_SET_PREFIX)) {
+    return 1;
+  }
+  return 2;
 }
 
 function createOption(value, text) {
