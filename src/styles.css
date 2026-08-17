@@ -912,6 +912,38 @@ button.result-grid-add {
   text-transform: uppercase;
 }
 
+.deck-suggestions {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  border: 1px solid rgba(255, 204, 115, 0.28);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background:
+    linear-gradient(135deg, rgba(244, 184, 93, 0.12), transparent 55%),
+    rgba(0, 0, 0, 0.16);
+}
+
+.deck-suggestions-label {
+  margin: 0;
+  color: var(--gold-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.deck-suggestions-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deck-suggestions-hint {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
 .deck-name-field input {
   min-height: 44px;
   border: 1px solid var(--line);

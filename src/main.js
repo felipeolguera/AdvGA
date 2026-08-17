@@ -6,6 +6,7 @@ import {
   normalizeRoomCode,
   readRoomParams,
 } from "./multiplayer.js";
+import { PRD_DECK_SUGGESTIONS } from "./prdDeckSuggestions.js";
 import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
@@ -18,7 +19,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.96";
+const APP_VERSION = "0.97";
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
@@ -394,6 +395,24 @@ function getBuilderShellHtml() {
           Deck name
           <input id="deck-name" name="deckName" maxlength="80" autocomplete="off" value="${escapeHtml(state.deckName)}" />
         </label>
+        <div class="deck-suggestions" aria-label="PRD deck suggestions">
+          <p class="deck-suggestions-label">.asphodel/paradise suggestions</p>
+          <div class="deck-suggestions-actions">
+            ${PRD_DECK_SUGGESTIONS.map(
+              (suggestion) => `
+              <button
+                class="secondary compact"
+                type="button"
+                data-prd-suggestion="${escapeHtml(suggestion.id)}"
+                title="${escapeHtml(suggestion.description)}"
+              >${escapeHtml(suggestion.label)}</button>
+            `,
+            ).join("")}
+          </div>
+          <p class="hint deck-suggestions-hint">
+            One-click legal shells for the new set’s featured champions (Dante · Lorraine). Replaces your current list.
+          </p>
+        </div>
         <div class="deck-stats" id="deck-stats" aria-live="polite"></div>
         <details class="deck-validation-details deck-validation-home">
           <summary id="deck-validation-summary-home">Deck legality</summary>
@@ -1093,6 +1112,34 @@ function bootBuilderPage() {
   importForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await importDeckFromText(importText.value);
+  });
+
+  document.querySelectorAll("[data-prd-suggestion]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const suggestion = PRD_DECK_SUGGESTIONS.find((entry) => entry.id === button.dataset.prdSuggestion);
+      if (!suggestion) {
+        return;
+      }
+      if (
+        state.deck.length > 0 &&
+        !window.confirm(`Replace your current deck with “${suggestion.shortLabel}”?`)
+      ) {
+        return;
+      }
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = "Loading…";
+      try {
+        openImportDialog();
+        importText.value = suggestion.listText;
+        await importDeckFromText(suggestion.listText);
+        showDeckToast(`Loaded ${suggestion.shortLabel}`);
+        document.querySelector("#deck-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    });
   });
   scrollTopButton.addEventListener("click", () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -6679,8 +6726,9 @@ function parseDeckImport(rawText) {
 }
 
 async function lookupCardByName(name) {
-  const cards = await searchCardsByName(name, 8);
-  const exact = cards.find((card) => card.name.toLowerCase() === name.toLowerCase());
+  const needle = String(name || "").trim();
+  const cards = await searchCardsByName(needle, 8);
+  const exact = cards.find((card) => card.name.trim().toLowerCase() === needle.toLowerCase());
   return exact || cards[0] || null;
 }
 
