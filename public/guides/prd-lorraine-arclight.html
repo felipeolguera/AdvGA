@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PRD Lorraine Arclight — Play Guide | AdvGA</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --bg: #100f18;
+  --panel: rgba(31, 29, 45, 0.92);
+  --text: #f7efe4;
+  --muted: #c8b9a8;
+  --line: rgba(255,255,255,0.14);
+  --gold: #f4b85d;
+  --gold-strong: #ffcc73;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(227,100,93,0.18), transparent 34rem),
+    radial-gradient(circle at 85% 10%, rgba(244,184,93,0.12), transparent 28rem),
+    linear-gradient(135deg, #100f18 0%, #191827 48%, #111017 100%);
+  line-height: 1.55;
+}
+a { color: var(--gold-strong); }
+.wrap { width: min(980px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 64px; }
+.eyebrow { margin: 0 0 6px; color: var(--gold-strong); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+h1 { margin: 0 0 10px; font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -0.03em; line-height: 1.1; }
+h2 { margin: 2rem 0 0.7rem; font-size: 1.35rem; color: var(--gold-strong); }
+h3 { margin: 1.4rem 0 0.55rem; font-size: 1.05rem; }
+.lead, p, li { color: var(--muted); }
+.lead { font-size: 1.05rem; max-width: 46rem; }
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--panel);
+  margin: 14px 0;
+}
+.nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 8px; }
+.nav a {
+  display: inline-grid; place-items: center; min-height: 40px; padding: 0 14px;
+  border-radius: 12px; border: 1px solid rgba(255,204,115,0.45);
+  text-decoration: none; color: var(--gold-strong); background: rgba(244,184,93,0.1);
+  font-weight: 800; font-size: 0.9rem;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 14px;
+  margin: 12px 0 8px;
+}
+.card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.card img {
+  width: 100%;
+  aspect-ratio: 0.716;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0a0a0b;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+}
+.card .meta { display: grid; gap: 2px; }
+.card strong { color: var(--text); font-size: 0.86rem; line-height: 1.25; }
+.card .qty {
+  display: inline-block; margin-right: 4px; color: #170f0b;
+  background: var(--gold-strong); border-radius: 999px; padding: 1px 7px;
+  font-size: 0.72rem; font-weight: 900;
+}
+.card .sub { font-size: 0.72rem; color: var(--muted); }
+.card-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0,0,0,0.18);
+}
+.card-row img {
+  width: 110px; aspect-ratio: 0.716; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--line); background: #0a0a0b;
+}
+.card-row h4 { margin: 0 0 4px; color: var(--text); font-size: 1rem; }
+.card-row .sub { margin: 0 0 6px; font-size: 0.78rem; }
+.card-row .blurb { margin: 0; font-size: 0.92rem; color: var(--muted); }
+.note { font-size: 0.9rem; }
+ul { padding-left: 1.15rem; }
+footer { margin-top: 36px; font-size: 0.85rem; color: var(--muted); }
+@media (max-width: 640px) {
+  .card-row { grid-template-columns: 88px minmax(0,1fr); }
+  .card-row img { width: 88px; }
+}
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">Grand Archive · .asphodel/paradise</p>
+    <h1>PRD Lorraine Arclight — Play Guide</h1>
+    <p class="lead">Fire / Arcane Warrior shell: champion attacks, Fire discard into the Sword, and Arcane static counters.</p>
+    <div class="nav">
+      <a href="../">Open AdvGA</a>
+      <a href="prd-dante-hemomancer.html">Dante guide</a>
+    </div>
+    
+<div class="panel note">
+  <strong style="color:var(--text)">Load in AdvGA:</strong> Deck Builder → <em>Load Lorraine (Fire/Arcane)</em>.
+  Standard shell: Material 12 · Main 60 · Sideboard 15.
+</div>
+
+<h2>Game plan</h2>
+<p>Survive early with cheap Fire allies and Emberslash, then level Lorraine while Arcane pieces stack <strong>static counters</strong> so combat hits drip extra damage and Fire discards grow your Sword.</p>
+
+<h2>Champion line</h2>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/wgBP5Hz6gi.jpg" alt="Spirit of Fire" loading="lazy" /><div><h4>Spirit of Fire</h4><p class="sub">CHAMPION · FIRE · SPIRIT · 0 memory · Lv 0</p><p class="blurb">Level 0 opener — On Enter draw seven.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/lP5xsEHLGu.jpg" alt="Lorraine, Wandering Warrior" loading="lazy" /><div><h4>Lorraine, Wandering Warrior</h4><p class="sub">CHAMPION · NORM · WARRIOR · 1 memory · Lv 1</p><p class="blurb">L1 — On Enter tries to materialize a memory-cost 0 weapon (this shell’s Sword is memory 1, so often pay for AquaTech Blade X yourself).</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/hvgvYHizP2.jpg" alt="Lorraine, Honed Operative" loading="lazy" /><div><h4>Lorraine, Honed Operative</h4><p class="sub">CHAMPION · NORM · WARRIOR · 2 memory · Lv 2</p><p class="blurb">L2 — Filter memory; advanced-element draws can juice a Sword’s durability.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/VItof3gkKA.jpg" alt="Lorraine, Arclight Saber" loading="lazy" /><div><h4>Lorraine, Arclight Saber</h4><p class="sub">CHAMPION · ARCANE · WARRIOR · 3 memory · Lv 3</p><p class="blurb">L3 payoff — flood static counters from LV + Arcane in banishment; Arcane combat can spend counters for pings.</p></div></article>
+
+<h2>Three engines</h2>
+<h3>1. Champion attacks (Fire)</h3>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/mJ3UeqCaXQ.jpg" alt="Emberslash" loading="lazy" /><div><h4><span class="qty">4</span> Emberslash</h4><p class="sub">ATTACK · FIRE · WARRIOR · 1 reserve</p><p class="blurb">Cheap attack. Class Bonus discard → draw fuels the Fire discard loop.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/LO7WQE2iBp.jpg" alt="Blistering Insurgent" loading="lazy" /><div><h4><span class="qty">4</span> Blistering Insurgent</h4><p class="sub">ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Pumps when Lorraine attacks.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/1MUDSt76qU.jpg" alt="Inflamed Bladehand" loading="lazy" /><div><h4><span class="qty">2</span> Inflamed Bladehand</h4><p class="sub">ALLY · FIRE · WARRIOR · 3 reserve</p><p class="blurb">Big Class Bonus pump on every Lorraine attack.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/E378PvpTMl.jpg" alt="Stoked Slice" loading="lazy" /><div><h4><span class="qty">4</span> Stoked Slice</h4><p class="sub">ATTACK · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Banish Fire from GY to pump all allies.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/0iWIhF3Wt8.jpg" alt="Rampant Bladehand" loading="lazy" /><div><h4><span class="qty">2</span> Rampant Bladehand</h4><p class="sub">ALLY · FIRE · WARRIOR · 3 reserve</p><p class="blurb">Spend weapon durability for +POWER on its attack.</p></div></article>
+
+<h3>2. Discard → buffs & Sword</h3>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/mtvkqpheTi.jpg" alt="Package Courier" loading="lazy" /><div><h4><span class="qty">4</span> Package Courier</h4><p class="sub">ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">On Enter discard → draw.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/7cBvJ9vaN3.jpg" alt="Scars of Old" loading="lazy" /><div><h4><span class="qty">3</span> Scars of Old</h4><p class="sub">ACTION · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Draw/discard; Class Bonus buffs damaged allies.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/lXApwwuDjS.jpg" alt="Tindered Soldier" loading="lazy" /><div><h4><span class="qty">4</span> Tindered Soldier</h4><p class="sub">ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Gains a buff when you discard Fire.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/bVvgbRADxt.jpg" alt="FlameTech BladeCore" loading="lazy" /><div><h4><span class="qty">3</span> FlameTech BladeCore</h4><p class="sub">ITEM · EXALTED, FIRE · WARRIOR · 2 reserve</p><p class="blurb">Link to your Sword for +2 POWER, Fire-discard durability, and Lorraine Link Shield.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/jm8IiTIlRD.jpg" alt="AquaTech Blade X" loading="lazy" /><div><h4><span class="qty">1</span> AquaTech Blade X</h4><p class="sub">REGALIA, WEAPON · EXALTED, WATER · WARRIOR · 1 memory</p><p class="blurb">Your Sword. Cheaper with VelTech; cascade REST ability if Floating Memory is in GY.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/Nlsg4dUAvK.jpg" alt="Plutus, Fortune&#x27;s Favor" loading="lazy" /><div><h4><span class="qty">1</span> Plutus, Fortune&#x27;s Favor</h4><p class="sub">UNIQUE, ALLY · FIRE · WARRIOR · 2 reserve</p><p class="blurb">Discard cost; unpreventable damage while influence is low.</p></div></article>
+
+<h3>3. Static counters (Arcane)</h3>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/SZkDOarlCy.jpg" alt="Fulgurite Coordinator" loading="lazy" /><div><h4><span class="qty">4</span> Fulgurite Coordinator</h4><p class="sub">ALLY · ARCANE · WARRIOR · 1 reserve</p><p class="blurb">Enters with a static; GY ability spreads statics to Arcane objects + links.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/xx0LzShNAd.jpg" alt="Ionizer X Ultra" loading="lazy" /><div><h4><span class="qty">3</span> Ionizer X Ultra</h4><p class="sub">ITEM · ARCANE · WARRIOR · 1 reserve</p><p class="blurb">Link item — dumps two statics; draw at 4+.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/d8AUWT3Mvb.jpg" alt="Triboelectric Fortification" loading="lazy" /><div><h4><span class="qty">4</span> Triboelectric Fortification</h4><p class="sub">ACTION · ARCANE · WARRIOR · 1 reserve</p><p class="blurb">Turn up to 3 statics into damage and weapon durability.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/MPRd8GwM1k.jpg" alt="Conductive Strike" loading="lazy" /><div><h4><span class="qty">4</span> Conductive Strike</h4><p class="sub">ATTACK · ARCANE · WARRIOR · 2 reserve</p><p class="blurb">Scales with objects that have statics; On Hit can spread more.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/wMyYdK0gYt.jpg" alt="Arrest Lightning" loading="lazy" /><div><h4><span class="qty">2</span> Arrest Lightning</h4><p class="sub">ACTION · ARCANE · WARRIOR · 2 reserve</p><p class="blurb">Prevent damage equal to statics; GY recursion adds another static.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/6AsxLNhIU9.jpg" alt="Rumble Coordinator" loading="lazy" /><div><h4><span class="qty">2</span> Rumble Coordinator</h4><p class="sub">ALLY · ARCANE · WARRIOR · 3 reserve</p><p class="blurb">Vigor body that scales with its statics; draws on death if it had any.</p></div></article>
+<article class="card-row"><img src="https://api.gatcg.com/cards/images/vYlSkwxpUK.jpg" alt="Return Stroke" loading="lazy" /><div><h4><span class="qty">2</span> Return Stroke</h4><p class="sub">ATTACK · ARCANE · WARRIOR · 3 reserve</p><p class="blurb">Attack gains +LV POWER; Floating Memory for material costs.</p></div></article>
+
+<h2>Material deck</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/wgBP5Hz6gi.jpg" alt="Spirit of Fire" loading="lazy" /><div class="meta"><strong>Spirit of Fire</strong><span class="sub">CHAMPION · FIRE · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/lP5xsEHLGu.jpg" alt="Lorraine, Wandering Warrior" loading="lazy" /><div class="meta"><strong>Lorraine, Wandering Warrior</strong><span class="sub">CHAMPION · NORM · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/hvgvYHizP2.jpg" alt="Lorraine, Honed Operative" loading="lazy" /><div class="meta"><strong>Lorraine, Honed Operative</strong><span class="sub">CHAMPION · NORM · 2 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/VItof3gkKA.jpg" alt="Lorraine, Arclight Saber" loading="lazy" /><div class="meta"><strong>Lorraine, Arclight Saber</strong><span class="sub">CHAMPION · ARCANE · 3 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mkjvcXkILy.jpg" alt="Battery Core X" loading="lazy" /><div class="meta"><strong>Battery Core X</strong><span class="sub">REGALIA, ITEM · NORM · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/C7dC0IwyDV.jpg" alt="FlameTech Manual" loading="lazy" /><div class="meta"><strong>FlameTech Manual</strong><span class="sub">REGALIA, ITEM · FIRE · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/BrC1PsK2gQ.jpg" alt="Fanned Synchron" loading="lazy" /><div class="meta"><strong>Fanned Synchron</strong><span class="sub">REGALIA, ITEM · FIRE · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/jm8IiTIlRD.jpg" alt="AquaTech Blade X" loading="lazy" /><div class="meta"><strong>AquaTech Blade X</strong><span class="sub">REGALIA, WEAPON · EXALTED, WATER · 1 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/HApeDylEm0.jpg" alt="Seed of Empowerment" loading="lazy" /><div class="meta"><strong>Seed of Empowerment</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/OMMUK6OQNM.jpg" alt="Revoker Bell" loading="lazy" /><div class="meta"><strong>Revoker Bell</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/kz4PVDG1n6.jpg" alt="Discharger" loading="lazy" /><div class="meta"><strong>Discharger</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/8TnMuyoPvr.jpg" alt="Cell Reactor" loading="lazy" /><div class="meta"><strong>Cell Reactor</strong><span class="sub">REGALIA, ITEM · NORM · 0 memory</span></div></article></div>
+
+<h2>Main deck</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/mJ3UeqCaXQ.jpg" alt="Emberslash" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Emberslash</strong><span class="sub">ATTACK · FIRE · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/SZkDOarlCy.jpg" alt="Fulgurite Coordinator" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Fulgurite Coordinator</strong><span class="sub">ALLY · ARCANE · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/d8AUWT3Mvb.jpg" alt="Triboelectric Fortification" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Triboelectric Fortification</strong><span class="sub">ACTION · ARCANE · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/LO7WQE2iBp.jpg" alt="Blistering Insurgent" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Blistering Insurgent</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mtvkqpheTi.jpg" alt="Package Courier" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Package Courier</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/lXApwwuDjS.jpg" alt="Tindered Soldier" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Tindered Soldier</strong><span class="sub">ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/E378PvpTMl.jpg" alt="Stoked Slice" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Stoked Slice</strong><span class="sub">ATTACK · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/MPRd8GwM1k.jpg" alt="Conductive Strike" loading="lazy" /><div class="meta"><strong><span class="qty">4</span>Conductive Strike</strong><span class="sub">ATTACK · ARCANE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/7cBvJ9vaN3.jpg" alt="Scars of Old" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Scars of Old</strong><span class="sub">ACTION · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/bVvgbRADxt.jpg" alt="FlameTech BladeCore" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>FlameTech BladeCore</strong><span class="sub">ITEM · EXALTED, FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/xx0LzShNAd.jpg" alt="Ionizer X Ultra" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Ionizer X Ultra</strong><span class="sub">ITEM · ARCANE · 1 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/ZZcjEpX97H.jpg" alt="Brooch X Ultra" loading="lazy" /><div class="meta"><strong><span class="qty">3</span>Brooch X Ultra</strong><span class="sub">ITEM · ARCANE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/wMyYdK0gYt.jpg" alt="Arrest Lightning" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Arrest Lightning</strong><span class="sub">ACTION · ARCANE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/1MUDSt76qU.jpg" alt="Inflamed Bladehand" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Inflamed Bladehand</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/mQgeupa1I5.jpg" alt="Outfitted Ravager" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Outfitted Ravager</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/0iWIhF3Wt8.jpg" alt="Rampant Bladehand" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Rampant Bladehand</strong><span class="sub">ALLY · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/vYlSkwxpUK.jpg" alt="Return Stroke" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Return Stroke</strong><span class="sub">ATTACK · ARCANE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/6AsxLNhIU9.jpg" alt="Rumble Coordinator" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Rumble Coordinator</strong><span class="sub">ALLY · ARCANE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/Nlsg4dUAvK.jpg" alt="Plutus, Fortune&#x27;s Favor" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Plutus, Fortune&#x27;s Favor</strong><span class="sub">UNIQUE, ALLY · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/c2Row0E8Sl.jpg" alt="Molten Impact" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Molten Impact</strong><span class="sub">ACTION · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/M6YMzVjdIu.jpg" alt="Vel-ocity Punch" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Vel-ocity Punch</strong><span class="sub">ITEM · FIRE · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/OCd7fjaGxB.jpg" alt="Leran, Pastoral Hymns" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Leran, Pastoral Hymns</strong><span class="sub">UNIQUE, DOMAIN · FIRE · 6 reserve</span></div></article></div>
+
+<h2>Sideboard</h2>
+<div class="card-grid"><article class="card"><img src="https://api.gatcg.com/cards/images/SliLLoU1XH.jpg" alt="FlameTech Shield" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>FlameTech Shield</strong><span class="sub">ITEM · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/8A8DviqG2C.jpg" alt="AquaTech Shield" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>AquaTech Shield</strong><span class="sub">ITEM · WATER · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/8onkd1sWbJ.jpg" alt="AquaTech Shell" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>AquaTech Shell</strong><span class="sub">ITEM · WATER · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/EQnSDvNVy6.jpg" alt="Induction Strike" loading="lazy" /><div class="meta"><strong><span class="qty">2</span>Induction Strike</strong><span class="sub">ATTACK · ARCANE · 5 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/VLsiy9Gm2I.jpg" alt="Thermal Break" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Thermal Break</strong><span class="sub">ACTION · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/A7XYrrLmJE.jpg" alt="Aenean Pointed Flare" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Aenean Pointed Flare</strong><span class="sub">ACTION · FIRE · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/uDX4LsaLl3.jpg" alt="Aenean Guttering Flames" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Aenean Guttering Flames</strong><span class="sub">PHANTASIA · FIRE · 3 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/HubFxANkAN.jpg" alt="Exhilarating Plume" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Exhilarating Plume</strong><span class="sub">PHANTASIA · EXALTED, WIND · 4 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/FblUl8UyEG.jpg" alt="Piccarda, Night Rider" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Piccarda, Night Rider</strong><span class="sub">UNIQUE, ALLY · ARCANE · 7 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/Er07U37cmH.jpg" alt="Soaked Slash" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Soaked Slash</strong><span class="sub">ATTACK · WATER · 2 reserve</span></div></article><article class="card"><img src="https://api.gatcg.com/cards/images/n2QQ3wrqmU.jpg" alt="Fountain Bladehand" loading="lazy" /><div class="meta"><strong><span class="qty">1</span>Fountain Bladehand</strong><span class="sub">ALLY · WATER · 2 reserve</span></div></article></div>
+<p class="note">Bring Shields/Shell for attrition, Induction Strike for bigger Arcane swings, Thermal Break for item/weapon hate, Pointed Flare for face damage.</p>
+
+<h2>Opening checklist</h2>
+<ul>
+  <li>Spirit of Fire → cheap Warrior curve (Fulgurite / Emberslash / Courier / Tindered / Insurgent).</li>
+  <li>Level L1 for life + Class Bonus; materialize AquaTech Blade X when you can attack.</li>
+  <li>Attach FlameTech BladeCore, then discard Fire to grow durability.</li>
+  <li>Level to L3 once Arcane pieces are in banishment so static On Enter is real.</li>
+</ul>
+
+<h2>Common mistakes</h2>
+<ul>
+  <li>Holding L3 forever without Arcane in banishment — still better to level than stall three turns.</li>
+  <li>Playing BladeCore with no Sword out.</li>
+  <li>Spending every static on Triboelectric right before an Arcane attack turn.</li>
+  <li>Casting Leran with a full grip — it wants low influence.</li>
+</ul>
+
+    <footer>Card images © Grand Archive / Weebs of the Shore via api.gatcg.com · AdvGA exploration guide</footer>
+  </main>
+</body>
+</html>

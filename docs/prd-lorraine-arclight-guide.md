@@ -1,149 +1,97 @@
 # PRD Lorraine Arclight — Play Guide
 
-A Standard-shaped shell for **Lorraine, Arclight Saber** built from **.asphodel/paradise (PRD)**.  
-Fire + Arcane Warrior: swing with Lorraine, stack **static counters**, and grow a **Sword** with discard/link fuel.
+Fire / Arcane Warrior suggestion for **.asphodel/paradise (PRD)**.
 
-Load it in AdvGA: **Deck Builder → Load Lorraine (Fire/Arcane)**.
+**In AdvGA:** Deck Builder → Load Lorraine (Fire/Arcane) · [HTML guide](../public/guides/prd-lorraine-arclight.html)
 
----
+## Game plan
 
-## Game plan (one sentence)
+Survive early with cheap Fire allies and Emberslash, then level Lorraine while Arcane pieces stack **static counters** so combat hits drip extra damage and Fire discards grow your Sword.
 
-Survive early with cheap Fire allies and Emberslash, then level Lorraine while Arcane pieces put **static counters** on her and her board so every combat hit drips extra damage and every Fire discard makes the Sword scarier.
+## Champion line
+<p align="left"><img src="https://api.gatcg.com/cards/images/wgBP5Hz6gi.jpg" alt="Spirit of Fire" width="120" /></p>
 
----
+**Spirit of Fire** — CHAMPION · FIRE · 0 memory
 
-## Identity
+Level 0 opener — On Enter draw seven.
+<p align="left"><img src="https://api.gatcg.com/cards/images/lP5xsEHLGu.jpg" alt="Lorraine, Wandering Warrior" width="120" /></p>
 
-| Slot | Choice |
-|------|--------|
-| Spirit | **Spirit of Fire** (Level 0) |
-| Line | **Wandering Warrior → Honed Operative → Arclight Saber** |
-| Elements | **Fire** (allies, discard, attacks) + **Arcane** (static counters, Conductive Strike, L3 payoff) |
-| Class | **Warrior** (Class Bonus on most of the list) |
+**Lorraine, Wandering Warrior** — CHAMPION · NORM · 1 memory
 
-**Arclight Saber (L3)** — On Enter: put **LV** static counters on Lorraine, then more for Arcane cards in banishment (up to seven). While she has static counters, whenever an **Arcane** unit deals combat damage, you may remove a counter to deal **1** more to that same object. That is your mid/late kill condition.
+L1 — Class Bonus online; free weapon materialize wants memory-cost 0 (pay for AquaTech Blade X in this shell).
+<p align="left"><img src="https://api.gatcg.com/cards/images/hvgvYHizP2.jpg" alt="Lorraine, Honed Operative" width="120" /></p>
 
----
+**Lorraine, Honed Operative** — CHAMPION · NORM · 2 memory
 
-## How the engine works
+L2 — Filter memory; advanced draws can juice the Sword.
+<p align="left"><img src="https://api.gatcg.com/cards/images/VItof3gkKA.jpg" alt="Lorraine, Arclight Saber" width="120" /></p>
 
-Three loops overlap. You want at least two running by the time Lorraine is L2–L3.
+**Lorraine, Arclight Saber** — CHAMPION · ARCANE · 3 memory
 
-### 1. Champion attacks (Fire)
-- **Blistering Insurgent** / **Inflamed Bladehand** grow when Lorraine attacks.
-- **Emberslash** (1) — Class Bonus: discard → draw (fills hand and fuels Fire discard).
-- **Stoked Slice** — banish two Fire from GY to pump all allies.
-- **Rampant Bladehand** — spend a weapon durability for +POWER on its attack.
+L3 — Static flood + Arcane combat pings.
 
-### 2. Discard → buffs & Sword durability
-- **Package Courier**, **Scars of Old**, **Emberslash**, **Plutus** all discard (or draw-discard).
-- **Tindered Soldier** picks up a buff counter when you discard Fire.
-- **FlameTech BladeCore** (linked to a Sword): linked weapon gains durability whenever you discard Fire, and has **Link Shield** under Lorraine Bonus.
 
-### 3. Static counters (Arcane)
-- **Fulgurite Coordinator** enters with a static counter; GY ability spreads counters to Arcane objects + linked gear.
-- **Ionizer X Ultra** dumps two statics onto whatever it links; draw if you hit 4+.
-- **Triboelectric Fortification** — convert up to three statics into damage **and** put that many durability on a Warrior weapon.
-- **Conductive Strike** scales with how many of your objects have statics; On Hit can spread more.
-- **Arrest Lightning** — prevent damage equal to statics on the target; GY recursion puts another static out.
-- **Rumble Coordinator** — Vigor body that scales with its own statics; draws on death if it had any.
-- **Return Stroke** — Attack that gains **+LV POWER**; also **Floating Memory** for material costs.
 
----
+## Material deck
 
-## Material priorities
 
-| Card | When to pull it |
-|------|------------------|
-| **Spirit of Fire** | Opening material (Level 0). |
-| **Lorraine, Wandering Warrior** | First level — On Enter wants a **memory-cost 0 weapon**. This shell’s Sword (**AquaTech Blade X**) is memory **1**, so the free materialize often whiffs; still level for life and Warrior Class Bonus. |
-| **AquaTech Blade X** | Pay to materialize when you can attack. Costs **0** if you already control a VelTech item. Class Bonus REST ability is cascade pump / recover (needs Floating Memory in GY — **Return Stroke** helps). |
-| **FlameTech BladeCore** | Main-deck link item — not material — but plan to attach it to your Sword ASAP for +2 POWER, Fire-discard durability, and Link Shield. |
-| **Lorraine, Honed Operative** | Dig memory: banish up to 3 from memory, draw that many; advanced element draws also juice a Sword. |
-| **Lorraine, Arclight Saber** | When you have Arcane in banishment (attacks/allies used or Floating Memory), so On Enter static pile is real. |
-| **Battery Core X** | Late aggression: banish it to give a VelTech-linked ally’s next champion attack a big POWER bump. |
-| **Revoker Bell / Discharger** | Hate / cleanup — Bell exiles a GY card; Discharger strips four statics (yours or theirs). |
-| **Fanned Synchron / FlameTech Manual / Seed of Empowerment / Cell Reactor** | Flex regalia — tax On Enter, Fire GY cascade, empower bank, or Automaton buffs if that line appears. |
+| Card | Art |
+|---|---|
+| Spirit of Fire | <img src="https://api.gatcg.com/cards/images/wgBP5Hz6gi.jpg" width="64" alt="Spirit of Fire" /> |
+| Lorraine, Wandering Warrior | <img src="https://api.gatcg.com/cards/images/lP5xsEHLGu.jpg" width="64" alt="Lorraine, Wandering Warrior" /> |
+| Lorraine, Honed Operative | <img src="https://api.gatcg.com/cards/images/hvgvYHizP2.jpg" width="64" alt="Lorraine, Honed Operative" /> |
+| Lorraine, Arclight Saber | <img src="https://api.gatcg.com/cards/images/VItof3gkKA.jpg" width="64" alt="Lorraine, Arclight Saber" /> |
+| Battery Core X | <img src="https://api.gatcg.com/cards/images/mkjvcXkILy.jpg" width="64" alt="Battery Core X" /> |
+| FlameTech Manual | <img src="https://api.gatcg.com/cards/images/C7dC0IwyDV.jpg" width="64" alt="FlameTech Manual" /> |
+| Fanned Synchron | <img src="https://api.gatcg.com/cards/images/BrC1PsK2gQ.jpg" width="64" alt="Fanned Synchron" /> |
+| AquaTech Blade X | <img src="https://api.gatcg.com/cards/images/jm8IiTIlRD.jpg" width="64" alt="AquaTech Blade X" /> |
+| Seed of Empowerment | <img src="https://api.gatcg.com/cards/images/HApeDylEm0.jpg" width="64" alt="Seed of Empowerment" /> |
+| Revoker Bell | <img src="https://api.gatcg.com/cards/images/OMMUK6OQNM.jpg" width="64" alt="Revoker Bell" /> |
+| Discharger | <img src="https://api.gatcg.com/cards/images/kz4PVDG1n6.jpg" width="64" alt="Discharger" /> |
+| Cell Reactor | <img src="https://api.gatcg.com/cards/images/8TnMuyoPvr.jpg" width="64" alt="Cell Reactor" /> |
 
----
+## Main deck
 
-## Opening and early turns
+| Qty | Card | Art |
+|---:|---|---|
+| 4 | Emberslash | <img src="https://api.gatcg.com/cards/images/mJ3UeqCaXQ.jpg" width="64" alt="Emberslash" /> |
+| 4 | Fulgurite Coordinator | <img src="https://api.gatcg.com/cards/images/SZkDOarlCy.jpg" width="64" alt="Fulgurite Coordinator" /> |
+| 4 | Triboelectric Fortification | <img src="https://api.gatcg.com/cards/images/d8AUWT3Mvb.jpg" width="64" alt="Triboelectric Fortification" /> |
+| 4 | Blistering Insurgent | <img src="https://api.gatcg.com/cards/images/LO7WQE2iBp.jpg" width="64" alt="Blistering Insurgent" /> |
+| 4 | Package Courier | <img src="https://api.gatcg.com/cards/images/mtvkqpheTi.jpg" width="64" alt="Package Courier" /> |
+| 4 | Tindered Soldier | <img src="https://api.gatcg.com/cards/images/lXApwwuDjS.jpg" width="64" alt="Tindered Soldier" /> |
+| 4 | Stoked Slice | <img src="https://api.gatcg.com/cards/images/E378PvpTMl.jpg" width="64" alt="Stoked Slice" /> |
+| 4 | Conductive Strike | <img src="https://api.gatcg.com/cards/images/MPRd8GwM1k.jpg" width="64" alt="Conductive Strike" /> |
+| 3 | Scars of Old | <img src="https://api.gatcg.com/cards/images/7cBvJ9vaN3.jpg" width="64" alt="Scars of Old" /> |
+| 3 | FlameTech BladeCore | <img src="https://api.gatcg.com/cards/images/bVvgbRADxt.jpg" width="64" alt="FlameTech BladeCore" /> |
+| 3 | Ionizer X Ultra | <img src="https://api.gatcg.com/cards/images/xx0LzShNAd.jpg" width="64" alt="Ionizer X Ultra" /> |
+| 3 | Brooch X Ultra | <img src="https://api.gatcg.com/cards/images/ZZcjEpX97H.jpg" width="64" alt="Brooch X Ultra" /> |
+| 2 | Arrest Lightning | <img src="https://api.gatcg.com/cards/images/wMyYdK0gYt.jpg" width="64" alt="Arrest Lightning" /> |
+| 2 | Inflamed Bladehand | <img src="https://api.gatcg.com/cards/images/1MUDSt76qU.jpg" width="64" alt="Inflamed Bladehand" /> |
+| 2 | Outfitted Ravager | <img src="https://api.gatcg.com/cards/images/mQgeupa1I5.jpg" width="64" alt="Outfitted Ravager" /> |
+| 2 | Rampant Bladehand | <img src="https://api.gatcg.com/cards/images/0iWIhF3Wt8.jpg" width="64" alt="Rampant Bladehand" /> |
+| 2 | Return Stroke | <img src="https://api.gatcg.com/cards/images/vYlSkwxpUK.jpg" width="64" alt="Return Stroke" /> |
+| 2 | Rumble Coordinator | <img src="https://api.gatcg.com/cards/images/6AsxLNhIU9.jpg" width="64" alt="Rumble Coordinator" /> |
+| 1 | Plutus, Fortune's Favor | <img src="https://api.gatcg.com/cards/images/Nlsg4dUAvK.jpg" width="64" alt="Plutus, Fortune's Favor" /> |
+| 1 | Molten Impact | <img src="https://api.gatcg.com/cards/images/c2Row0E8Sl.jpg" width="64" alt="Molten Impact" /> |
+| 1 | Vel-ocity Punch | <img src="https://api.gatcg.com/cards/images/M6YMzVjdIu.jpg" width="64" alt="Vel-ocity Punch" /> |
+| 1 | Leran, Pastoral Hymns | <img src="https://api.gatcg.com/cards/images/OCd7fjaGxB.jpg" width="64" alt="Leran, Pastoral Hymns" /> |
 
-1. **Spirit of Fire** → seven-card draw, then curve cheap Warrior plays.
-2. Prefer **Fulgurite Coordinator**, **Emberslash**, **Package Courier**, **Tindered Soldier**, **Blistering Insurgent**.
-3. Level to **Wandering Warrior** when you want Class Bonus online and more life — don’t wait forever for a 0-cost weapon that isn’t in this list.
-4. Materialize **AquaTech Blade X** (or after a VelTech item for the discount), then play **FlameTech BladeCore** onto it.
-5. Use **Emberslash** / **Courier** / **Scars of Old** to discard Fire into **Tindered Soldier** buffs and BladeCore durability.
+## Sideboard
 
-Mulligan for: Spirit (already in material), a 1-drop Arcane or Emberslash, and at least one 2-drop Fire ally or attack.
+| Qty | Card | Art |
+|---:|---|---|
+| 2 | FlameTech Shield | <img src="https://api.gatcg.com/cards/images/SliLLoU1XH.jpg" width="64" alt="FlameTech Shield" /> |
+| 2 | AquaTech Shield | <img src="https://api.gatcg.com/cards/images/8A8DviqG2C.jpg" width="64" alt="AquaTech Shield" /> |
+| 2 | AquaTech Shell | <img src="https://api.gatcg.com/cards/images/8onkd1sWbJ.jpg" width="64" alt="AquaTech Shell" /> |
+| 2 | Induction Strike | <img src="https://api.gatcg.com/cards/images/EQnSDvNVy6.jpg" width="64" alt="Induction Strike" /> |
+| 1 | Thermal Break | <img src="https://api.gatcg.com/cards/images/VLsiy9Gm2I.jpg" width="64" alt="Thermal Break" /> |
+| 1 | Aenean Pointed Flare | <img src="https://api.gatcg.com/cards/images/A7XYrrLmJE.jpg" width="64" alt="Aenean Pointed Flare" /> |
+| 1 | Aenean Guttering Flames | <img src="https://api.gatcg.com/cards/images/uDX4LsaLl3.jpg" width="64" alt="Aenean Guttering Flames" /> |
+| 1 | Exhilarating Plume | <img src="https://api.gatcg.com/cards/images/HubFxANkAN.jpg" width="64" alt="Exhilarating Plume" /> |
+| 1 | Piccarda, Night Rider | <img src="https://api.gatcg.com/cards/images/FblUl8UyEG.jpg" width="64" alt="Piccarda, Night Rider" /> |
+| 1 | Soaked Slash | <img src="https://api.gatcg.com/cards/images/Er07U37cmH.jpg" width="64" alt="Soaked Slash" /> |
+| 1 | Fountain Bladehand | <img src="https://api.gatcg.com/cards/images/n2QQ3wrqmU.jpg" width="64" alt="Fountain Bladehand" /> |
 
----
 
-## Midgame (L2–L3)
-
-- **Honed Operative** filters memory and can put durability on the Sword when advanced element shows up.
-- Spread statics with **Ionizer**, **Fulgurite** (from GY), **Conductive Strike** On Hit, and **Arrest Lightning** recursion.
-- **Triboelectric Fortification** turns spare statics into removal **and** weapon durability — often the cleanest “answer + setup” spell in the list.
-- **Outfitted Ravager** draws (and discards) whenever something links to it — pair with Brooch / BladeCore / Ionizer.
-- **Inflamed Bladehand** and **Blistering Insurgent** punish every Lorraine attack; keep swinging.
-
-When leveling to **Arclight Saber**, try to have Arcane cards already in banishment (spent Coordinators, Return Stroke Floating Memory, Conductive Strikes, etc.) so the static flood is immediate.
-
----
-
-## Closing the game
-
-- Lorraine attacks with a fat Sword (BladeCore + durability from discards / Triboelectric).
-- Arcane combat hits spend Lorraine’s statics for ping damage (her L3 text).
-- **Conductive Strike** and **Return Stroke** (+LV) are your biggest single swings.
-- **Stoked Slice** team-pumps if the GY is full of Fire.
-- **Molten Impact** — sacrifice a spent weapon for a large burn (emergency removal / face).
-- **Leran, Pastoral Hymns** — free or cheap when your influence is ≤4; punishes opponents who flood hand+memory. Play it when you’re empty-handed and aggressive.
-- **Plutus** — unpreventable damage while your influence is low; great with discard costs.
-
----
-
-## Sideboard notes
-
-| Bring in | For |
-|----------|-----|
-| **FlameTech / AquaTech Shield** | Allied Link Shield / durability into midrange fights |
-| **AquaTech Shell** | Linked ally +2 life + On Attack recover |
-| **Induction Strike** | Bigger Arcane attack + GY static spread |
-| **Thermal Break** | Item/weapon hate |
-| **Aenean Pointed Flare** | Direct champion damage |
-| **Aenean Guttering Flames** | Dig / filter as a phantasia |
-| **Exhilarating Plume** | Human ally buff line |
-| **Piccarda, Night Rider** | Expensive Arcane finisher if games go long |
-| **Soaked Slash / Fountain Bladehand** | Extra Water Deluge tools if the meta is slow |
-
-Trim usually: extra **Package Courier** / **Scars of Old** in control mirrors, or slow 3-drops if you’re racing aggro.
-
----
-
-## Common mistakes
-
-1. **Holding L3 forever** — static On Enter wants Arcane already in banishment, but waiting three extra turns often loses more than it gains.
-2. **Linking BladeCore with no Sword** — get **AquaTech Blade X** out first.
-3. **Ignoring Class Bonus** — many cards only discard-draw, pump, or link-draw if Lorraine is still Warrior.
-4. **Spending all statics for Triboelectric** right before an Arcane attack turn — leave some on Lorraine for her L3 ping loop.
-5. **Playing Leran with a full grip** — it wants low influence; empty hand/memory first.
-
----
-
-## Checklist (Playtest)
-
-In AdvGA:
-
-1. Deck Builder → **Load Lorraine (Fire/Arcane)**  
-2. Confirm legality (Material 12 / Main 60 / Side 15)  
-3. **Try it!** — practice: Spirit → L1 → Blade + BladeCore → L2 filter → L3 static swing  
-
----
-
-## Full list (reference)
-
-See the in-app suggestion **PRD Lorraine Arclight**, or export after loading. Counts: **12** material, **60** main, **15** sideboard.
-
-*Built for AdvGA from the PRD API card pool — exploration shell, not a tournament netdeck. Tune after real matches.*
+See the [illustrated HTML guide](../public/guides/prd-lorraine-arclight.html) for engines, sideboard notes, and mistakes.
