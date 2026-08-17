@@ -149,6 +149,8 @@ export const PRD_DECK_SUGGESTIONS = [
     shortLabel: "Dante PRD",
     description: "Mage · Water / Exia · Elysian sacrifice & empower",
     listText: PRD_DANTE_HEMOMANCER,
+    guideHref: "guides/prd-dante-hemomancer.html",
+    guideLabel: "Dante guide",
   },
   {
     id: "prd-lorraine",
@@ -156,7 +158,7 @@ export const PRD_DECK_SUGGESTIONS = [
     shortLabel: "Lorraine PRD",
     description: "Warrior · Fire / Arcane · Attacks & linked gear",
     listText: PRD_LORRAINE_ARCLIGHT,
-    guideHref: "guides/prd-lorraine-arclight.md",
+    guideHref: "guides/prd-lorraine-arclight.html",
     guideLabel: "Lorraine guide",
   },
 ];
