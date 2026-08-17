@@ -10,13 +10,15 @@ import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
 const PAGE_SIZE = 50;
+const MAX_SEARCH_PAGES = 80;
 const EXAMPLE_QUERY = "fire spells that target units";
 const DECK_STORAGE_KEY = "advga.deck";
 const DECK_NAME_STORAGE_KEY = "advga.deckName";
 const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
+const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.95";
+const APP_VERSION = "0.96";
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
@@ -192,6 +194,8 @@ const state = {
   parsed: null,
   query: getInitialQuery(),
   reachedEnd: false,
+  loadAllResults: Boolean(loadStoredJson(LOAD_ALL_RESULTS_KEY, false)),
+  searchTotalCards: null,
   recentSearches: loadStoredJson(RECENT_SEARCHES_KEY, []),
   sort: SORT_OPTIONS[0],
   librarySort: "default",
@@ -450,21 +454,28 @@ function getBuilderShellHtml() {
           <p class="eyebrow">Library</p>
           <h2>Search results</h2>
         </div>
-        <label class="library-sort summary-action" for="library-sort">
-          Sort
-          <select id="library-sort" class="summary-action" aria-label="Sort library results">
-            <option value="default">Default</option>
-            <option value="cost-asc">Cost low → high</option>
-            <option value="cost-desc">Cost high → low</option>
-            <option value="element-asc">Element A → Z</option>
-            <option value="element-desc">Element Z → A</option>
-          </select>
-        </label>
+        <div class="library-toolbar summary-action">
+          <label class="library-load-all" for="library-load-all">
+            <input type="checkbox" id="library-load-all" ${state.loadAllResults ? "checked" : ""} />
+            Show all
+          </label>
+          <label class="library-sort" for="library-sort">
+            Sort
+            <select id="library-sort" class="summary-action" aria-label="Sort library results">
+              <option value="default">Default</option>
+              <option value="cost-asc">Cost low → high</option>
+              <option value="cost-desc">Cost high → low</option>
+              <option value="element-asc">Element A → Z</option>
+              <option value="element-desc">Element Z → A</option>
+            </select>
+          </label>
+        </div>
       </summary>
       <div class="section-body">
         <section class="results-grid" id="results" aria-label="Search results"></section>
         <div class="actions">
           <button class="secondary hidden" type="button" id="load-more">Load more</button>
+          <button class="ghost hidden" type="button" id="show-all-results">Show all</button>
         </div>
       </div>
     </details>
@@ -630,6 +641,8 @@ const explanationEl = document.querySelector("#search-explanation");
 const resultsEl = document.querySelector("#results");
 const librarySortSelect = document.querySelector("#library-sort");
 const loadMoreButton = document.querySelector("#load-more");
+const showAllResultsButton = document.querySelector("#show-all-results");
+const libraryLoadAllCheckbox = document.querySelector("#library-load-all");
 const lightbox = document.querySelector("#lightbox");
 const closeLightboxButton = document.querySelector("#close-lightbox");
 const lightboxPrevButton = document.querySelector("#lightbox-prev");
@@ -871,6 +884,9 @@ function bootBuilderPage() {
   if (librarySortSelect) {
     librarySortSelect.value = state.librarySort;
   }
+  libraryLoadAllCheckbox?.addEventListener("mousedown", (event) => {
+    event.stopPropagation();
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1001,9 +1017,28 @@ function bootBuilderPage() {
     }
   });
 
-  loadMoreButton.addEventListener("click", () => {
+  loadMoreButton?.addEventListener("click", () => {
     if (!state.loading && !state.reachedEnd) {
       runSearch(state.query, { reset: false, remember: false });
+    }
+  });
+
+  showAllResultsButton?.addEventListener("click", () => {
+    if (!state.loading && !state.reachedEnd && state.parsed) {
+      runSearch(state.query, { reset: false, remember: false, loadAll: true });
+    }
+  });
+
+  libraryLoadAllCheckbox?.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+  libraryLoadAllCheckbox?.addEventListener("change", (event) => {
+    event.stopPropagation();
+    state.loadAllResults = Boolean(libraryLoadAllCheckbox.checked);
+    saveStoredJson(LOAD_ALL_RESULTS_KEY, state.loadAllResults);
+    updateLibraryResultActions();
+    if (state.loadAllResults && state.parsed && !state.reachedEnd && !state.loading) {
+      runSearch(state.query, { reset: false, remember: false, loadAll: true });
     }
   });
 
@@ -1201,7 +1236,10 @@ async function loadOptions() {
   render();
 }
 
-async function runSearch(query, { reset, remember = false, scrollToLibrary = false } = {}) {
+async function runSearch(
+  query,
+  { reset, remember = false, scrollToLibrary = false, loadAll = state.loadAllResults } = {},
+) {
   const hasQuickFilters = hasActiveQuickFilters();
   if (!query && !hasQuickFilters) {
     state.cards = [];
@@ -1209,6 +1247,7 @@ async function runSearch(query, { reset, remember = false, scrollToLibrary = fal
     state.query = "";
     state.status = "Enter a search such as “fire spells that target units”.";
     state.reachedEnd = true;
+    state.searchTotalCards = null;
     updateShareUrl("");
     render();
     return;
@@ -1225,30 +1264,45 @@ async function runSearch(query, { reset, remember = false, scrollToLibrary = fal
     state.cards = [];
     state.page = 1;
     state.reachedEnd = false;
+    state.searchTotalCards = null;
   }
 
   state.loading = true;
   state.query = query;
   state.parsed = applyQuickFilters(parseNaturalQuery(query, state.options));
-  state.status = reset ? "Searching cards..." : "Loading more cards...";
+  state.status = reset
+    ? loadAll
+      ? "Loading all cards..."
+      : "Searching cards..."
+    : loadAll
+      ? "Loading remaining cards..."
+      : "Loading more cards...";
   render();
   if (scrollToLibrary) {
     scrollLibraryIntoView();
   }
 
   try {
-    const { cards, usedFallback } = await fetchCards(state.parsed, state.page);
-    const visibleCards = cards.filter((card) => cardMatchesParsedQuery(card, state.parsed));
-    const nextCards = visibleCards;
-    const uniqueCards = uniqueBy(
-      reset ? nextCards : [...state.cards, ...nextCards],
-      (card) => card.uuid || card.slug || card.name,
-    );
+    let usedFallback = false;
+    let pagesFetched = 0;
 
-    state.cards = uniqueCards;
-    state.page += 1;
-    state.reachedEnd = cards.length < PAGE_SIZE;
-    state.status = buildStatus(state.cards.length, state.parsed, usedFallback);
+    do {
+      const pageResult = await fetchAndAppendSearchPage();
+      usedFallback = usedFallback || pageResult.usedFallback;
+      pagesFetched += 1;
+
+      if (loadAll && !state.reachedEnd) {
+        const totalLabel = state.searchTotalCards ? `/${state.searchTotalCards}` : "";
+        state.status = `Loading all cards… ${state.cards.length}${totalLabel}`;
+        render();
+      }
+    } while (loadAll && !state.reachedEnd && pagesFetched < MAX_SEARCH_PAGES);
+
+    if (loadAll && !state.reachedEnd && pagesFetched >= MAX_SEARCH_PAGES) {
+      state.status = `${buildStatus(state.cards.length, state.parsed, usedFallback)} Stopped after ${MAX_SEARCH_PAGES} pages — use Load more for the rest.`;
+    } else {
+      state.status = buildStatus(state.cards.length, state.parsed, usedFallback);
+    }
   } catch (error) {
     console.error(error);
     state.status = "Could not reach the Grand Archive API. Please try again.";
@@ -1256,6 +1310,22 @@ async function runSearch(query, { reset, remember = false, scrollToLibrary = fal
     state.loading = false;
     render();
   }
+}
+
+async function fetchAndAppendSearchPage() {
+  const { cards, usedFallback, hasMore, totalCards } = await fetchCards(state.parsed, state.page);
+  if (Number.isFinite(totalCards)) {
+    state.searchTotalCards = totalCards;
+  }
+
+  const visibleCards = cards.filter((card) => cardMatchesParsedQuery(card, state.parsed));
+  state.cards = uniqueBy(
+    [...state.cards, ...visibleCards],
+    (card) => card.uuid || card.slug || card.name,
+  );
+  state.page += 1;
+  state.reachedEnd = typeof hasMore === "boolean" ? !hasMore : cards.length < PAGE_SIZE;
+  return { usedFallback, hasMore };
 }
 
 async function fetchCards(parsed, page) {
@@ -1267,6 +1337,7 @@ async function fetchCards(parsed, page) {
 
   let payload = await response.json();
   let cards = Array.isArray(payload.data) ? payload.data : [];
+  let usedFallback = false;
 
   if (cards.length === 0 && parsed.nameQuery && !parsed.effectQuery) {
     const fallbackParams = buildSearchParams(
@@ -1279,10 +1350,15 @@ async function fetchCards(parsed, page) {
     }
     payload = await response.json();
     cards = Array.isArray(payload.data) ? payload.data : [];
-    return { cards, usedFallback: true };
+    usedFallback = true;
   }
 
-  return { cards, usedFallback: false };
+  return {
+    cards,
+    usedFallback,
+    hasMore: typeof payload.has_more === "boolean" ? payload.has_more : cards.length >= PAGE_SIZE,
+    totalCards: Number.isFinite(payload.total_cards) ? payload.total_cards : null,
+  };
 }
 
 function buildSearchParams(parsed, page) {
@@ -7217,9 +7293,24 @@ function render() {
   renderChips();
   renderCards();
   renderDeck();
-  loadMoreButton.classList.toggle("hidden", !state.parsed || state.reachedEnd);
-  loadMoreButton.disabled = state.loading;
-  loadMoreButton.textContent = state.loading ? "Loading..." : "Load more";
+  if (loadMoreButton) {
+    loadMoreButton.disabled = state.loading;
+    loadMoreButton.textContent = state.loading ? "Loading..." : "Load more";
+  }
+  updateLibraryResultActions();
+}
+
+function updateLibraryResultActions() {
+  if (libraryLoadAllCheckbox) {
+    libraryLoadAllCheckbox.checked = state.loadAllResults;
+  }
+  const canShowAll = Boolean(state.parsed) && !state.reachedEnd && !state.loadAllResults;
+  showAllResultsButton?.classList.toggle("hidden", !canShowAll);
+  showAllResultsButton && (showAllResultsButton.disabled = state.loading);
+  if (showAllResultsButton) {
+    showAllResultsButton.textContent = state.loading ? "Loading..." : "Show all";
+  }
+  loadMoreButton?.classList.toggle("hidden", !state.parsed || state.reachedEnd || state.loadAllResults);
 }
 
 function renderChips() {
