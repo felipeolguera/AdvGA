@@ -13,6 +13,7 @@ a constructed deck list.
   one-tap **Cards in PRD** search for the new release.
 - Library **Show all** option loads every matching card instead of paging 50 at a time.
 - One-click **.asphodel/paradise** deck suggestions (Dante Water/Exia Mage, Lorraine Fire/Arcane Warrior).
+- [Lorraine Arclight play guide](docs/prd-lorraine-arclight-guide.md) for the Fire/Arcane Warrior suggestion.
 - Interchangeable phrase order such as `2 cost ally` and `ally that cost 2`.
 - Parsed filter chips, search explanations, advanced filter controls, sorting,
   keyword helpers, recent searches, and shareable search URLs.

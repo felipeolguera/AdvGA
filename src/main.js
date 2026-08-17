@@ -19,7 +19,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "0.97";
+const APP_VERSION = "0.98";
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
 const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
@@ -406,6 +406,11 @@ function getBuilderShellHtml() {
                 data-prd-suggestion="${escapeHtml(suggestion.id)}"
                 title="${escapeHtml(suggestion.description)}"
               >${escapeHtml(suggestion.label)}</button>
+              ${
+                suggestion.guideHref
+                  ? `<a class="ghost compact deck-suggestion-guide" href="${escapeHtml(resolvePublicAssetUrl(suggestion.guideHref))}" target="_blank" rel="noopener noreferrer">${escapeHtml(suggestion.guideLabel || "Guide")}</a>`
+                  : ""
+              }
             `,
             ).join("")}
           </div>

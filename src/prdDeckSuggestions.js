@@ -156,5 +156,7 @@ export const PRD_DECK_SUGGESTIONS = [
     shortLabel: "Lorraine PRD",
     description: "Warrior · Fire / Arcane · Attacks & linked gear",
     listText: PRD_LORRAINE_ARCLIGHT,
+    guideHref: "guides/prd-lorraine-arclight.md",
+    guideLabel: "Lorraine guide",
   },
 ];
