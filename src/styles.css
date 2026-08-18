@@ -3336,7 +3336,7 @@ body.deck-load-active {
   position: fixed;
   left: 50%;
   bottom: max(24px, env(safe-area-inset-bottom, 0px) + 16px);
-  z-index: 1400;
+  z-index: 2147483646;
   border: 1px solid rgba(255, 204, 115, 0.7);
   border-radius: 999px;
   padding: 12px 20px;
@@ -3352,6 +3352,13 @@ body.deck-load-active {
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, 14px) scale(0.92);
+}
+
+dialog .tryit-toast,
+.material-dialog .tryit-toast,
+.extras-dialog .tryit-toast {
+  position: fixed;
+  z-index: 2147483646;
 }
 
 .tryit-toast.show {
