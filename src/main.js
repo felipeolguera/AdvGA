@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.03";
+const APP_VERSION = "1.04";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -226,6 +226,15 @@ const state = {
   mainDeckOpeningHand: false,
   openingHandLibrary: [],
   openingHandMaterial: [],
+  openingHandExtras: {
+    token: [],
+    mastery: [],
+    loaded: false,
+    loading: false,
+    error: "",
+    filter: "all",
+    query: "",
+  },
   openingHandHand: [],
   openingHandDealToken: 0,
   openingHandDealComplete: true,
@@ -666,6 +675,7 @@ function getTryItShellHtml() {
         <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
         <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
         <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
+        <button class="secondary compact" type="button" data-open-extras="true" title="Add Token or Mastery cards to the Field">Tokens / Mastery</button>
         <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
         <div class="tryit-turn-controls">
           <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
@@ -688,6 +698,33 @@ function getTryItShellHtml() {
       </header>
       <div class="material-dialog-grid" id="material-dialog-grid"></div>
       <p class="hint material-dialog-empty" id="material-dialog-empty" hidden>No material cards left.</p>
+    </div>
+  </dialog>
+
+  <dialog class="material-dialog extras-dialog" id="extras-dialog" aria-labelledby="extras-dialog-title">
+    <div class="material-dialog-shell">
+      <header class="material-dialog-header">
+        <div>
+          <p class="eyebrow">Try it!</p>
+          <h2 id="extras-dialog-title">Tokens / Mastery</h2>
+          <p class="hint">Spawn ephemeral Token or Mastery cards onto the Field. They are not taken from your deck.</p>
+        </div>
+        <button class="icon-button" type="button" id="close-extras-dialog" aria-label="Close tokens and mastery">×</button>
+      </header>
+      <div class="extras-dialog-toolbar">
+        <div class="extras-filter-row" role="tablist" aria-label="Card type">
+          <button class="ghost compact extras-filter is-active" type="button" data-extras-filter="all" role="tab" aria-selected="true">All</button>
+          <button class="ghost compact extras-filter" type="button" data-extras-filter="token" role="tab" aria-selected="false">Tokens</button>
+          <button class="ghost compact extras-filter" type="button" data-extras-filter="mastery" role="tab" aria-selected="false">Mastery</button>
+        </div>
+        <label class="extras-search-label" for="extras-search">
+          Search
+          <input id="extras-search" name="extrasSearch" type="search" autocomplete="off" placeholder="Filter by name…" />
+        </label>
+      </div>
+      <p class="hint" id="extras-dialog-status" aria-live="polite"></p>
+      <div class="material-dialog-grid" id="extras-dialog-grid"></div>
+      <p class="hint material-dialog-empty" id="extras-dialog-empty" hidden>No matching cards.</p>
     </div>
   </dialog>
 `;
@@ -772,6 +809,12 @@ const materialDialog = document.querySelector("#material-dialog");
 const materialDialogGrid = document.querySelector("#material-dialog-grid");
 const materialDialogEmpty = document.querySelector("#material-dialog-empty");
 const closeMaterialDialogButton = document.querySelector("#close-material-dialog");
+const extrasDialog = document.querySelector("#extras-dialog");
+const extrasDialogGrid = document.querySelector("#extras-dialog-grid");
+const extrasDialogEmpty = document.querySelector("#extras-dialog-empty");
+const extrasDialogStatus = document.querySelector("#extras-dialog-status");
+const extrasSearchInput = document.querySelector("#extras-search");
+const closeExtrasDialogButton = document.querySelector("#close-extras-dialog");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
 
@@ -784,6 +827,29 @@ materialDialog?.addEventListener("click", (event) => {
 materialDialog?.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeMaterialDialog();
+});
+
+closeExtrasDialogButton?.addEventListener("click", () => closeExtrasDialog());
+extrasDialog?.addEventListener("click", (event) => {
+  if (event.target === extrasDialog) {
+    closeExtrasDialog();
+  }
+});
+extrasDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeExtrasDialog();
+});
+extrasDialog?.addEventListener("click", (event) => {
+  const filterButton = event.target.closest("[data-extras-filter]");
+  if (!filterButton || !extrasDialog.contains(filterButton)) {
+    return;
+  }
+  event.preventDefault();
+  setExtrasDialogFilter(filterButton.dataset.extrasFilter || "all");
+});
+extrasSearchInput?.addEventListener("input", () => {
+  state.openingHandExtras.query = extrasSearchInput.value || "";
+  renderExtrasDialogGrid(getActiveOpeningHandBoard());
 });
 
 if (IS_TRYIT_PAGE) {
@@ -3268,7 +3334,7 @@ function updateMultiplayerChrome() {
     });
     // Dual portrait is tight — keep End turn + menu; stash the rest.
     actions.querySelectorAll(
-      "[data-redeal-opening-hand], [data-banish-opening-hand], [data-organize-opening-hand], [data-recollect-opening-hand]",
+      "[data-redeal-opening-hand], [data-banish-opening-hand], [data-organize-opening-hand], [data-recollect-opening-hand], [data-open-extras]",
     ).forEach((el) => {
       el.hidden = hidePlayerTools || dual;
     });
@@ -4117,6 +4183,13 @@ function handleTryItActionClick(event) {
     return;
   }
 
+  const extrasButton = event.target.closest("[data-open-extras]");
+  if (extrasButton) {
+    event.preventDefault();
+    void openExtrasDialog(getActiveOpeningHandBoard());
+    return;
+  }
+
   const banishButton = event.target.closest("[data-banish-opening-hand]");
   if (banishButton) {
     banishRandomMemoryCard(getActiveOpeningHandBoard());
@@ -4746,7 +4819,7 @@ function renderOpeningHandContents(board) {
   layoutOpeningHandZones(field);
   field
     .querySelectorAll(
-      "[data-oh-card], [data-oh-deck-pile], [data-oh-material-pile], [data-oh-hand-count]",
+      "[data-oh-card], [data-oh-deck-pile], [data-oh-material-pile], [data-oh-extras-button], [data-oh-hand-count]",
     )
     .forEach((node) => node.remove());
 
@@ -4797,9 +4870,27 @@ function renderOpeningHandContents(board) {
   handCount.dataset.ohHandCount = "true";
   handCount.setAttribute("aria-label", "Cards in hand");
 
-  field.append(pile, materialPile, handCount);
+  const extrasButton = document.createElement("button");
+  extrasButton.type = "button";
+  extrasButton.className = "opening-hand-extras-button";
+  extrasButton.dataset.ohExtrasButton = "true";
+  extrasButton.dataset.openExtras = "true";
+  extrasButton.setAttribute("aria-label", "Add Token or Mastery cards to the Field");
+  extrasButton.innerHTML = `<span class="opening-hand-extras-button-label">Tokens</span><span class="opening-hand-extras-button-sub">Mastery</span>`;
+  if (readonly) {
+    extrasButton.disabled = true;
+  } else {
+    extrasButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void openExtrasDialog(board);
+    });
+  }
+
+  field.append(pile, materialPile, extrasButton, handCount);
   positionOpeningHandDeckPile(board);
   positionOpeningHandMaterialPile(board);
+  positionOpeningHandExtrasButton(board);
   positionOpeningHandHandCount(board);
   updateOpeningHandCounts(board);
   if (!readonly) {
@@ -5311,6 +5402,294 @@ async function playOpeningHandMaterialCard(board, instanceId) {
   queueMultiplayerSeatPublish();
 }
 
+
+function positionOpeningHandExtrasButton(board) {
+  const field = board?.querySelector("[data-oh-field]");
+  const button = board?.querySelector("[data-oh-extras-button]");
+  if (!field || !button) {
+    return;
+  }
+  layoutOpeningHandZones(field);
+  const zones = getOpeningHandZones(field);
+  const width = Math.min(88, Math.max(64, zones.leftRailWidth - 4));
+  const x = zones.leftRailLeft + Math.max(0, (zones.leftRailWidth - width) / 2);
+  // Sit just above the Material pile in the left rail.
+  const y = Math.max(zones.materialTop - 44, zones.memoryTop + 4);
+  button.style.left = `${x}px`;
+  button.style.top = `${y}px`;
+  button.style.width = `${width}px`;
+}
+
+function closeExtrasDialog() {
+  if (!extrasDialog?.open) {
+    return;
+  }
+  extrasDialog.close();
+}
+
+function setExtrasDialogFilter(filter) {
+  const next = ["all", "token", "mastery"].includes(filter) ? filter : "all";
+  state.openingHandExtras.filter = next;
+  extrasDialog?.querySelectorAll("[data-extras-filter]").forEach((button) => {
+    const active = button.dataset.extrasFilter === next;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  renderExtrasDialogGrid(getActiveOpeningHandBoard());
+}
+
+async function ensureOpeningHandExtrasCatalog() {
+  if (state.openingHandExtras.loaded || state.openingHandExtras.loading) {
+    return state.openingHandExtras;
+  }
+  state.openingHandExtras.loading = true;
+  state.openingHandExtras.error = "";
+  if (extrasDialogStatus) {
+    extrasDialogStatus.textContent = "Loading Tokens and Mastery cards…";
+  }
+  try {
+    const [token, mastery] = await Promise.all([
+      fetchAllCardsByType("TOKEN"),
+      fetchAllCardsByType("MASTERY"),
+    ]);
+    state.openingHandExtras.token = token;
+    state.openingHandExtras.mastery = mastery;
+    state.openingHandExtras.loaded = true;
+  } catch (error) {
+    console.error(error);
+    state.openingHandExtras.error = "Could not load Tokens / Mastery. Check your connection and try again.";
+  } finally {
+    state.openingHandExtras.loading = false;
+  }
+  return state.openingHandExtras;
+}
+
+async function fetchAllCardsByType(typeName) {
+  const cards = [];
+  let page = 1;
+  while (page <= 12) {
+    const params = new URLSearchParams({
+      type: typeName,
+      page: String(page),
+      page_size: "50",
+      sort: "name",
+      order: "ASC",
+    });
+    const response = await fetch(`${API_BASE}/cards/search?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load ${typeName} cards`);
+    }
+    const payload = await response.json();
+    const batch = payload.data || [];
+    cards.push(...batch);
+    const total = Number(payload.total ?? payload.total_cards ?? 0);
+    if (!batch.length || (total > 0 && cards.length >= total) || batch.length < 50) {
+      break;
+    }
+    page += 1;
+  }
+  // Stable unique by uuid/slug/name
+  const seen = new Set();
+  return cards.filter((card) => {
+    const key = getCardKey(card);
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+async function openExtrasDialog(board = null) {
+  if (!extrasDialog || !extrasDialogGrid) {
+    return;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  extrasDialog.dataset.ohBoardBound = playBoard ? "true" : "false";
+  if (extrasSearchInput && extrasSearchInput.value !== (state.openingHandExtras.query || "")) {
+    extrasSearchInput.value = state.openingHandExtras.query || "";
+  }
+  setExtrasDialogFilter(state.openingHandExtras.filter || "all");
+  if (!extrasDialog.open) {
+    extrasDialog.showModal();
+  }
+  await ensureOpeningHandExtrasCatalog();
+  renderExtrasDialogGrid(playBoard);
+}
+
+function getExtrasDialogCards() {
+  const extras = state.openingHandExtras;
+  let cards = [];
+  if (extras.filter === "token") {
+    cards = extras.token;
+  } else if (extras.filter === "mastery") {
+    cards = extras.mastery;
+  } else {
+    cards = [...extras.token, ...extras.mastery];
+  }
+  const query = String(extras.query || "").trim().toLowerCase();
+  if (!query) {
+    return cards;
+  }
+  return cards.filter((card) => String(card.name || "").toLowerCase().includes(query));
+}
+
+function extrasCardKind(card) {
+  const types = (card?.types || []).map((value) => String(value).toUpperCase());
+  if (types.includes("MASTERY")) {
+    return "mastery";
+  }
+  if (types.includes("TOKEN")) {
+    return "token";
+  }
+  return "extra";
+}
+
+function renderExtrasDialogGrid(board = null) {
+  if (!extrasDialogGrid || !extrasDialogEmpty) {
+    return;
+  }
+  extrasDialogGrid.replaceChildren();
+  const extras = state.openingHandExtras;
+  if (extras.loading && !extras.loaded) {
+    if (extrasDialogStatus) {
+      extrasDialogStatus.textContent = "Loading Tokens and Mastery cards…";
+    }
+    extrasDialogEmpty.hidden = true;
+    return;
+  }
+  if (extras.error && !extras.loaded) {
+    if (extrasDialogStatus) {
+      extrasDialogStatus.textContent = extras.error;
+    }
+    extrasDialogEmpty.hidden = true;
+    return;
+  }
+
+  const cards = getExtrasDialogCards();
+  if (extrasDialogStatus) {
+    const tokenCount = extras.token.length;
+    const masteryCount = extras.mastery.length;
+    extrasDialogStatus.textContent = `${cards.length} shown · ${tokenCount} Tokens · ${masteryCount} Mastery`;
+  }
+  extrasDialogEmpty.hidden = cards.length > 0;
+
+  cards.forEach((card) => {
+    const kind = extrasCardKind(card);
+    const item = document.createElement("article");
+    item.className = "material-dialog-card extras-dialog-card";
+    item.dataset.extrasCardKey = getCardKey(card);
+    item.dataset.extrasKind = kind;
+
+    const imageWrap = document.createElement("div");
+    imageWrap.className = "material-dialog-card-image";
+    const imageUrl = getImageUrl(resolveCardImage(card));
+    if (imageUrl) {
+      const image = document.createElement("img");
+      image.src = imageUrl;
+      image.alt = card.name || "Card";
+      image.loading = "lazy";
+      image.draggable = false;
+      imageWrap.append(image);
+    }
+
+    const badge = document.createElement("span");
+    badge.className = `extras-card-badge extras-card-badge-${kind}`;
+    badge.textContent = kind === "mastery" ? "Mastery" : "Token";
+
+    const name = document.createElement("p");
+    name.className = "material-dialog-card-name";
+    name.textContent = card.name || "Unknown card";
+
+    const playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.className = "material-dialog-play";
+    playButton.dataset.playExtra = getCardKey(card);
+    playButton.dataset.playExtraKind = kind;
+    playButton.textContent = "Add to Field";
+
+    item.append(imageWrap, badge, name, playButton);
+    extrasDialogGrid.append(item);
+  });
+
+  extrasDialogGrid.onclick = async (event) => {
+    const playButton = event.target.closest("[data-play-extra]");
+    if (!playButton) {
+      return;
+    }
+    event.preventDefault();
+    const key = playButton.dataset.playExtra;
+    const kind = playButton.dataset.playExtraKind || "token";
+    const card = [...state.openingHandExtras.token, ...state.openingHandExtras.mastery].find(
+      (entry) => getCardKey(entry) === key,
+    );
+    if (!card) {
+      return;
+    }
+    const playBoard = board || getActiveOpeningHandBoard();
+    await playOpeningHandExtraCard(playBoard, card, kind);
+  };
+}
+
+async function playOpeningHandExtraCard(board, card, kind = "token") {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field || !card) {
+    return;
+  }
+
+  const toChampion = isChampionAreaCard(card);
+  const targetZone = toChampion ? "champion" : "field";
+  const stackIndex = countOpeningHandZoneCards(targetZone);
+  const position = toChampion
+    ? getOpeningHandChampionSlot(field, stackIndex)
+    : getOpeningHandFieldSlot(field, stackIndex);
+  const key = getCardKey(card);
+  const entry = {
+    card: {
+      ...card,
+      key,
+    },
+    instanceId: `extra-${kind}-${key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    position,
+    facedown: false,
+    rotated: false,
+    zone: targetZone,
+    ephemeral: true,
+    extraKind: kind,
+  };
+  state.openingHandHand.push(entry);
+
+  // Keep the picker open so multiple tokens can be spawned quickly.
+  const cardEl = createOpeningHandCard(entry, state.openingHandHand.length - 1, field);
+  field.append(cardEl);
+  updateOpeningHandCounts(playBoard);
+
+  const extrasButton = playBoard.querySelector("[data-oh-extras-button]");
+  const spawnX = extrasButton
+    ? Number.parseFloat(extrasButton.style.left) || getOpeningHandMaterialAnchor(field).x
+    : getOpeningHandMaterialAnchor(field).x;
+  const spawnY = extrasButton
+    ? Number.parseFloat(extrasButton.style.top) || getOpeningHandMaterialAnchor(field).y
+    : getOpeningHandMaterialAnchor(field).y;
+  cardEl.classList.add("opening-hand-card-dealing");
+  cardEl.style.left = `${spawnX}px`;
+  cardEl.style.top = `${spawnY}px`;
+  cardEl.style.opacity = "0.4";
+  cardEl.style.transform = "scale(0.86) rotate(-6deg)";
+  await delay(20);
+  applyOpeningHandCardPosition(cardEl, entry);
+  cardEl.style.opacity = "1";
+  cardEl.style.transform = "scale(1) rotate(0deg)";
+  await delay(220);
+  cardEl.classList.remove("opening-hand-card-dealing");
+  if (toChampion) {
+    restackOpeningHandChampionCards(playBoard);
+  }
+  resizeOpeningHandField(playBoard);
+  queueMultiplayerSeatPublish();
+}
+
 function updateOpeningHandMaterialPile(board) {
   const pile = board?.querySelector("[data-oh-material-pile]");
   if (!pile) {
@@ -5373,6 +5752,7 @@ function resizeOpeningHandField(board) {
   layoutOpeningHandZones(field);
   positionOpeningHandDeckPile(board);
   positionOpeningHandMaterialPile(board);
+  positionOpeningHandExtrasButton(board);
   updateOpeningHandCounts(board);
 }
 
