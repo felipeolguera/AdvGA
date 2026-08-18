@@ -2153,11 +2153,6 @@ body:has(.tryit-page.is-mp-dual) {
   hyphens: auto;
 }
 
-.opening-hand-board-menu-toggle {
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .opening-hand-board-menu-dialog {
   width: min(340px, calc(100% - 28px));
   max-height: min(80vh, 520px);
