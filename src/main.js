@@ -20,11 +20,10 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.04";
+const APP_VERSION = "1.05";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
-const OPENING_HAND_FLIP_HOLD_MS = 1000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -238,6 +237,7 @@ const state = {
   openingHandHand: [],
   openingHandDealToken: 0,
   openingHandDealComplete: true,
+  openingHandAwaitingSpirit: false,
   openingHandPreviewEscBound: false,
   openingHandTurn: 1,
   openingHandDamage: 0,
@@ -641,6 +641,15 @@ function getTryItShellHtml() {
       <div class="tryit-page-heading">
         <div class="tryit-chrome-slim">
           <p class="hint mp-room-status" id="mp-room-status" hidden></p>
+          <button
+            class="ghost compact tryit-help-toggle"
+            type="button"
+            data-tryit-help="true"
+            aria-label="Help — game controls and shortcuts"
+            title="Help"
+          >
+            <span aria-hidden="true">?</span>
+          </button>
           <div class="tryit-menu" id="tryit-menu">
             <button
               class="ghost compact tryit-menu-toggle"
@@ -693,12 +702,35 @@ function getTryItShellHtml() {
         <div>
           <p class="eyebrow">Try it!</p>
           <h2 id="material-dialog-title">Material Deck</h2>
-          <p class="hint">Choose a card from Material. Champions and Spirits go to the Champion area; other material goes to Field.</p>
+          <p class="hint" id="material-dialog-hint">Choose a card from Material. Champions and Spirits go to the Champion area; other material goes to Field.</p>
         </div>
         <button class="icon-button" type="button" id="close-material-dialog" aria-label="Close material deck">×</button>
       </header>
       <div class="material-dialog-grid" id="material-dialog-grid"></div>
       <p class="hint material-dialog-empty" id="material-dialog-empty" hidden>No material cards left.</p>
+    </div>
+  </dialog>
+
+  <dialog class="material-dialog tryit-help-dialog" id="tryit-help-dialog" aria-labelledby="tryit-help-title">
+    <div class="material-dialog-shell">
+      <header class="material-dialog-header">
+        <div>
+          <p class="eyebrow">Try it!</p>
+          <h2 id="tryit-help-title">Controls &amp; shortcuts</h2>
+          <p class="hint">Gestures and board actions for Playtest.</p>
+        </div>
+        <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
+      </header>
+      <ul class="tryit-help-list">
+        <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Deck, Banish, Graveyard, and more</li>
+        <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
+        <li><strong>Deck pile</strong> — Tap to draw to Hand; drag to Field, Memory, Graveyard, or Hand</li>
+        <li><strong>Material pile</strong> — Open Material Deck; start by choosing your Spirit (Level 0 champion)</li>
+        <li><strong>Tokens / Mastery</strong> — Spawn ephemeral extras onto the Field</li>
+        <li><strong>Organize hand</strong> — Snap Hand cards into an even row</li>
+        <li><strong>End turn</strong> — Wake rested cards and organize Field cards</li>
+        <li><strong>Redeal</strong> — Shuffle and deal a new opening hand, then pick Spirit again</li>
+      </ul>
     </div>
   </dialog>
 
@@ -818,6 +850,10 @@ const extrasDialogEmpty = document.querySelector("#extras-dialog-empty");
 const extrasDialogStatus = document.querySelector("#extras-dialog-status");
 const extrasSearchInput = document.querySelector("#extras-search");
 const closeExtrasDialogButton = document.querySelector("#close-extras-dialog");
+const tryitHelpDialog = document.querySelector("#tryit-help-dialog");
+const closeTryitHelpDialogButton = document.querySelector("#close-tryit-help-dialog");
+const materialDialogTitle = document.querySelector("#material-dialog-title");
+const materialDialogHint = document.querySelector("#material-dialog-hint");
 const tryitToastEl = document.querySelector("#tryit-toast");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
@@ -854,6 +890,32 @@ extrasDialog?.addEventListener("click", (event) => {
 extrasSearchInput?.addEventListener("input", () => {
   state.openingHandExtras.query = extrasSearchInput.value || "";
   renderExtrasDialogGrid(getActiveOpeningHandBoard());
+});
+
+closeTryitHelpDialogButton?.addEventListener("click", () => closeTryItHelpDialog());
+tryitHelpDialog?.addEventListener("click", (event) => {
+  if (event.target === tryitHelpDialog) {
+    closeTryItHelpDialog();
+  }
+});
+tryitHelpDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeTryItHelpDialog();
+});
+document.addEventListener("pointerdown", (event) => {
+  const menu = document.querySelector("[data-oh-card-menu]");
+  if (!menu) {
+    return;
+  }
+  if (event.target.closest("[data-oh-card-menu]") || event.target.closest(".opening-hand-card.is-menu-open")) {
+    return;
+  }
+  closeOpeningHandCardMenu();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeOpeningHandCardMenu();
+  }
 });
 
 if (IS_TRYIT_PAGE) {
@@ -4023,13 +4085,15 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandHand = [];
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = false;
+  state.openingHandAwaitingSpirit = false;
   state.openingHandTurn = 1;
   state.openingHandDamage = 0;
   if (state.mp.mode === "lobby") {
     state.mp.mode = "solo";
   }
   setTryItMenuOpen(false);
-  closeMaterialDialog();
+  closeMaterialDialog({ force: true });
+  closeOpeningHandCardMenu();
   hideOpeningHandCardPreview();
   saveMainDeckFreehandState();
   if (IS_TRYIT_PAGE) {
@@ -4046,7 +4110,9 @@ function exitOpeningHandSession() {
   state.openingHandHand = [];
   state.openingHandDealToken += 1;
   state.openingHandDealComplete = true;
-  closeMaterialDialog();
+  state.openingHandAwaitingSpirit = false;
+  closeMaterialDialog({ force: true });
+  closeOpeningHandCardMenu();
   hideOpeningHandCardPreview();
   if (IS_TRYIT_PAGE) {
     window.location.assign(BUILDER_PAGE_URL);
@@ -4122,7 +4188,19 @@ function handleTryItActionClick(event) {
 
   const endTurnButton = event.target.closest("[data-end-turn]");
   if (endTurnButton) {
+    if (!requireOpeningHandSpiritChosen()) {
+      return;
+    }
     endTryItTurn();
+    return;
+  }
+
+  const helpButton = event.target.closest("[data-tryit-help]");
+  if (helpButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    openTryItHelpDialog();
     return;
   }
 
@@ -4175,6 +4253,9 @@ function handleTryItActionClick(event) {
 
   const organizeButton = event.target.closest("[data-organize-opening-hand]");
   if (organizeButton) {
+    if (!requireOpeningHandSpiritChosen()) {
+      return;
+    }
     organizeOpeningHandCards(getActiveOpeningHandBoard());
     queueMultiplayerSeatPublish();
     return;
@@ -4182,6 +4263,9 @@ function handleTryItActionClick(event) {
 
   const recollectButton = event.target.closest("[data-recollect-opening-hand]");
   if (recollectButton) {
+    if (!requireOpeningHandSpiritChosen()) {
+      return;
+    }
     recollectOpeningHandMemory(getActiveOpeningHandBoard());
     queueMultiplayerSeatPublish();
     return;
@@ -4190,12 +4274,18 @@ function handleTryItActionClick(event) {
   const extrasButton = event.target.closest("[data-open-extras]");
   if (extrasButton) {
     event.preventDefault();
+    if (!requireOpeningHandSpiritChosen()) {
+      return;
+    }
     void openExtrasDialog(getActiveOpeningHandBoard());
     return;
   }
 
   const banishButton = event.target.closest("[data-banish-opening-hand]");
   if (banishButton) {
+    if (!requireOpeningHandSpiritChosen()) {
+      return;
+    }
     banishRandomMemoryCard(getActiveOpeningHandBoard());
     queueMultiplayerSeatPublish();
   }
@@ -4212,10 +4302,15 @@ function updateTryItTurnLabel() {
 }
 
 function endTryItTurn() {
+  if (!requireOpeningHandSpiritChosen()) {
+    return;
+  }
   state.openingHandTurn = Math.max(1, Number(state.openingHandTurn) || 1) + 1;
   updateTryItTurnLabel();
   setTryItMenuOpen(false);
+  closeOpeningHandCardMenu();
   wakeRestedOpeningHandCards();
+  organizeOpeningHandFieldCards();
   if (state.mp.connection) {
     void state.mp.connection.sendMeta({
       turn: state.openingHandTurn,
@@ -4249,6 +4344,58 @@ function wakeRestedOpeningHandCards(board = null) {
     }
   });
   return woke;
+}
+
+/** Snap Field cards into an even row; restack Champion. */
+function organizeOpeningHandFieldCards(board = null) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field) {
+    return;
+  }
+
+  dedupeOpeningHandEntries();
+  layoutOpeningHandZones(field);
+  void field.offsetWidth;
+
+  const fieldEntries = state.openingHandHand
+    .filter((entry) => (entry.zone || "hand") === "field")
+    .sort((left, right) => {
+      const dx = (left.position?.x || 0) - (right.position?.x || 0);
+      if (dx !== 0) {
+        return dx;
+      }
+      return (left.position?.z || 0) - (right.position?.z || 0);
+    });
+
+  fieldEntries.forEach((entry) => {
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (cardEl) {
+      cardEl.style.transition = "left 220ms ease, top 220ms ease";
+    }
+  });
+  layoutCardsInMeasuredZone(field, "field", fieldEntries);
+  restackOpeningHandChampionCards(playBoard);
+  updateOpeningHandCounts(playBoard);
+  resizeOpeningHandField(playBoard);
+}
+
+function openTryItHelpDialog() {
+  if (!tryitHelpDialog) {
+    return;
+  }
+  setTryItMenuOpen(false);
+  closeOpeningHandCardMenu();
+  if (!tryitHelpDialog.open) {
+    tryitHelpDialog.showModal();
+  }
+}
+
+function closeTryItHelpDialog() {
+  if (!tryitHelpDialog?.open) {
+    return;
+  }
+  tryitHelpDialog.close();
 }
 
 function setTryItMenuOpen(open) {
@@ -5107,21 +5254,23 @@ function applyOpeningHandCardFace(cardEl, entry) {
     return;
   }
   const zone = entry.zone || "hand";
-  if (zone === "field" || zone === "memory" || zone === "champion") {
-    const zoneLabel =
-      zone === "field" ? "Field" : zone === "champion" ? "Champion" : "Memory";
-    const restHint =
-      zone === "field" || zone === "champion" ? "; triple-click to rest/rotate" : "";
-    cardEl.title = facedown
-      ? `Face-down (${zoneLabel}) — double-click to peek; hold 1s to flip up${restHint}`
-      : `${entry.card.name} — double-click to peek; hold 1s to flip down${restHint}`;
-  } else if (zone === "hand") {
-    cardEl.title = facedown
-      ? "Face-down (Hand) — double-click to peek"
-      : `${entry.card.name} — double-click to peek`;
-  } else {
-    cardEl.title = facedown ? "Face-down card" : entry.card.name;
-  }
+  const zoneLabel =
+    zone === "field"
+      ? "Field"
+      : zone === "champion"
+        ? "Champion"
+        : zone === "memory"
+          ? "Memory"
+          : zone === "hand"
+            ? "Hand"
+            : zone === "graveyard"
+              ? "Graveyard"
+              : zone === "banishment"
+                ? "Banishment"
+                : "Board";
+  cardEl.title = facedown
+    ? `Face-down (${zoneLabel}) — double-tap for actions`
+    : `${entry.card?.name || "Card"} — double-tap for actions`;
 }
 
 function setOpeningHandCardFacedown(cardEl, entry, facedown) {
@@ -5308,11 +5457,30 @@ function restackOpeningHandChampionCards(board) {
   });
 }
 
-function closeMaterialDialog() {
+function closeMaterialDialog({ force = false } = {}) {
+  if (!force && state.openingHandAwaitingSpirit) {
+    return;
+  }
   if (!materialDialog?.open) {
     return;
   }
   materialDialog.close();
+}
+
+function updateMaterialDialogChrome() {
+  const awaiting = Boolean(state.openingHandAwaitingSpirit);
+  materialDialog?.classList.toggle("is-spirit-select", awaiting);
+  if (closeMaterialDialogButton) {
+    closeMaterialDialogButton.hidden = awaiting;
+  }
+  if (materialDialogTitle) {
+    materialDialogTitle.textContent = awaiting ? "Choose your Spirit" : "Material Deck";
+  }
+  if (materialDialogHint) {
+    materialDialogHint.textContent = awaiting
+      ? "Play a Spirit champion (Level 0) from Material to start the game. Champions go to the Champion area."
+      : "Choose a card from Material. Champions and Spirits go to the Champion area; other material goes to Field.";
+  }
 }
 
 function openMaterialDialog(board = null) {
@@ -5321,10 +5489,19 @@ function openMaterialDialog(board = null) {
   }
   const playBoard = board || getActiveOpeningHandBoard();
   materialDialog.dataset.ohBoardBound = playBoard ? "true" : "false";
+  updateMaterialDialogChrome();
   renderMaterialDialogGrid(playBoard);
   if (!materialDialog.open) {
     materialDialog.showModal();
   }
+}
+
+function getMaterialDialogEntries() {
+  const entries = state.openingHandMaterial || [];
+  if (!state.openingHandAwaitingSpirit) {
+    return entries;
+  }
+  return entries.filter((entry) => isSpiritChampionCard(entry.card));
 }
 
 function renderMaterialDialogGrid(board = null) {
@@ -5332,8 +5509,14 @@ function renderMaterialDialogGrid(board = null) {
     return;
   }
   materialDialogGrid.replaceChildren();
-  const entries = state.openingHandMaterial;
+  updateMaterialDialogChrome();
+  const entries = getMaterialDialogEntries();
   materialDialogEmpty.hidden = entries.length > 0;
+  if (materialDialogEmpty) {
+    materialDialogEmpty.textContent = state.openingHandAwaitingSpirit
+      ? "No Spirit champions left in Material."
+      : "No material cards left.";
+  }
   entries.forEach((entry) => {
     const item = document.createElement("article");
     item.className = "material-dialog-card";
@@ -5359,7 +5542,7 @@ function renderMaterialDialogGrid(board = null) {
     playButton.type = "button";
     playButton.className = "material-dialog-play";
     playButton.dataset.playMaterial = entry.instanceId;
-    playButton.textContent = "Play";
+    playButton.textContent = state.openingHandAwaitingSpirit ? "Play Spirit" : "Play";
 
     item.append(imageWrap, name, playButton);
     materialDialogGrid.append(item);
@@ -5391,7 +5574,13 @@ async function playOpeningHandMaterialCard(board, instanceId) {
     return;
   }
 
-  const [source] = state.openingHandMaterial.splice(index, 1);
+  const source = state.openingHandMaterial[index];
+  if (state.openingHandAwaitingSpirit && !isSpiritChampionCard(source.card)) {
+    showTryItToast("Choose a Spirit champion (Level 0)");
+    return;
+  }
+
+  state.openingHandMaterial.splice(index, 1);
   const toChampion = isChampionAreaCard(source.card);
   const targetZone = toChampion ? "champion" : "field";
   const stackIndex = countOpeningHandZoneCards(targetZone);
@@ -5407,7 +5596,10 @@ async function playOpeningHandMaterialCard(board, instanceId) {
   };
   state.openingHandHand.push(entry);
 
-  closeMaterialDialog();
+  if (state.openingHandAwaitingSpirit && isSpiritChampionCard(source.card)) {
+    state.openingHandAwaitingSpirit = false;
+  }
+  closeMaterialDialog({ force: true });
 
   const cardEl = createOpeningHandCard(entry, state.openingHandHand.length - 1, field);
   field.append(cardEl);
@@ -5433,6 +5625,41 @@ async function playOpeningHandMaterialCard(board, instanceId) {
   queueMultiplayerSeatPublish();
 }
 
+/** Level 0 champions (Spirits) used to start a Grand Archive game. */
+function isSpiritChampionCard(card) {
+  if (!card) {
+    return false;
+  }
+  if (isChampionCard(card) && Number(card.level) === 0) {
+    return true;
+  }
+  const types = (card.types || []).map((type) => String(type).toUpperCase());
+  const subtypes = (card.subtypes || []).map((type) => String(type).toUpperCase());
+  return types.includes("SPIRIT") || subtypes.includes("SPIRIT");
+}
+
+function requireOpeningHandSpiritChosen() {
+  if (!state.openingHandAwaitingSpirit) {
+    return true;
+  }
+  openMaterialDialog(getActiveOpeningHandBoard());
+  showTryItToast("Choose your Spirit champion first");
+  return false;
+}
+
+function promptOpeningHandSpiritSelect(board = null) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const spirits = (state.openingHandMaterial || []).filter((entry) =>
+    isSpiritChampionCard(entry.card),
+  );
+  if (spirits.length === 0) {
+    state.openingHandAwaitingSpirit = false;
+    showTryItToast("No Spirit in Material — continuing without one");
+    return;
+  }
+  state.openingHandAwaitingSpirit = true;
+  openMaterialDialog(playBoard);
+}
 
 function positionOpeningHandExtrasButton(board) {
   const field = board?.querySelector("[data-oh-field]");
@@ -5533,6 +5760,9 @@ async function fetchAllCardsByType(typeName) {
 
 async function openExtrasDialog(board = null) {
   if (!extrasDialog || !extrasDialogGrid) {
+    return;
+  }
+  if (!requireOpeningHandSpiritChosen()) {
     return;
   }
   const playBoard = board || getActiveOpeningHandBoard();
@@ -5731,7 +5961,8 @@ function showTryItToast(message = "Added") {
   }
   // <dialog showModal()> uses the browser top layer — page z-index cannot cover it.
   // Mount the toast inside the open dialog so it paints above the popup content.
-  const openDialog = [extrasDialog, materialDialog].find((dialog) => dialog?.open) || null;
+  const openDialog =
+    [extrasDialog, materialDialog, tryitHelpDialog].find((dialog) => dialog?.open) || null;
   const host = openDialog || document.querySelector(".tryit-page") || document.body;
   if (toast.parentElement !== host) {
     host.append(toast);
@@ -5907,6 +6138,7 @@ async function dealOpeningHandCards(board, token) {
   reflowOpeningHandZoneCards(board, "hand");
   resizeOpeningHandField(board);
   queueMultiplayerSeatPublish({ immediate: true });
+  promptOpeningHandSpiritSelect(board);
 }
 
 async function drawOpeningHandCard(
@@ -6468,6 +6700,196 @@ function enableTableCardHoldPreview(cardEl, entry) {
     : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
 }
 
+function closeOpeningHandCardMenu() {
+  document.querySelectorAll("[data-oh-card-menu]").forEach((el) => el.remove());
+  document.querySelectorAll(".opening-hand-card.is-menu-open").forEach((el) => {
+    el.classList.remove("is-menu-open");
+  });
+}
+
+function getOpeningHandGraveyardSlot(field, index = 0) {
+  const zones = getOpeningHandZones(field);
+  return {
+    x: zones.railLeft + Math.max(0, (zones.railWidth - FREEHAND_CARD_WIDTH) / 2) + index * 2,
+    y:
+      zones.graveyardTop +
+      Math.max(0, (zones.graveyardBottom - zones.graveyardTop - FREEHAND_CARD_HEIGHT) / 2),
+    z: 40 + index,
+  };
+}
+
+async function removeOpeningHandCard(board, entry, cardEl) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  if (!playBoard || !entry) {
+    return;
+  }
+  const previousZone = entry.zone || "hand";
+  state.openingHandHand = state.openingHandHand.filter(
+    (item) => item.instanceId !== entry.instanceId,
+  );
+  cardEl?.remove();
+  if (previousZone === "champion") {
+    restackOpeningHandChampionCards(playBoard);
+  }
+  updateOpeningHandCounts(playBoard);
+  resizeOpeningHandField(playBoard);
+  queueMultiplayerSeatPublish();
+}
+
+async function moveOpeningHandCardToZone(board, entry, cardEl, zone) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field || !entry || !cardEl) {
+    return;
+  }
+
+  const previousZone = entry.zone || "hand";
+  const targetZone = normalizeOpeningHandDropZone(zone);
+  const siblings = state.openingHandHand.filter(
+    (item) =>
+      item.instanceId !== entry.instanceId && (item.zone || "hand") === targetZone,
+  ).length;
+
+  entry.zone = targetZone;
+  if (!canRestOpeningHandCard(targetZone)) {
+    entry.rotated = false;
+  }
+  if (targetZone === "memory") {
+    entry.facedown = true;
+  } else if (!canFlipOpeningHandCard(targetZone)) {
+    entry.facedown = false;
+  } else if (previousZone === "memory" || previousZone === "hand") {
+    entry.facedown = false;
+  }
+
+  if (targetZone === "hand" || targetZone === "memory") {
+    applyOpeningHandCardFace(cardEl, entry);
+    applyOpeningHandCardRotation(cardEl, entry);
+    reflowOpeningHandZoneCards(playBoard, targetZone, {
+      mode: targetZone === "hand" ? "snap" : "spread",
+    });
+  } else {
+    if (targetZone === "banishment") {
+      entry.position = getOpeningHandBanishmentSlot(field, siblings);
+    } else if (targetZone === "graveyard") {
+      entry.position = getOpeningHandGraveyardSlot(field, siblings);
+    } else if (targetZone === "champion") {
+      entry.position = getOpeningHandChampionSlot(field, siblings);
+    } else if (targetZone === "field") {
+      entry.position = getOpeningHandFieldSlot(field, siblings);
+    }
+    cardEl.classList.add("opening-hand-card-dealing");
+    applyOpeningHandCardPosition(cardEl, entry);
+    applyOpeningHandCardFace(cardEl, entry);
+    applyOpeningHandCardRotation(cardEl, entry);
+    await delay(220);
+    cardEl.classList.remove("opening-hand-card-dealing");
+  }
+
+  if (targetZone === "champion" || previousZone === "champion") {
+    restackOpeningHandChampionCards(playBoard);
+  }
+  updateOpeningHandCounts(playBoard);
+  resizeOpeningHandField(playBoard);
+  queueMultiplayerSeatPublish();
+}
+
+function openOpeningHandCardMenu(cardEl, entry, board) {
+  closeOpeningHandCardMenu();
+  if (!cardEl || !entry || !board) {
+    return;
+  }
+  if (state.openingHandAwaitingSpirit) {
+    requireOpeningHandSpiritChosen();
+    return;
+  }
+
+  const zone = entry.zone || "hand";
+  const ephemeral = Boolean(entry.ephemeral);
+  const menu = document.createElement("div");
+  menu.className = "opening-hand-card-menu";
+  menu.dataset.ohCardMenu = "true";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", `${entry.card?.name || "Card"} actions`);
+
+  const addAction = (label, action, { danger = false } = {}) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = danger
+      ? "opening-hand-card-menu-item is-danger"
+      : "opening-hand-card-menu-item";
+    button.setAttribute("role", "menuitem");
+    button.textContent = label;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeOpeningHandCardMenu();
+      void action();
+    });
+    menu.append(button);
+  };
+
+  addAction("Info", () => {
+    showOpeningHandCardPreview(entry, { revealFacedown: true });
+  });
+
+  if (canRestOpeningHandCard(zone)) {
+    addAction(entry.rotated ? "Ready" : "Rest", () => {
+      toggleOpeningHandCardRotation(cardEl, entry);
+    });
+  }
+
+  if (canFlipOpeningHandCard(zone)) {
+    addAction(entry.facedown ? "Flip up" : "Flip down", () => {
+      toggleOpeningHandCardFace(cardEl, entry);
+    });
+  }
+
+  if (zone !== "hand") {
+    addAction("To Hand", () => moveOpeningHandCardToZone(board, entry, cardEl, "hand"));
+  }
+  if (zone !== "memory") {
+    addAction("To Memory", () => moveOpeningHandCardToZone(board, entry, cardEl, "memory"));
+  }
+  if (zone !== "field") {
+    addAction("To Field", () => moveOpeningHandCardToZone(board, entry, cardEl, "field"));
+  }
+
+  if (ephemeral) {
+    addAction("Remove", () => removeOpeningHandCard(board, entry, cardEl), { danger: true });
+  } else {
+    addAction("Top of deck", () => returnOpeningHandCardToDeck(board, entry, cardEl, "top"));
+    addAction("Bottom of deck", () =>
+      returnOpeningHandCardToDeck(board, entry, cardEl, "bottom"),
+    );
+  }
+
+  if (zone !== "banishment") {
+    addAction("Banish", () => moveOpeningHandCardToZone(board, entry, cardEl, "banishment"));
+  }
+  if (zone !== "graveyard") {
+    addAction("Graveyard", () => moveOpeningHandCardToZone(board, entry, cardEl, "graveyard"));
+  }
+
+  addAction("Close", () => {});
+
+  cardEl.classList.add("is-menu-open");
+  document.body.append(menu);
+
+  const rect = cardEl.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  let left = rect.right + 8;
+  let top = rect.top;
+  if (left + menuRect.width > window.innerWidth - 8) {
+    left = Math.max(8, rect.left - menuRect.width - 8);
+  }
+  if (top + menuRect.height > window.innerHeight - 8) {
+    top = Math.max(8, window.innerHeight - menuRect.height - 8);
+  }
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
 function enableOpeningHandCardDrag(cardEl, entry) {
   let pointerId = null;
   let startX = 0;
@@ -6475,19 +6897,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerX = 0;
   let originPointerY = 0;
   let dragMoved = false;
-  let holdActionFired = false;
   let lastTapAt = 0;
   let tapCount = 0;
   let tapActionTimer = null;
-  let holdFlipTimer = null;
   const originZone = () => entry.zone || "hand";
-
-  const clearHoldFlipTimer = () => {
-    if (holdFlipTimer != null) {
-      window.clearTimeout(holdFlipTimer);
-      holdFlipTimer = null;
-    }
-  };
 
   const clearTapActionTimer = () => {
     if (tapActionTimer != null) {
@@ -6523,7 +6936,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     let nextY = startY + (event.clientY - originPointerY) / scale.y;
     if (Math.hypot(event.clientX - originPointerX, event.clientY - originPointerY) > 8) {
       dragMoved = true;
-      clearHoldFlipTimer();
+      clearTapActionTimer();
+      closeOpeningHandCardMenu();
     }
     const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
     const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
@@ -6540,7 +6954,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       return;
     }
     pointerId = null;
-    clearHoldFlipTimer();
     cardEl.classList.remove("dragging");
     try {
       cardEl.releasePointerCapture(event.pointerId);
@@ -6599,10 +7012,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       restackOpeningHandChampionCards(board);
     }
 
-    // Tap gestures (no drag / no hold-flip):
-    // - Double-tap → lightbox peek
-    // - Field/Champion triple-tap → rest / rotate sideways
-    if (!dragMoved && !holdActionFired) {
+    // Double-tap opens the card action menu (Info, Rest, Flip, zones…).
+    if (!dragMoved) {
       const now = Date.now();
       if (now - lastTapAt > OPENING_HAND_TAP_WINDOW_MS) {
         tapCount = 0;
@@ -6611,17 +7022,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       lastTapAt = now;
       clearTapActionTimer();
 
-      if (tapCount >= 3 && canRestOpeningHandCard(zone)) {
-        toggleOpeningHandCardRotation(cardEl, entry);
+      if (tapCount >= 2) {
         tapCount = 0;
-      } else if (tapCount === 2) {
-        tapActionTimer = window.setTimeout(() => {
-          tapActionTimer = null;
-          if (tapCount === 2) {
-            showOpeningHandCardPreview(entry, { revealFacedown: true });
-          }
-          tapCount = 0;
-        }, OPENING_HAND_TAP_WINDOW_MS);
+        lastTapAt = 0;
+        openOpeningHandCardMenu(cardEl, entry, board);
       }
     } else {
       clearTapActionTimer();
@@ -6629,7 +7033,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       lastTapAt = 0;
     }
 
-    holdActionFired = false;
     updateOpeningHandCounts(board);
     resizeOpeningHandField(board);
     queueMultiplayerSeatPublish();
@@ -6643,8 +7046,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     event.stopPropagation();
     pointerId = event.pointerId;
     dragMoved = false;
-    holdActionFired = false;
-    clearHoldFlipTimer();
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -6662,25 +7063,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
-
-    // Hold a Field/Memory/Champion card for 1s (without dragging) to flip face.
-    if (canFlipOpeningHandCard(entry.zone || "hand")) {
-      const holdPointerId = event.pointerId;
-      holdFlipTimer = window.setTimeout(() => {
-        holdFlipTimer = null;
-        if (pointerId !== holdPointerId || dragMoved) {
-          return;
-        }
-        if (!canFlipOpeningHandCard(entry.zone || "hand")) {
-          return;
-        }
-        holdActionFired = true;
-        clearTapActionTimer();
-        tapCount = 0;
-        lastTapAt = 0;
-        toggleOpeningHandCardFace(cardEl, entry);
-      }, OPENING_HAND_FLIP_HOLD_MS);
-    }
   });
 }
 
@@ -6781,6 +7163,10 @@ function enableOpeningHandDeckDrag(pileEl, board) {
 
   pileEl.addEventListener("pointerdown", (event) => {
     if (pileEl.disabled || state.openingHandLibrary.length === 0) {
+      return;
+    }
+    if (state.openingHandAwaitingSpirit) {
+      requireOpeningHandSpiritChosen();
       return;
     }
     if (event.button != null && event.button !== 0) {

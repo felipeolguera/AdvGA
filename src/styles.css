@@ -1457,6 +1457,73 @@ body:has(.tryit-page.is-mp-dual) {
   flex: 0 0 auto;
 }
 
+.tryit-help-toggle {
+  min-width: 42px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.tryit-help-list {
+  margin: 0;
+  padding: 0 0 0 1.15rem;
+  display: grid;
+  gap: 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.tryit-help-list li::marker {
+  color: var(--gold-strong);
+}
+
+.material-dialog.is-spirit-select #close-material-dialog {
+  display: none;
+}
+
+.opening-hand-card.is-menu-open {
+  outline: 2px solid var(--gold-strong);
+  outline-offset: 2px;
+  z-index: 80 !important;
+}
+
+.opening-hand-card-menu {
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  min-width: 168px;
+  max-width: min(220px, calc(100vw - 16px));
+  max-height: min(70vh, 420px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.opening-hand-card-menu-item {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.opening-hand-card-menu-item:hover,
+.opening-hand-card-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.opening-hand-card-menu-item.is-danger {
+  color: #ffb4b4;
+}
+
 .tryit-menu-toggle {
   min-width: 42px;
   font-size: 1.15rem;
