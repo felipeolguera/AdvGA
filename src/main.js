@@ -4215,6 +4215,7 @@ function endTryItTurn() {
   state.openingHandTurn = Math.max(1, Number(state.openingHandTurn) || 1) + 1;
   updateTryItTurnLabel();
   setTryItMenuOpen(false);
+  wakeRestedOpeningHandCards();
   if (state.mp.connection) {
     void state.mp.connection.sendMeta({
       turn: state.openingHandTurn,
@@ -4222,6 +4223,32 @@ function endTryItTurn() {
     });
   }
   queueMultiplayerSeatPublish();
+}
+
+/** At end of turn, rested (rotated) Field/Champion cards wake upright again. */
+function wakeRestedOpeningHandCards(board = null) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  let woke = 0;
+  state.openingHandHand.forEach((entry) => {
+    if (!entry?.rotated) {
+      return;
+    }
+    if (!canRestOpeningHandCard(entry.zone || "hand")) {
+      entry.rotated = false;
+      return;
+    }
+    entry.rotated = false;
+    woke += 1;
+    if (!field) {
+      return;
+    }
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (cardEl) {
+      applyOpeningHandCardRotation(cardEl, entry);
+    }
+  });
+  return woke;
 }
 
 function setTryItMenuOpen(open) {
