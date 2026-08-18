@@ -3218,3 +3218,116 @@ body.deck-load-active {
   }
 
 }
+
+
+.opening-hand-extras-button {
+  position: absolute;
+  z-index: 22;
+  display: grid;
+  gap: 1px;
+  align-content: center;
+  justify-items: center;
+  min-height: 40px;
+  border: 1px solid rgba(255, 204, 115, 0.42);
+  border-radius: 12px;
+  padding: 6px 8px;
+  color: var(--gold-strong);
+  background:
+    linear-gradient(160deg, rgba(244, 184, 93, 0.16), transparent 60%),
+    rgba(10, 10, 14, 0.88);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.opening-hand-extras-button:hover:not(:disabled),
+.opening-hand-extras-button:focus-visible {
+  border-color: rgba(255, 204, 115, 0.7);
+  filter: brightness(1.06);
+}
+
+.opening-hand-extras-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.opening-hand-extras-button-label {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+
+.opening-hand-extras-button-sub {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.1;
+}
+
+.extras-dialog-toolbar {
+  display: grid;
+  gap: 12px;
+}
+
+.extras-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.extras-filter.is-active {
+  border-color: rgba(255, 204, 115, 0.7);
+  color: #170f0b;
+  background: linear-gradient(135deg, var(--gold-strong), var(--gold));
+}
+
+.extras-search-label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.extras-search-label input {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.extras-dialog-card {
+  position: relative;
+}
+
+.extras-card-badge {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.extras-card-badge-token {
+  color: #081612;
+  background: #3dd6c6;
+}
+
+.extras-card-badge-mastery {
+  color: #170f0b;
+  background: var(--gold-strong);
+}
