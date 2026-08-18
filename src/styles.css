@@ -2558,6 +2558,36 @@ body:has(.tryit-page.is-mp-dual) {
   transform-origin: center center;
 }
 
+.opening-hand-card-buff {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 4;
+  min-width: 1.55rem;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 220, 140, 0.55);
+  border-radius: 999px;
+  background: rgba(18, 14, 8, 0.88);
+  color: var(--gold-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.opening-hand-card.is-rotated .opening-hand-card-buff {
+  transform: rotate(-90deg);
+  transform-origin: center center;
+}
+
+.opening-hand-card.is-facedown .opening-hand-card-buff {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #f3f0e8;
+}
+
 .opening-hand-card.opening-hand-card-dealing {
   pointer-events: none;
 }
