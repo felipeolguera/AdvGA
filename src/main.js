@@ -5702,6 +5702,13 @@ function showTryItToast(message = "Added") {
   if (!toast) {
     return;
   }
+  // <dialog showModal()> uses the browser top layer — page z-index cannot cover it.
+  // Mount the toast inside the open dialog so it paints above the popup content.
+  const openDialog = [extrasDialog, materialDialog].find((dialog) => dialog?.open) || null;
+  const host = openDialog || document.querySelector(".tryit-page") || document.body;
+  if (toast.parentElement !== host) {
+    host.append(toast);
+  }
   window.clearTimeout(state.tryitToastTimer);
   toast.classList.remove("show");
   toast.hidden = true;
