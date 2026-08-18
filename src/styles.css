@@ -1750,13 +1750,15 @@ body:has(.tryit-page.is-mp-dual) {
 }
 
 .mp-dual-seat-scale .opening-hand-damage {
-  width: 64px;
-  min-height: var(--oh-board-height);
+  width: 56px;
+  min-height: 0;
+  height: auto;
+  align-self: start;
   grid-template-columns: none;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto;
   align-items: center;
   justify-items: center;
-  padding: 12px 6px;
+  padding: 8px 5px;
 }
 
 .mp-dual-seat-scale .opening-hand-damage-controls {
@@ -2155,15 +2157,17 @@ body:has(.tryit-page.is-mp-dual) {
 
 .opening-hand-damage {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto;
   align-items: center;
   justify-items: center;
-  gap: 8px;
-  width: 64px;
-  min-height: var(--oh-board-height);
-  padding: 12px 6px;
+  align-self: start;
+  gap: 4px;
+  width: 56px;
+  min-height: 0;
+  height: auto;
+  padding: 8px 5px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 14px;
   background:
     linear-gradient(180deg, rgba(255, 204, 115, 0.1), transparent 42%),
     rgba(0, 0, 0, 0.22);
@@ -2173,17 +2177,18 @@ body:has(.tryit-page.is-mp-dual) {
 .opening-hand-damage-label {
   margin: 0;
   color: rgba(255, 220, 140, 0.88);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   text-align: center;
-  font-size: 0.62rem;
+  font-size: 0.55rem;
   font-weight: 800;
+  line-height: 1.1;
 }
 
 .opening-hand-damage-value {
   margin: 0;
   color: var(--gold-strong);
-  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  font-size: clamp(1.25rem, 2.8vw, 1.65rem);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -2192,15 +2197,17 @@ body:has(.tryit-page.is-mp-dual) {
 
 .opening-hand-damage-controls {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
 }
 
 .opening-hand-damage-btn {
   min-width: 0;
   width: 100%;
+  min-height: 28px;
+  padding: 2px 0;
   padding-inline: 0;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 900;
   line-height: 1;
 }
@@ -2222,10 +2229,13 @@ body:has(.tryit-page.is-mp-dual) {
   .opening-hand-damage {
     width: auto;
     min-height: 0;
+    height: auto;
     grid-template-columns: auto 1fr auto;
     grid-template-rows: none;
     align-items: center;
-    padding: 8px 10px;
+    align-self: stretch;
+    padding: 6px 10px;
+    gap: 6px;
   }
 
   .opening-hand-damage-label {
@@ -2233,16 +2243,18 @@ body:has(.tryit-page.is-mp-dual) {
   }
 
   .opening-hand-damage-value {
-    font-size: 1.6rem;
+    font-size: 1.35rem;
   }
 
   .opening-hand-damage-controls {
     grid-auto-flow: column;
     width: auto;
+    gap: 4px;
   }
 
   .opening-hand-damage-btn {
-    width: 42px;
+    width: 36px;
+    min-height: 28px;
   }
 }
 
