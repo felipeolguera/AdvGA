@@ -20,11 +20,11 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.02";
+const APP_VERSION = "1.03";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
-const OPENING_HAND_REST_HOLD_MS = 1000;
+const OPENING_HAND_FLIP_HOLD_MS = 1000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -4768,7 +4768,7 @@ function renderOpeningHandContents(board) {
     count: state.openingHandLibrary.length,
     datasetKey: "ohDeckPile",
     className: "opening-hand-deck-pile",
-    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Memory, or Hand.`,
+    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Graveyard, Memory, or Hand.`,
     emptyLabel: "Deck is empty",
   });
   if (readonly) {
@@ -4985,13 +4985,14 @@ function applyOpeningHandCardFace(cardEl, entry) {
     return;
   }
   const zone = entry.zone || "hand";
-  if (zone === "field" || zone === "memory") {
-    const zoneLabel = zone === "field" ? "Field" : "Memory";
+  if (zone === "field" || zone === "memory" || zone === "champion") {
+    const zoneLabel =
+      zone === "field" ? "Field" : zone === "champion" ? "Champion" : "Memory";
+    const restHint =
+      zone === "field" || zone === "champion" ? "; triple-click to rest/rotate" : "";
     cardEl.title = facedown
-      ? `Face-down (${zoneLabel}) — double-click to peek; triple-click to flip up`
-      : `${entry.card.name} — double-click to peek; triple-click to flip down${
-          zone === "field" ? "; hold 1s to rest/rotate" : ""
-        }`;
+      ? `Face-down (${zoneLabel}) — double-click to peek; hold 1s to flip up${restHint}`
+      : `${entry.card.name} — double-click to peek; hold 1s to flip down${restHint}`;
   } else if (zone === "hand") {
     cardEl.title = facedown
       ? "Face-down (Hand) — double-click to peek"
@@ -5016,7 +5017,7 @@ function toggleOpeningHandCardFace(cardEl, entry) {
     return;
   }
   const zone = entry.zone || "hand";
-  if (zone !== "field" && zone !== "memory") {
+  if (zone !== "field" && zone !== "memory" && zone !== "champion") {
     return;
   }
   if (cardEl.classList.contains("is-face-flipping")) {
@@ -5046,8 +5047,9 @@ function applyOpeningHandCardRotation(cardEl, entry) {
   if (!cardEl || !entry) {
     return;
   }
-  const onField = (entry.zone || "hand") === "field";
-  const rotated = Boolean(entry.rotated) && onField;
+  const zone = entry.zone || "hand";
+  const canRest = zone === "field" || zone === "champion";
+  const rotated = Boolean(entry.rotated) && canRest;
   entry.rotated = rotated;
   cardEl.classList.toggle("is-rotated", rotated);
   cardEl.dataset.ohRotated = rotated ? "true" : "false";
@@ -5056,8 +5058,16 @@ function applyOpeningHandCardRotation(cardEl, entry) {
   }
 }
 
+function canRestOpeningHandCard(zone) {
+  return zone === "field" || zone === "champion";
+}
+
+function canFlipOpeningHandCard(zone) {
+  return zone === "field" || zone === "memory" || zone === "champion";
+}
+
 function toggleOpeningHandCardRotation(cardEl, entry) {
-  if (!cardEl || !entry || (entry.zone || "hand") !== "field") {
+  if (!cardEl || !entry || !canRestOpeningHandCard(entry.zone || "hand")) {
     return;
   }
   entry.rotated = !entry.rotated;
@@ -5164,8 +5174,7 @@ function restackOpeningHandChampionCards(board) {
     .sort((left, right) => (left.position?.z || 0) - (right.position?.z || 0));
   entries.forEach((entry, index) => {
     entry.zone = "champion";
-    entry.facedown = false;
-    entry.rotated = false;
+    // Keep face and rest state while restacking champion cards.
     entry.position = getOpeningHandChampionSlot(field, index);
     const cardEl = findOpeningHandCardElement(field, entry.instanceId);
     if (!cardEl) {
@@ -5474,7 +5483,13 @@ async function drawOpeningHandCard(
   }
 
   let targetZone = normalizeOpeningHandDropZone(zone);
-  if (targetZone !== "hand" && targetZone !== "memory" && targetZone !== "field") {
+  if (
+    targetZone !== "hand" &&
+    targetZone !== "memory" &&
+    targetZone !== "field" &&
+    targetZone !== "graveyard" &&
+    targetZone !== "champion"
+  ) {
     targetZone = "hand";
   }
 
@@ -5495,6 +5510,17 @@ async function drawOpeningHandCard(
     cardPosition = isOpeningDeal
       ? getOpeningHandDealSlot(slotIndex ?? handIndexBefore, field)
       : getOpeningHandDrawSlot(handIndexBefore - OPENING_HAND_SIZE, field);
+  } else if (targetZone === "graveyard") {
+    const zones = getOpeningHandZones(field);
+    cardPosition = clampOpeningHandFieldPosition(
+      field,
+      zones.railLeft + Math.max(0, (zones.railWidth - FREEHAND_CARD_WIDTH) / 2),
+      getOpeningHandRowCardTop(zones.graveyardTop, zones.graveyardBottom),
+      topZ,
+    );
+  } else if (targetZone === "champion") {
+    const champCount = state.openingHandHand.filter((item) => (item.zone || "hand") === "champion").length;
+    cardPosition = getOpeningHandChampionSlot(field, champCount);
   } else {
     const zones = getOpeningHandZones(field);
     const zoneTop = targetZone === "memory" ? zones.memoryTop : zones.fieldTop;
@@ -5546,6 +5572,9 @@ async function drawOpeningHandCard(
   }
 
   updateOpeningHandDeckPile(board);
+  if (targetZone === "champion") {
+    restackOpeningHandChampionCards(board);
+  }
   resizeOpeningHandField(board);
   // After a mid-game Hand draw (not the opening deal), neat-line Hand automatically.
   const shouldOrganize =
@@ -5586,7 +5615,7 @@ function updateOpeningHandDeckPile(board) {
     pile.setAttribute(
       "aria-label",
       state.openingHandLibrary.length
-        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Memory, or Hand.`
+        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Graveyard, Memory, or Hand.`
         : "Deck is empty",
     );
   }
@@ -6003,13 +6032,13 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let lastTapAt = 0;
   let tapCount = 0;
   let tapActionTimer = null;
-  let holdRestTimer = null;
+  let holdFlipTimer = null;
   const originZone = () => entry.zone || "hand";
 
-  const clearHoldRestTimer = () => {
-    if (holdRestTimer != null) {
-      window.clearTimeout(holdRestTimer);
-      holdRestTimer = null;
+  const clearHoldFlipTimer = () => {
+    if (holdFlipTimer != null) {
+      window.clearTimeout(holdFlipTimer);
+      holdFlipTimer = null;
     }
   };
 
@@ -6047,7 +6076,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     let nextY = startY + (event.clientY - originPointerY) / scale.y;
     if (Math.hypot(event.clientX - originPointerX, event.clientY - originPointerY) > 8) {
       dragMoved = true;
-      clearHoldRestTimer();
+      clearHoldFlipTimer();
     }
     const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
     const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
@@ -6064,7 +6093,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       return;
     }
     pointerId = null;
-    clearHoldRestTimer();
+    clearHoldFlipTimer();
     cardEl.classList.remove("dragging");
     try {
       cardEl.releasePointerCapture(event.pointerId);
@@ -6105,13 +6134,14 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     entry.zone = zone;
     if (zone === "memory" && previousZone !== "memory") {
       entry.facedown = true;
-    } else if (zone !== "memory" && zone !== "field") {
+    } else if (!canFlipOpeningHandCard(zone)) {
       entry.facedown = false;
-    } else if (zone === "field" && previousZone !== "field" && previousZone !== "memory") {
+    } else if (!canFlipOpeningHandCard(previousZone)) {
+      // Entering Field/Memory/Champion from Hand/etc. starts face-up.
       entry.facedown = false;
     }
-    // Staying in Field/Memory (or moving between them) keeps the current face.
-    if (zone !== "field") {
+    // Staying in Field/Memory/Champion keeps the current face.
+    if (!canRestOpeningHandCard(zone)) {
       entry.rotated = false;
     }
     applyOpeningHandCardFace(cardEl, entry);
@@ -6122,9 +6152,9 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       restackOpeningHandChampionCards(board);
     }
 
-    // Tap gestures (no drag / no hold-rest):
+    // Tap gestures (no drag / no hold-flip):
     // - Double-tap → lightbox peek
-    // - Field/Memory triple-tap → toggle face down / face up
+    // - Field/Champion triple-tap → rest / rotate sideways
     if (!dragMoved && !holdActionFired) {
       const now = Date.now();
       if (now - lastTapAt > OPENING_HAND_TAP_WINDOW_MS) {
@@ -6134,8 +6164,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       lastTapAt = now;
       clearTapActionTimer();
 
-      if (tapCount >= 3 && (zone === "field" || zone === "memory")) {
-        toggleOpeningHandCardFace(cardEl, entry);
+      if (tapCount >= 3 && canRestOpeningHandCard(zone)) {
+        toggleOpeningHandCardRotation(cardEl, entry);
         tapCount = 0;
       } else if (tapCount === 2) {
         tapActionTimer = window.setTimeout(() => {
@@ -6167,7 +6197,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     pointerId = event.pointerId;
     dragMoved = false;
     holdActionFired = false;
-    clearHoldRestTimer();
+    clearHoldFlipTimer();
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -6186,23 +6216,23 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
 
-    // Hold a Field card for 1s (without dragging) to rest / rotate sideways.
-    if ((entry.zone || "hand") === "field") {
+    // Hold a Field/Memory/Champion card for 1s (without dragging) to flip face.
+    if (canFlipOpeningHandCard(entry.zone || "hand")) {
       const holdPointerId = event.pointerId;
-      holdRestTimer = window.setTimeout(() => {
-        holdRestTimer = null;
+      holdFlipTimer = window.setTimeout(() => {
+        holdFlipTimer = null;
         if (pointerId !== holdPointerId || dragMoved) {
           return;
         }
-        if ((entry.zone || "hand") !== "field") {
+        if (!canFlipOpeningHandCard(entry.zone || "hand")) {
           return;
         }
         holdActionFired = true;
         clearTapActionTimer();
         tapCount = 0;
         lastTapAt = 0;
-        toggleOpeningHandCardRotation(cardEl, entry);
-      }, OPENING_HAND_REST_HOLD_MS);
+        toggleOpeningHandCardFace(cardEl, entry);
+      }, OPENING_HAND_FLIP_HOLD_MS);
     }
   });
 }
@@ -6270,8 +6300,14 @@ function enableOpeningHandDeckDrag(pileEl, board) {
       if (preview.zone === "memory") {
         dropZone = "memory";
         dropPosition = preview.point;
-      } else if (preview.zone === "field" || preview.zone === "champion") {
+      } else if (preview.zone === "graveyard") {
+        dropZone = "graveyard";
+        dropPosition = preview.point;
+      } else if (preview.zone === "field") {
         dropZone = "field";
+        dropPosition = preview.point;
+      } else if (preview.zone === "champion") {
+        dropZone = "champion";
         dropPosition = preview.point;
       } else if (preview.zone === "hand") {
         dropZone = "hand";
