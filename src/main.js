@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.08";
+const APP_VERSION = "1.09";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -702,7 +702,8 @@ function getTryItShellHtml() {
       </header>
       <ul class="tryit-help-list">
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
-        <li><strong>Menu</strong> (below Damage) — Organize hand, Recollect, Tokens/Mastery, Redeal, Help, and more</li>
+        <li><strong>Recollect</strong> (below End turn) — Move all Memory cards back to Hand</li>
+        <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
         <li><strong>Deck pile</strong> — Tap to draw to Hand; drag to Field, Memory, Graveyard, or Hand</li>
@@ -4480,6 +4481,14 @@ function createOpeningHandBoardMenu() {
   endTurn.setAttribute("aria-label", "End turn");
   endTurn.textContent = "End turn";
 
+  const recollect = document.createElement("button");
+  recollect.type = "button";
+  recollect.className = "ghost compact opening-hand-recollect";
+  recollect.dataset.recollectOpeningHand = "true";
+  recollect.title = "Move all Memory cards back to Hand";
+  recollect.setAttribute("aria-label", "Recollect — move Memory cards to Hand");
+  recollect.textContent = "Recollect";
+
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "ghost compact opening-hand-board-menu-toggle";
@@ -4543,10 +4552,6 @@ function createOpeningHandBoardMenu() {
   };
 
   addItem("Organize hand", { "data-organize-opening-hand": "true" });
-  addItem("Recollect", {
-    "data-recollect-opening-hand": "true",
-    title: "Move all Memory cards back to Hand",
-  });
   addItem("Banish random", {
     "data-banish-opening-hand": "true",
     title: "Banish 1 random card from Memory",
@@ -4574,7 +4579,7 @@ function createOpeningHandBoardMenu() {
     closeOpeningHandBoardMenu();
   });
 
-  wrap.append(turn, endTurn, toggle, dialog);
+  wrap.append(turn, endTurn, recollect, toggle, dialog);
   return wrap;
 }
 
