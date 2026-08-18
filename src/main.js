@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.05";
+const APP_VERSION = "1.06";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -722,7 +722,7 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
-        <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Deck, Banish, Graveyard, and more</li>
+        <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
         <li><strong>Deck pile</strong> — Tap to draw to Hand; drag to Field, Memory, Graveyard, or Hand</li>
         <li><strong>Material pile</strong> — Open Material Deck; start by choosing your Spirit (Level 0 champion)</li>
@@ -3273,6 +3273,9 @@ function serializeMpBoardEntry(entry) {
     zone: entry.zone || "hand",
     facedown: Boolean(entry.facedown),
     rotated: Boolean(entry.rotated),
+    buff: normalizeOpeningHandBuff(entry.buff),
+    ephemeral: Boolean(entry.ephemeral),
+    extraKind: entry.extraKind || "",
     position: entry.position
       ? {
           x: Number(entry.position.x) || 0,
@@ -5230,12 +5233,56 @@ function createOpeningHandCard(entry, index, field = null, { readonly = false } 
   item.append(imageWrap);
   applyOpeningHandCardFace(item, entry);
   applyOpeningHandCardRotation(item, entry);
+  applyOpeningHandCardBuff(item, entry);
   if (!readonly) {
     enableOpeningHandCardDrag(item, entry);
   } else {
     enableTableCardHoldPreview(item, entry);
   }
   return item;
+}
+
+function normalizeOpeningHandBuff(value) {
+  const next = Math.trunc(Number(value));
+  if (!Number.isFinite(next)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(99, next));
+}
+
+function applyOpeningHandCardBuff(cardEl, entry) {
+  if (!cardEl || !entry) {
+    return;
+  }
+  const buff = normalizeOpeningHandBuff(entry.buff);
+  entry.buff = buff;
+  let badge = cardEl.querySelector("[data-oh-card-buff]");
+  if (buff <= 0) {
+    badge?.remove();
+    cardEl.classList.remove("has-buff");
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "opening-hand-card-buff";
+    badge.dataset.ohCardBuff = "true";
+    badge.setAttribute("aria-hidden", "true");
+    cardEl.append(badge);
+  }
+  badge.textContent = `+${buff}`;
+  cardEl.classList.add("has-buff");
+  cardEl.setAttribute("aria-label", `${entry.card?.name || "Card"}, buff +${buff}`);
+}
+
+function adjustOpeningHandCardBuff(cardEl, entry, delta = 1) {
+  if (!entry) {
+    return;
+  }
+  entry.buff = normalizeOpeningHandBuff(normalizeOpeningHandBuff(entry.buff) + Number(delta || 0));
+  if (cardEl) {
+    applyOpeningHandCardBuff(cardEl, entry);
+  }
+  queueMultiplayerSeatPublish();
 }
 
 function applyOpeningHandCardFace(cardEl, entry) {
@@ -6842,6 +6889,21 @@ function openOpeningHandCardMenu(cardEl, entry, board) {
   if (canFlipOpeningHandCard(zone)) {
     addAction(entry.facedown ? "Flip up" : "Flip down", () => {
       toggleOpeningHandCardFace(cardEl, entry);
+    });
+  }
+
+  const buff = normalizeOpeningHandBuff(entry.buff);
+  addAction(buff > 0 ? `Buff +1 (${buff})` : "Buff +1", () => {
+    adjustOpeningHandCardBuff(cardEl, entry, 1);
+  });
+  if (buff > 0) {
+    addAction("Buff −1", () => {
+      adjustOpeningHandCardBuff(cardEl, entry, -1);
+    });
+    addAction("Clear buff", () => {
+      entry.buff = 0;
+      applyOpeningHandCardBuff(cardEl, entry);
+      queueMultiplayerSeatPublish();
     });
   }
 
