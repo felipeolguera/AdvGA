@@ -242,6 +242,7 @@ const state = {
   openingHandTurn: 1,
   openingHandDamage: 0,
   tryitMenuOpen: false,
+  tryitToastTimer: null,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
   mp: {
@@ -727,6 +728,8 @@ function getTryItShellHtml() {
       <p class="hint material-dialog-empty" id="extras-dialog-empty" hidden>No matching cards.</p>
     </div>
   </dialog>
+
+  <div class="tryit-toast" id="tryit-toast" role="status" aria-live="polite" hidden>Added</div>
 `;
 }
 
@@ -815,6 +818,7 @@ const extrasDialogEmpty = document.querySelector("#extras-dialog-empty");
 const extrasDialogStatus = document.querySelector("#extras-dialog-status");
 const extrasSearchInput = document.querySelector("#extras-search");
 const closeExtrasDialogButton = document.querySelector("#close-extras-dialog");
+const tryitToastEl = document.querySelector("#tryit-toast");
 const clearFiltersButton = document.querySelector("#clear-filters");
 const scrollTopButton = document.querySelector("#scroll-top");
 
@@ -5688,6 +5692,35 @@ async function playOpeningHandExtraCard(board, card, kind = "token") {
   }
   resizeOpeningHandField(playBoard);
   queueMultiplayerSeatPublish();
+  const kindLabel = kind === "mastery" ? "Mastery" : "Token";
+  const cardName = card.name || "card";
+  showTryItToast(`Added ${kindLabel}: ${cardName}`);
+}
+
+function showTryItToast(message = "Added") {
+  const toast = tryitToastEl;
+  if (!toast) {
+    return;
+  }
+  window.clearTimeout(state.tryitToastTimer);
+  toast.classList.remove("show");
+  toast.hidden = true;
+  toast.textContent = message;
+  toast.hidden = false;
+  void toast.offsetWidth;
+  toast.classList.add("show");
+  state.tryitToastTimer = window.setTimeout(() => {
+    hideTryItToast();
+  }, 1600);
+}
+
+function hideTryItToast() {
+  window.clearTimeout(state.tryitToastTimer);
+  if (!tryitToastEl) {
+    return;
+  }
+  tryitToastEl.classList.remove("show");
+  tryitToastEl.hidden = true;
 }
 
 function updateOpeningHandMaterialPile(board) {

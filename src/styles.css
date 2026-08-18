@@ -3331,3 +3331,29 @@ body.deck-load-active {
   color: #170f0b;
   background: var(--gold-strong);
 }
+
+.tryit-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom, 0px) + 16px);
+  z-index: 1400;
+  border: 1px solid rgba(255, 204, 115, 0.7);
+  border-radius: 999px;
+  padding: 12px 20px;
+  color: #170f0b;
+  background: var(--gold-strong);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  max-width: min(92vw, 420px);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 14px) scale(0.92);
+}
+
+.tryit-toast.show {
+  animation: deck-toast-in 420ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
