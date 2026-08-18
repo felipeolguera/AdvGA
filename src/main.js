@@ -20,11 +20,11 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.01";
+const APP_VERSION = "1.02";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
-const OPENING_HAND_HOLD_PREVIEW_MS = 2000;
+const OPENING_HAND_REST_HOLD_MS = 1000;
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
@@ -4768,7 +4768,7 @@ function renderOpeningHandContents(board) {
     count: state.openingHandLibrary.length,
     datasetKey: "ohDeckPile",
     className: "opening-hand-deck-pile",
-    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Tap or drag to Hand; drag to Memory face-down.`,
+    ariaLabel: `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Memory, or Hand.`,
     emptyLabel: "Deck is empty",
   });
   if (readonly) {
@@ -4988,12 +4988,14 @@ function applyOpeningHandCardFace(cardEl, entry) {
   if (zone === "field" || zone === "memory") {
     const zoneLabel = zone === "field" ? "Field" : "Memory";
     cardEl.title = facedown
-      ? `Face-down (${zoneLabel}) — triple-click to flip up`
-      : `${entry.card.name} — triple-click to flip down${
-          zone === "field" ? "; double-click to rotate; hold 2s to peek" : ""
+      ? `Face-down (${zoneLabel}) — double-click to peek; triple-click to flip up`
+      : `${entry.card.name} — double-click to peek; triple-click to flip down${
+          zone === "field" ? "; hold 1s to rest/rotate" : ""
         }`;
-  } else if (zone === "hand" && !facedown) {
-    cardEl.title = `${entry.card.name} — hold 2s to peek`;
+  } else if (zone === "hand") {
+    cardEl.title = facedown
+      ? "Face-down (Hand) — double-click to peek"
+      : `${entry.card.name} — double-click to peek`;
   } else {
     cardEl.title = facedown ? "Face-down card" : entry.card.name;
   }
@@ -5584,7 +5586,7 @@ function updateOpeningHandDeckPile(board) {
     pile.setAttribute(
       "aria-label",
       state.openingHandLibrary.length
-        ? `Draw from deck (${state.openingHandLibrary.length} left). Drag or tap to draw.`
+        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Memory, or Hand.`
         : "Deck is empty",
     );
   }
@@ -5997,16 +5999,17 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerX = 0;
   let originPointerY = 0;
   let dragMoved = false;
+  let holdActionFired = false;
   let lastTapAt = 0;
   let tapCount = 0;
   let tapActionTimer = null;
-  let holdPreviewTimer = null;
+  let holdRestTimer = null;
   const originZone = () => entry.zone || "hand";
 
-  const clearHoldPreviewTimer = () => {
-    if (holdPreviewTimer != null) {
-      window.clearTimeout(holdPreviewTimer);
-      holdPreviewTimer = null;
+  const clearHoldRestTimer = () => {
+    if (holdRestTimer != null) {
+      window.clearTimeout(holdRestTimer);
+      holdRestTimer = null;
     }
   };
 
@@ -6044,6 +6047,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     let nextY = startY + (event.clientY - originPointerY) / scale.y;
     if (Math.hypot(event.clientX - originPointerX, event.clientY - originPointerY) > 8) {
       dragMoved = true;
+      clearHoldRestTimer();
     }
     const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
     const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
@@ -6060,8 +6064,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       return;
     }
     pointerId = null;
-    clearHoldPreviewTimer();
-    // Keep the hold-to-peek lightbox open until the user hits × / Escape.
+    clearHoldRestTimer();
     cardEl.classList.remove("dragging");
     try {
       cardEl.releasePointerCapture(event.pointerId);
@@ -6119,10 +6122,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       restackOpeningHandChampionCards(board);
     }
 
-    // Tap gestures (no drag):
-    // - Field double-tap → rotate 90°
+    // Tap gestures (no drag / no hold-rest):
+    // - Double-tap → lightbox peek
     // - Field/Memory triple-tap → toggle face down / face up
-    if (!dragMoved && (zone === "field" || zone === "memory")) {
+    if (!dragMoved && !holdActionFired) {
       const now = Date.now();
       if (now - lastTapAt > OPENING_HAND_TAP_WINDOW_MS) {
         tapCount = 0;
@@ -6131,14 +6134,14 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       lastTapAt = now;
       clearTapActionTimer();
 
-      if (tapCount >= 3) {
+      if (tapCount >= 3 && (zone === "field" || zone === "memory")) {
         toggleOpeningHandCardFace(cardEl, entry);
         tapCount = 0;
-      } else if (tapCount === 2 && zone === "field") {
+      } else if (tapCount === 2) {
         tapActionTimer = window.setTimeout(() => {
           tapActionTimer = null;
-          if (tapCount === 2 && (entry.zone || "hand") === "field") {
-            toggleOpeningHandCardRotation(cardEl, entry);
+          if (tapCount === 2) {
+            showOpeningHandCardPreview(entry, { revealFacedown: true });
           }
           tapCount = 0;
         }, OPENING_HAND_TAP_WINDOW_MS);
@@ -6149,6 +6152,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       lastTapAt = 0;
     }
 
+    holdActionFired = false;
     updateOpeningHandCounts(board);
     resizeOpeningHandField(board);
     queueMultiplayerSeatPublish();
@@ -6162,7 +6166,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     event.stopPropagation();
     pointerId = event.pointerId;
     dragMoved = false;
-    clearHoldPreviewTimer();
+    holdActionFired = false;
+    clearHoldRestTimer();
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -6181,23 +6186,23 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
 
-    // Hold/drag a face-up Hand or Field card for 2s to peek a full-size copy.
-    const zone = entry.zone || "hand";
-    const canHoldPeek = (zone === "hand" || zone === "field") && !entry.facedown;
-    if (canHoldPeek) {
+    // Hold a Field card for 1s (without dragging) to rest / rotate sideways.
+    if ((entry.zone || "hand") === "field") {
       const holdPointerId = event.pointerId;
-      holdPreviewTimer = window.setTimeout(() => {
-        holdPreviewTimer = null;
-        if (pointerId !== holdPointerId) {
+      holdRestTimer = window.setTimeout(() => {
+        holdRestTimer = null;
+        if (pointerId !== holdPointerId || dragMoved) {
           return;
         }
-        // Still require a face-up Hand/Field card at fire time.
-        const currentZone = entry.zone || "hand";
-        if ((currentZone !== "hand" && currentZone !== "field") || entry.facedown) {
+        if ((entry.zone || "hand") !== "field") {
           return;
         }
-        showOpeningHandCardPreview(entry);
-      }, OPENING_HAND_HOLD_PREVIEW_MS);
+        holdActionFired = true;
+        clearTapActionTimer();
+        tapCount = 0;
+        lastTapAt = 0;
+        toggleOpeningHandCardRotation(cardEl, entry);
+      }, OPENING_HAND_REST_HOLD_MS);
     }
   });
 }
@@ -6259,8 +6264,20 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     const overField = Boolean(preview);
     const shouldDraw =
       state.openingHandLibrary.length > 0 && (overField || !moved);
-    const dropZone = moved && preview?.zone === "memory" ? "memory" : "hand";
-    const dropPosition = dropZone === "memory" ? preview.point : null;
+    let dropZone = "hand";
+    let dropPosition = null;
+    if (moved && preview) {
+      if (preview.zone === "memory") {
+        dropZone = "memory";
+        dropPosition = preview.point;
+      } else if (preview.zone === "field" || preview.zone === "champion") {
+        dropZone = "field";
+        dropPosition = preview.point;
+      } else if (preview.zone === "hand") {
+        dropZone = "hand";
+        dropPosition = preview.point;
+      }
+    }
     cleanup();
     try {
       pileEl.releasePointerCapture(event.pointerId);
@@ -6271,7 +6288,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     if (shouldDraw) {
       await drawOpeningHandCard(board, {
         animate: true,
-        organize: dropZone === "hand",
+        organize: dropZone === "hand" && !dropPosition,
         zone: dropZone,
         facedown: dropZone === "memory",
         position: dropPosition,
