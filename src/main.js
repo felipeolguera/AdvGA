@@ -702,7 +702,7 @@ function getTryItShellHtml() {
       </header>
       <ul class="tryit-help-list">
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
-        <li><strong>Recollect</strong> (below End turn) — Move all Memory cards back to Hand</li>
+        <li><strong>Reco</strong> (below End turn) — Move all Memory cards back to Hand</li>
         <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
@@ -4483,15 +4483,15 @@ function createOpeningHandBoardMenu() {
 
   const recollect = document.createElement("button");
   recollect.type = "button";
-  recollect.className = "ghost compact opening-hand-recollect";
+  recollect.className = "secondary compact opening-hand-end-turn opening-hand-recollect";
   recollect.dataset.recollectOpeningHand = "true";
-  recollect.title = "Move all Memory cards back to Hand";
-  recollect.setAttribute("aria-label", "Recollect — move Memory cards to Hand");
-  recollect.textContent = "Recollect";
+  recollect.title = "Recollect — move all Memory cards back to Hand";
+  recollect.setAttribute("aria-label", "Reco — move Memory cards to Hand");
+  recollect.textContent = "Reco";
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className = "ghost compact opening-hand-board-menu-toggle";
+  toggle.className = "secondary compact opening-hand-end-turn opening-hand-board-menu-toggle";
   toggle.dataset.ohBoardMenuToggle = "true";
   toggle.setAttribute("aria-expanded", "false");
   toggle.setAttribute("aria-haspopup", "dialog");
