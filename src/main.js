@@ -4169,8 +4169,9 @@ function handleTryItActionClick(event) {
     setTryItMenuOpen(false);
     const menu = boardMenuToggle.closest("[data-oh-board-menu]");
     const panel = menu?.querySelector("[data-oh-board-menu-panel]");
-    const open = Boolean(panel?.hidden);
-    setOpeningHandBoardMenuOpen(open, menu);
+    const isOpen =
+      panel instanceof HTMLDialogElement ? panel.open : !panel?.hidden;
+    setOpeningHandBoardMenuOpen(!isOpen, menu);
     return;
   }
 
