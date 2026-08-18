@@ -1379,7 +1379,7 @@ body:has(.tryit-page.is-mp-dual) {
   overflow: hidden;
 }
 
-.tryit-page.is-mp-dual .opening-hand-board-menu-panel .tryit-back-link {
+.tryit-page.is-mp-dual .opening-hand-board-menu-dialog .tryit-back-link {
   display: none !important;
 }
 
@@ -2138,6 +2138,17 @@ body:has(.tryit-page.is-mp-dual) {
   line-height: 1.1;
 }
 
+.opening-hand-end-turn {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+  white-space: normal;
+}
+
 .opening-hand-board-menu-toggle {
   width: 100%;
   min-height: 34px;
@@ -2149,30 +2160,52 @@ body:has(.tryit-page.is-mp-dual) {
   line-height: 1.1;
 }
 
-.opening-hand-board-menu-panel {
-  position: absolute;
-  left: calc(100% + 8px);
-  bottom: 0;
-  z-index: 60;
-  display: grid;
-  min-width: 188px;
-  max-height: min(70vh, 420px);
-  overflow: auto;
+.opening-hand-board-menu-dialog {
+  width: min(340px, calc(100% - 28px));
+  max-height: min(80vh, 520px);
+  margin: auto;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 6px;
+  border-radius: 20px;
+  padding: 0;
+  color: var(--text);
   background: var(--panel-strong);
   box-shadow: var(--shadow);
 }
 
-.opening-hand-board-menu-panel[hidden] {
-  display: none;
+.opening-hand-board-menu-dialog::backdrop {
+  background: rgba(6, 5, 10, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.opening-hand-board-menu-shell {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.opening-hand-board-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.opening-hand-board-menu-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.opening-hand-board-menu-list {
+  display: grid;
+  gap: 4px;
+  max-height: min(60vh, 380px);
+  overflow: auto;
 }
 
 .opening-hand-board-menu-item {
   border: 0;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   color: var(--text);
   background: transparent;
   text-align: left;
@@ -2185,10 +2218,6 @@ body:has(.tryit-page.is-mp-dual) {
 .opening-hand-board-menu-item:hover,
 .opening-hand-board-menu-item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
-}
-
-.opening-hand-board-menu-item.is-primary {
-  color: var(--gold-strong);
 }
 
 .opening-hand-damage-label {
@@ -2283,14 +2312,13 @@ body:has(.tryit-page.is-mp-dual) {
 
   .opening-hand-board-menu {
     width: auto;
-    min-width: 64px;
+    min-width: 72px;
     justify-self: end;
   }
 
-  .opening-hand-board-menu-panel {
-    left: auto;
-    right: 0;
-    bottom: calc(100% + 6px);
+  .opening-hand-end-turn {
+    min-height: 34px;
+    font-size: 0.72rem;
   }
 }
 

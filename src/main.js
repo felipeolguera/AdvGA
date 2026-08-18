@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.07";
+const APP_VERSION = "1.08";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -701,14 +701,14 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
-        <li><strong>Menu</strong> (below Damage) — End turn, Organize hand, Recollect, Tokens/Mastery, Redeal, Help, and more</li>
+        <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
+        <li><strong>Menu</strong> (below Damage) — Organize hand, Recollect, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
         <li><strong>Deck pile</strong> — Tap to draw to Hand; drag to Field, Memory, Graveyard, or Hand</li>
         <li><strong>Material pile</strong> — Open Material Deck; start by choosing your Spirit (Level 0 champion)</li>
         <li><strong>Tokens / Mastery</strong> — Spawn ephemeral extras onto the Field</li>
         <li><strong>Organize hand</strong> — Snap Hand cards into an even row</li>
-        <li><strong>End turn</strong> — Wake rested cards and organize Field cards</li>
         <li><strong>Redeal</strong> — Shuffle and deal a new opening hand, then pick Spirit again</li>
       </ul>
     </div>
@@ -912,12 +912,6 @@ function bootTryItPage() {
   document.addEventListener("click", (event) => {
     if (state.tryitMenuOpen && !event.target.closest("#tryit-menu")) {
       setTryItMenuOpen(false);
-    }
-    if (
-      document.querySelector("[data-oh-board-menu-panel]:not([hidden])") &&
-      !event.target.closest("[data-oh-board-menu]")
-    ) {
-      closeOpeningHandBoardMenu();
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -4478,22 +4472,52 @@ function createOpeningHandBoardMenu() {
   turn.setAttribute("aria-live", "polite");
   turn.textContent = `Turn ${Math.max(1, Number(state.openingHandTurn) || 1)}`;
 
+  const endTurn = document.createElement("button");
+  endTurn.type = "button";
+  endTurn.className = "secondary compact opening-hand-end-turn";
+  endTurn.dataset.endTurn = "true";
+  endTurn.setAttribute("aria-label", "End turn");
+  endTurn.textContent = "End turn";
+
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "ghost compact opening-hand-board-menu-toggle";
   toggle.dataset.ohBoardMenuToggle = "true";
   toggle.setAttribute("aria-expanded", "false");
-  toggle.setAttribute("aria-haspopup", "true");
+  toggle.setAttribute("aria-haspopup", "dialog");
   toggle.setAttribute("aria-label", "Open playtest menu");
   toggle.textContent = "Menu";
 
-  const panel = document.createElement("div");
-  panel.className = "opening-hand-board-menu-panel";
-  panel.dataset.ohBoardMenuPanel = "true";
-  panel.setAttribute("role", "menu");
-  panel.hidden = true;
+  const dialog = document.createElement("dialog");
+  dialog.className = "opening-hand-board-menu-dialog";
+  dialog.dataset.ohBoardMenuPanel = "true";
+  dialog.setAttribute("aria-label", "Playtest menu");
 
-  const addItem = (label, attrs = {}, { primary = false, href = "" } = {}) => {
+  const shell = document.createElement("div");
+  shell.className = "opening-hand-board-menu-shell";
+
+  const heading = document.createElement("header");
+  heading.className = "opening-hand-board-menu-header";
+  const title = document.createElement("h2");
+  title.className = "opening-hand-board-menu-title";
+  title.textContent = "Playtest menu";
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "icon-button";
+  closeBtn.setAttribute("aria-label", "Close playtest menu");
+  closeBtn.textContent = "×";
+  closeBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeOpeningHandBoardMenu();
+  });
+  heading.append(title, closeBtn);
+
+  const list = document.createElement("div");
+  list.className = "opening-hand-board-menu-list";
+  list.setAttribute("role", "menu");
+
+  const addItem = (label, attrs = {}, { href = "" } = {}) => {
     if (href) {
       const link = document.createElement("a");
       link.className = "opening-hand-board-menu-item tryit-back-link";
@@ -4503,23 +4527,20 @@ function createOpeningHandBoardMenu() {
       Object.entries(attrs).forEach(([key, value]) => {
         link.setAttribute(key, value);
       });
-      panel.append(link);
+      list.append(link);
       return;
     }
     const button = document.createElement("button");
     button.type = "button";
-    button.className = primary
-      ? "opening-hand-board-menu-item is-primary"
-      : "opening-hand-board-menu-item";
+    button.className = "opening-hand-board-menu-item";
     button.setAttribute("role", "menuitem");
     button.textContent = label;
     Object.entries(attrs).forEach(([key, value]) => {
       button.setAttribute(key, value);
     });
-    panel.append(button);
+    list.append(button);
   };
 
-  addItem("End turn", { "data-end-turn": "true" }, { primary: true });
   addItem("Organize hand", { "data-organize-opening-hand": "true" });
   addItem("Recollect", {
     "data-recollect-opening-hand": "true",
@@ -4540,7 +4561,19 @@ function createOpeningHandBoardMenu() {
   });
   addItem("Back to deck builder", {}, { href: BUILDER_PAGE_URL });
 
-  wrap.append(turn, toggle, panel);
+  shell.append(heading, list);
+  dialog.append(shell);
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      closeOpeningHandBoardMenu();
+    }
+  });
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeOpeningHandBoardMenu();
+  });
+
+  wrap.append(turn, endTurn, toggle, dialog);
   return wrap;
 }
 
@@ -4555,7 +4588,17 @@ function setOpeningHandBoardMenuOpen(open, menuRoot = null) {
       return;
     }
     const next = Boolean(open);
-    panel.hidden = !next;
+    if (panel instanceof HTMLDialogElement) {
+      if (next) {
+        if (!panel.open) {
+          panel.showModal();
+        }
+      } else if (panel.open) {
+        panel.close();
+      }
+    } else {
+      panel.hidden = !next;
+    }
     toggle.setAttribute("aria-expanded", next ? "true" : "false");
     toggle.setAttribute("aria-label", next ? "Close playtest menu" : "Open playtest menu");
     menu.classList.toggle("is-open", next);
