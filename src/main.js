@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.06";
+const APP_VERSION = "1.07";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -641,15 +641,6 @@ function getTryItShellHtml() {
       <div class="tryit-page-heading">
         <div class="tryit-chrome-slim">
           <p class="hint mp-room-status" id="mp-room-status" hidden></p>
-          <button
-            class="ghost compact tryit-help-toggle"
-            type="button"
-            data-tryit-help="true"
-            aria-label="Help — game controls and shortcuts"
-            title="Help"
-          >
-            <span aria-hidden="true">?</span>
-          </button>
           <div class="tryit-menu" id="tryit-menu">
             <button
               class="ghost compact tryit-menu-toggle"
@@ -680,18 +671,6 @@ function getTryItShellHtml() {
       </div>
     </header>
     <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
-      <div class="tryit-page-actions" id="tryit-actions">
-        <button class="ghost compact" type="button" data-redeal-opening-hand="true">Redeal</button>
-        <button class="ghost compact" type="button" data-organize-opening-hand="true">Organize hand</button>
-        <button class="ghost compact" type="button" data-recollect-opening-hand="true" title="Move all Memory cards back to Hand">Recollect</button>
-        <button class="ghost compact" type="button" data-banish-opening-hand="true" title="Banish 1 random card from Memory">Banish random</button>
-        <button class="secondary compact" type="button" data-open-extras="true" title="Add Token or Mastery cards to the Field">Tokens / Mastery</button>
-        <a class="secondary compact tryit-back-link" href="${BUILDER_PAGE_URL}">Back to deck builder</a>
-        <div class="tryit-turn-controls">
-          <p class="tryit-turn-label" id="tryit-turn-label" aria-live="polite">Turn 1</p>
-          <button class="secondary compact" type="button" data-end-turn="true">End turn</button>
-        </div>
-      </div>
       <div id="tryit-root"></div>
     </section>
   </main>
@@ -722,6 +701,7 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
+        <li><strong>Menu</strong> (below Damage) — End turn, Organize hand, Recollect, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
         <li><strong>Deck pile</strong> — Tap to draw to Hand; drag to Field, Memory, Graveyard, or Hand</li>
@@ -930,18 +910,24 @@ function bootTryItPage() {
     handleTryItActionClick(event);
   });
   document.addEventListener("click", (event) => {
-    if (!state.tryitMenuOpen) {
-      return;
-    }
-    if (event.target.closest("#tryit-menu")) {
-      return;
-    }
-    setTryItMenuOpen(false);
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.tryitMenuOpen) {
+    if (state.tryitMenuOpen && !event.target.closest("#tryit-menu")) {
       setTryItMenuOpen(false);
     }
+    if (
+      document.querySelector("[data-oh-board-menu-panel]:not([hidden])") &&
+      !event.target.closest("[data-oh-board-menu]")
+    ) {
+      closeOpeningHandBoardMenu();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    if (state.tryitMenuOpen) {
+      setTryItMenuOpen(false);
+    }
+    closeOpeningHandBoardMenu();
   });
   window.addEventListener("resize", () => {
     document.querySelectorAll("[data-opening-hand-board]").forEach((board) => {
@@ -3370,7 +3356,6 @@ function queueMultiplayerSeatPublish({ immediate = false } = {}) {
 function updateMultiplayerChrome() {
   syncTryItChromeMode();
   const statusEl = document.querySelector("#mp-room-status");
-  const actions = document.querySelector("#tryit-actions");
   const nameEl = document.querySelector(".tryit-deck-name");
 
   if (nameEl) {
@@ -3393,29 +3378,13 @@ function updateMultiplayerChrome() {
     }
   }
 
-  if (actions) {
-    const hidePlayerTools = state.mp.mode === "lobby";
+  document.querySelectorAll("[data-oh-board-menu]").forEach((menu) => {
     const dual = isMultiplayerPlayer();
-    actions.querySelectorAll(
-      "[data-organize-opening-hand], [data-recollect-opening-hand]",
-    ).forEach((el) => {
-      el.hidden = hidePlayerTools;
-    });
-    // Dual portrait is tight — keep End turn + menu; stash the rest.
-    actions.querySelectorAll(
-      "[data-redeal-opening-hand], [data-banish-opening-hand], [data-organize-opening-hand], [data-recollect-opening-hand], [data-open-extras]",
-    ).forEach((el) => {
-      el.hidden = hidePlayerTools || dual;
-    });
-    const backLink = actions.querySelector(".tryit-back-link");
+    const backLink = menu.querySelector(".tryit-back-link");
     if (backLink) {
       backLink.hidden = dual;
     }
-    const endTurn = actions.querySelector("[data-end-turn]");
-    if (endTurn) {
-      endTurn.hidden = state.mp.mode === "lobby";
-    }
-  }
+  });
 }
 
 function renderMultiplayerLobby() {
@@ -4194,7 +4163,20 @@ function handleTryItActionClick(event) {
     if (!requireOpeningHandSpiritChosen()) {
       return;
     }
+    closeOpeningHandBoardMenu();
     endTryItTurn();
+    return;
+  }
+
+  const boardMenuToggle = event.target.closest("[data-oh-board-menu-toggle]");
+  if (boardMenuToggle) {
+    event.preventDefault();
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    const menu = boardMenuToggle.closest("[data-oh-board-menu]");
+    const panel = menu?.querySelector("[data-oh-board-menu-panel]");
+    const open = Boolean(panel?.hidden);
+    setOpeningHandBoardMenuOpen(open, menu);
     return;
   }
 
@@ -4203,6 +4185,7 @@ function handleTryItActionClick(event) {
     event.preventDefault();
     event.stopPropagation();
     setTryItMenuOpen(false);
+    closeOpeningHandBoardMenu();
     openTryItHelpDialog();
     return;
   }
@@ -4210,6 +4193,7 @@ function handleTryItActionClick(event) {
   const menuToggle = event.target.closest("[data-tryit-menu-toggle]");
   if (menuToggle) {
     event.stopPropagation();
+    closeOpeningHandBoardMenu();
     setTryItMenuOpen(!state.tryitMenuOpen);
     return;
   }
@@ -4218,6 +4202,7 @@ function handleTryItActionClick(event) {
   if (lobbyItem) {
     event.stopPropagation();
     setTryItMenuOpen(false);
+    closeOpeningHandBoardMenu();
     void leaveMultiplayerRoom({ silent: true });
     state.mp.mode = "lobby";
     renderTryItPage();
@@ -4228,6 +4213,7 @@ function handleTryItActionClick(event) {
   if (leaveItem) {
     event.stopPropagation();
     setTryItMenuOpen(false);
+    closeOpeningHandBoardMenu();
     void leaveMultiplayerRoom();
     return;
   }
@@ -4236,6 +4222,7 @@ function handleTryItActionClick(event) {
   if (settingsItem) {
     event.stopPropagation();
     setTryItMenuOpen(false);
+    closeOpeningHandBoardMenu();
     // Placeholder until settings are implemented.
     window.alert("Settings coming soon.");
     return;
@@ -4250,6 +4237,7 @@ function handleTryItActionClick(event) {
 
   const redealButton = event.target.closest("[data-redeal-opening-hand]");
   if (redealButton) {
+    closeOpeningHandBoardMenu();
     startOpeningHandSession();
     return;
   }
@@ -4259,6 +4247,7 @@ function handleTryItActionClick(event) {
     if (!requireOpeningHandSpiritChosen()) {
       return;
     }
+    closeOpeningHandBoardMenu();
     organizeOpeningHandCards(getActiveOpeningHandBoard());
     queueMultiplayerSeatPublish();
     return;
@@ -4269,6 +4258,7 @@ function handleTryItActionClick(event) {
     if (!requireOpeningHandSpiritChosen()) {
       return;
     }
+    closeOpeningHandBoardMenu();
     recollectOpeningHandMemory(getActiveOpeningHandBoard());
     queueMultiplayerSeatPublish();
     return;
@@ -4280,6 +4270,7 @@ function handleTryItActionClick(event) {
     if (!requireOpeningHandSpiritChosen()) {
       return;
     }
+    closeOpeningHandBoardMenu();
     void openExtrasDialog(getActiveOpeningHandBoard());
     return;
   }
@@ -4289,19 +4280,19 @@ function handleTryItActionClick(event) {
     if (!requireOpeningHandSpiritChosen()) {
       return;
     }
+    closeOpeningHandBoardMenu();
     banishRandomMemoryCard(getActiveOpeningHandBoard());
     queueMultiplayerSeatPublish();
   }
 }
 
 function updateTryItTurnLabel() {
-  const label = document.querySelector("#tryit-turn-label");
-  if (!label) {
-    return;
-  }
   const turn = Math.max(1, Number(state.openingHandTurn) || 1);
   state.openingHandTurn = turn;
-  label.textContent = `Turn ${turn}`;
+  const text = `Turn ${turn}`;
+  document.querySelectorAll("[data-oh-turn-label], #tryit-turn-label").forEach((label) => {
+    label.textContent = text;
+  });
 }
 
 function endTryItTurn() {
@@ -4311,6 +4302,7 @@ function endTryItTurn() {
   state.openingHandTurn = Math.max(1, Number(state.openingHandTurn) || 1) + 1;
   updateTryItTurnLabel();
   setTryItMenuOpen(false);
+  closeOpeningHandBoardMenu();
   closeOpeningHandCardMenu();
   wakeRestedOpeningHandCards();
   organizeOpeningHandFieldCards();
@@ -4475,6 +4467,116 @@ function createOpeningHandDamageCounter({ readonly = false } = {}) {
   return rail;
 }
 
+function createOpeningHandBoardMenu() {
+  const wrap = document.createElement("div");
+  wrap.className = "opening-hand-board-menu";
+  wrap.dataset.ohBoardMenu = "true";
+
+  const turn = document.createElement("p");
+  turn.className = "opening-hand-board-menu-turn";
+  turn.dataset.ohTurnLabel = "true";
+  turn.setAttribute("aria-live", "polite");
+  turn.textContent = `Turn ${Math.max(1, Number(state.openingHandTurn) || 1)}`;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "ghost compact opening-hand-board-menu-toggle";
+  toggle.dataset.ohBoardMenuToggle = "true";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-haspopup", "true");
+  toggle.setAttribute("aria-label", "Open playtest menu");
+  toggle.textContent = "Menu";
+
+  const panel = document.createElement("div");
+  panel.className = "opening-hand-board-menu-panel";
+  panel.dataset.ohBoardMenuPanel = "true";
+  panel.setAttribute("role", "menu");
+  panel.hidden = true;
+
+  const addItem = (label, attrs = {}, { primary = false, href = "" } = {}) => {
+    if (href) {
+      const link = document.createElement("a");
+      link.className = "opening-hand-board-menu-item tryit-back-link";
+      link.href = href;
+      link.setAttribute("role", "menuitem");
+      link.textContent = label;
+      Object.entries(attrs).forEach(([key, value]) => {
+        link.setAttribute(key, value);
+      });
+      panel.append(link);
+      return;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = primary
+      ? "opening-hand-board-menu-item is-primary"
+      : "opening-hand-board-menu-item";
+    button.setAttribute("role", "menuitem");
+    button.textContent = label;
+    Object.entries(attrs).forEach(([key, value]) => {
+      button.setAttribute(key, value);
+    });
+    panel.append(button);
+  };
+
+  addItem("End turn", { "data-end-turn": "true" }, { primary: true });
+  addItem("Organize hand", { "data-organize-opening-hand": "true" });
+  addItem("Recollect", {
+    "data-recollect-opening-hand": "true",
+    title: "Move all Memory cards back to Hand",
+  });
+  addItem("Banish random", {
+    "data-banish-opening-hand": "true",
+    title: "Banish 1 random card from Memory",
+  });
+  addItem("Tokens / Mastery", {
+    "data-open-extras": "true",
+    title: "Add Token or Mastery cards to the Field",
+  });
+  addItem("Redeal", { "data-redeal-opening-hand": "true" });
+  addItem("Help", {
+    "data-tryit-help": "true",
+    title: "Game controls and shortcuts",
+  });
+  addItem("Back to deck builder", {}, { href: BUILDER_PAGE_URL });
+
+  wrap.append(turn, toggle, panel);
+  return wrap;
+}
+
+function setOpeningHandBoardMenuOpen(open, menuRoot = null) {
+  const menus = menuRoot
+    ? [menuRoot]
+    : [...document.querySelectorAll("[data-oh-board-menu]")];
+  menus.forEach((menu) => {
+    const toggle = menu.querySelector("[data-oh-board-menu-toggle]");
+    const panel = menu.querySelector("[data-oh-board-menu-panel]");
+    if (!toggle || !panel) {
+      return;
+    }
+    const next = Boolean(open);
+    panel.hidden = !next;
+    toggle.setAttribute("aria-expanded", next ? "true" : "false");
+    toggle.setAttribute("aria-label", next ? "Close playtest menu" : "Open playtest menu");
+    menu.classList.toggle("is-open", next);
+  });
+}
+
+function closeOpeningHandBoardMenu() {
+  setOpeningHandBoardMenuOpen(false);
+}
+
+function createOpeningHandSideRail({ readonly = false } = {}) {
+  const rail = document.createElement("div");
+  rail.className = "opening-hand-side-rail";
+  rail.dataset.ohSideRail = "true";
+  rail.append(createOpeningHandDamageCounter({ readonly }));
+  if (!readonly) {
+    rail.append(createOpeningHandBoardMenu());
+  }
+  return rail;
+}
+
 function updateOpeningHandDamageCounter(board = null) {
   const target = board || getActiveOpeningHandBoard();
   const valueEl = target?.querySelector("[data-oh-damage-value]");
@@ -4588,11 +4690,13 @@ function createOpeningHandBoard(
   });
 
   field.append(zonesWrap);
-  const damageCounter = createOpeningHandDamageCounter({ readonly });
-  board.append(damageCounter, field);
+  const sideRail = createOpeningHandSideRail({ readonly });
+  board.append(sideRail, field);
   layoutOpeningHandZones(field);
   renderOpeningHandContents(board);
   updateOpeningHandDamageCounter(board);
+  updateTryItTurnLabel();
+  updateMultiplayerChrome();
 
   if (!skipDeal && !readonly) {
     // Cancel any deal tied to a previous board instance (home↔fullscreen remount).
