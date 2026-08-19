@@ -2140,7 +2140,8 @@ body:has(.tryit-page.is-mp-dual) {
 
 .opening-hand-end-turn,
 .opening-hand-recollect,
-.opening-hand-board-menu-toggle {
+.opening-hand-board-menu-toggle,
+.opening-hand-voice-toggle {
   width: 100%;
   min-height: 36px;
   padding: 6px 4px;
@@ -2151,6 +2152,35 @@ body:has(.tryit-page.is-mp-dual) {
   white-space: normal;
   overflow-wrap: anywhere;
   hyphens: auto;
+}
+
+.opening-hand-voice {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+}
+
+.opening-hand-voice-status {
+  margin: 0;
+  color: rgba(255, 220, 140, 0.78);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.opening-hand-voice-toggle.is-listening {
+  outline: 2px solid var(--gold-strong);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px rgba(255, 204, 115, 0.22);
+}
+
+.opening-hand-card.is-voice-selected {
+  outline: 2px solid rgba(42, 212, 176, 0.95);
+  outline-offset: 2px;
+  z-index: 70 !important;
 }
 
 .opening-hand-board-menu-dialog {
@@ -2311,9 +2341,14 @@ body:has(.tryit-page.is-mp-dual) {
 
   .opening-hand-end-turn,
   .opening-hand-recollect,
-  .opening-hand-board-menu-toggle {
+  .opening-hand-board-menu-toggle,
+  .opening-hand-voice-toggle {
     min-height: 34px;
     font-size: 0.7rem;
+  }
+
+  .opening-hand-voice-status {
+    font-size: 0.5rem;
   }
 }
 
