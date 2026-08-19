@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.09";
+const APP_VERSION = "1.10";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -241,6 +241,14 @@ const state = {
   openingHandPreviewEscBound: false,
   openingHandTurn: 1,
   openingHandDamage: 0,
+  openingHandSelectedInstanceId: "",
+  openingHandVoice: {
+    supported: null,
+    listening: false,
+    recognition: null,
+    lastTranscript: "",
+    statusTimer: null,
+  },
   tryitMenuOpen: false,
   tryitToastTimer: null,
   searchFiltersOpen: false,
@@ -701,6 +709,7 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
+        <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
         <li><strong>Reco</strong> (below End turn) — Move all Memory cards back to Hand</li>
         <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
@@ -4055,6 +4064,8 @@ function startOpeningHandSession(sectionCards = null) {
   state.openingHandAwaitingSpirit = false;
   state.openingHandTurn = 1;
   state.openingHandDamage = 0;
+  setOpeningHandVoiceSelection("");
+  stopPlaytestVoiceListening({ silent: true });
   if (state.mp.mode === "lobby") {
     state.mp.mode = "solo";
   }
@@ -4173,6 +4184,15 @@ function handleTryItActionClick(event) {
     const isOpen =
       panel instanceof HTMLDialogElement ? panel.open : !panel?.hidden;
     setOpeningHandBoardMenuOpen(!isOpen, menu);
+    return;
+  }
+
+  const voiceToggle = event.target.closest("[data-oh-voice-toggle]");
+  if (voiceToggle) {
+    event.preventDefault();
+    event.stopPropagation();
+    setTryItMenuOpen(false);
+    togglePlaytestVoiceListening();
     return;
   }
 
@@ -4579,8 +4599,432 @@ function createOpeningHandBoardMenu() {
     closeOpeningHandBoardMenu();
   });
 
-  wrap.append(turn, endTurn, recollect, toggle, dialog);
+  wrap.append(turn, endTurn, recollect, toggle, createOpeningHandVoiceButton(), dialog);
   return wrap;
+}
+
+function isPlaytestVoiceSupported() {
+  if (state.openingHandVoice.supported != null) {
+    return state.openingHandVoice.supported;
+  }
+  const supported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  state.openingHandVoice.supported = supported;
+  return supported;
+}
+
+function createOpeningHandVoiceButton() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "secondary compact opening-hand-end-turn opening-hand-voice-toggle";
+  button.dataset.ohVoiceToggle = "true";
+  button.setAttribute("aria-pressed", "false");
+  button.title = isPlaytestVoiceSupported()
+    ? "Push-to-talk voice commands"
+    : "Voice not supported in this browser";
+  button.setAttribute(
+    "aria-label",
+    isPlaytestVoiceSupported()
+      ? "Push-to-talk voice commands"
+      : "Voice not supported in this browser",
+  );
+  button.textContent = "Voice";
+  if (!isPlaytestVoiceSupported()) {
+    button.disabled = true;
+  }
+
+  const status = document.createElement("p");
+  status.className = "opening-hand-voice-status";
+  status.dataset.ohVoiceStatus = "true";
+  status.setAttribute("aria-live", "polite");
+  status.textContent = isPlaytestVoiceSupported() ? "Tap to talk" : "Unavailable";
+
+  const wrap = document.createElement("div");
+  wrap.className = "opening-hand-voice";
+  wrap.dataset.ohVoice = "true";
+  wrap.append(button, status);
+  return wrap;
+}
+
+function setOpeningHandVoiceStatus(message, { listening = false } = {}) {
+  document.querySelectorAll("[data-oh-voice-status]").forEach((el) => {
+    el.textContent = message;
+  });
+  document.querySelectorAll("[data-oh-voice-toggle]").forEach((button) => {
+    button.classList.toggle("is-listening", listening);
+    button.setAttribute("aria-pressed", listening ? "true" : "false");
+    button.textContent = listening ? "Listening" : "Voice";
+  });
+  window.clearTimeout(state.openingHandVoice.statusTimer);
+  if (!listening && message && message !== "Tap to talk") {
+    state.openingHandVoice.statusTimer = window.setTimeout(() => {
+      if (!state.openingHandVoice.listening) {
+        setOpeningHandVoiceStatus("Tap to talk");
+      }
+    }, 2800);
+  }
+}
+
+function speakPlaytestVoice(message) {
+  const text = String(message || "").trim();
+  if (!text || !window.speechSynthesis) {
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.05;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
+  } catch {
+    // ignore TTS failures
+  }
+}
+
+function setOpeningHandVoiceSelection(instanceId, board = null) {
+  state.openingHandSelectedInstanceId = instanceId || "";
+  document.querySelectorAll(".opening-hand-card.is-voice-selected").forEach((el) => {
+    el.classList.remove("is-voice-selected");
+  });
+  if (!instanceId) {
+    return;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  const cardEl = findOpeningHandCardElement(field, instanceId);
+  cardEl?.classList.add("is-voice-selected");
+}
+
+function getOpeningHandVoiceSelectedEntry(board = null) {
+  const instanceId = state.openingHandSelectedInstanceId;
+  if (!instanceId) {
+    return null;
+  }
+  const entry = state.openingHandHand.find((item) => item.instanceId === instanceId);
+  if (!entry) {
+    state.openingHandSelectedInstanceId = "";
+    return null;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  const cardEl = field ? findOpeningHandCardElement(field, instanceId) : null;
+  return { entry, cardEl, board: playBoard };
+}
+
+function normalizePlaytestVoiceTranscript(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[+]/g, " plus ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parsePlaytestVoiceCommand(transcript) {
+  const t = normalizePlaytestVoiceTranscript(transcript);
+  if (!t) {
+    return null;
+  }
+
+  if (/\b(end turn|end the turn|next turn|finish turn)\b/.test(t)) {
+    return { type: "end-turn" };
+  }
+  if (/\b(reco|recollect|re collect|recall)\b/.test(t)) {
+    return { type: "recollect" };
+  }
+  if (/\b(open menu|show menu|menu)\b/.test(t)) {
+    return { type: "menu" };
+  }
+  if (/\b(help|controls|shortcuts)\b/.test(t)) {
+    return { type: "help" };
+  }
+  if (/\b(organize hand|organise hand|organize cards|organise cards|organize)\b/.test(t)) {
+    return { type: "organize" };
+  }
+  if (/\b(redeal|re deal|new hand|mulligan)\b/.test(t)) {
+    return { type: "redeal" };
+  }
+  if (/\b(tokens?|mastery|token mastery)\b/.test(t)) {
+    return { type: "extras" };
+  }
+  if (/\b(banish random|random banish)\b/.test(t)) {
+    return { type: "banish-random" };
+  }
+  if (/\b(status|board status|what.?s my status)\b/.test(t)) {
+    return { type: "status" };
+  }
+  if (/\b(clear buff|remove buff|reset buff)\b/.test(t)) {
+    return { type: "clear-buff" };
+  }
+  if (/\b(buff|plus one|add buff|add a buff|plus 1)\b/.test(t)) {
+    return { type: "buff" };
+  }
+  if (/\b(minus one|remove one|buff down|minus 1)\b/.test(t)) {
+    return { type: "debuff" };
+  }
+  if (/\b(ready|wake|unrest)\b/.test(t)) {
+    return { type: "ready" };
+  }
+  if (/\b(rest|rotate)\b/.test(t)) {
+    return { type: "rest" };
+  }
+  if (/\b(flip|flip card|face down|face up)\b/.test(t)) {
+    return { type: "flip" };
+  }
+  return { type: "unknown", transcript: t };
+}
+
+async function executePlaytestVoiceCommand(command) {
+  const board = getActiveOpeningHandBoard();
+  if (!command) {
+    speakPlaytestVoice("I didn't catch that.");
+    setOpeningHandVoiceStatus("Not understood");
+    return;
+  }
+
+  const reply = (spoken, toast = spoken) => {
+    showTryItToast(toast);
+    setOpeningHandVoiceStatus(toast);
+    speakPlaytestVoice(spoken);
+  };
+
+  switch (command.type) {
+    case "end-turn": {
+      if (!requireOpeningHandSpiritChosen()) {
+        reply("Choose your Spirit first.");
+        return;
+      }
+      endTryItTurn();
+      reply(`Turn ${state.openingHandTurn}.`);
+      return;
+    }
+    case "recollect": {
+      if (!requireOpeningHandSpiritChosen()) {
+        reply("Choose your Spirit first.");
+        return;
+      }
+      recollectOpeningHandMemory(board);
+      queueMultiplayerSeatPublish();
+      reply("Recollected.");
+      return;
+    }
+    case "menu": {
+      const menu = board?.querySelector("[data-oh-board-menu]");
+      setOpeningHandBoardMenuOpen(true, menu);
+      reply("Menu open.");
+      return;
+    }
+    case "help": {
+      openTryItHelpDialog();
+      reply("Opening help.");
+      return;
+    }
+    case "organize": {
+      if (!requireOpeningHandSpiritChosen()) {
+        reply("Choose your Spirit first.");
+        return;
+      }
+      organizeOpeningHandCards(board);
+      queueMultiplayerSeatPublish();
+      reply("Hand organized.");
+      return;
+    }
+    case "redeal": {
+      if (!window.confirm("Redeal opening hand?")) {
+        reply("Cancelled.");
+        return;
+      }
+      startOpeningHandSession();
+      reply("Redealing.");
+      return;
+    }
+    case "extras": {
+      if (!requireOpeningHandSpiritChosen()) {
+        reply("Choose your Spirit first.");
+        return;
+      }
+      await openExtrasDialog(board);
+      reply("Tokens and Mastery.");
+      return;
+    }
+    case "banish-random": {
+      if (!requireOpeningHandSpiritChosen()) {
+        reply("Choose your Spirit first.");
+        return;
+      }
+      banishRandomMemoryCard(board);
+      queueMultiplayerSeatPublish();
+      reply("Banished one from memory.");
+      return;
+    }
+    case "status": {
+      const handCount = state.openingHandHand.filter((e) => (e.zone || "hand") === "hand").length;
+      const msg = `Turn ${state.openingHandTurn}. Damage ${state.openingHandDamage}. ${handCount} in hand.`;
+      reply(msg);
+      return;
+    }
+    case "buff":
+    case "debuff":
+    case "clear-buff":
+    case "rest":
+    case "ready":
+    case "flip": {
+      const selected = getOpeningHandVoiceSelectedEntry(board);
+      if (!selected?.entry || !selected.cardEl) {
+        reply("Select a card first.");
+        return;
+      }
+      const { entry, cardEl } = selected;
+      if (command.type === "buff") {
+        adjustOpeningHandCardBuff(cardEl, entry, 1);
+        reply(`Buff plus ${normalizeOpeningHandBuff(entry.buff)}.`);
+        return;
+      }
+      if (command.type === "debuff") {
+        adjustOpeningHandCardBuff(cardEl, entry, -1);
+        reply(
+          entry.buff > 0
+            ? `Buff plus ${normalizeOpeningHandBuff(entry.buff)}.`
+            : "Buff cleared.",
+        );
+        return;
+      }
+      if (command.type === "clear-buff") {
+        entry.buff = 0;
+        applyOpeningHandCardBuff(cardEl, entry);
+        queueMultiplayerSeatPublish();
+        reply("Buff cleared.");
+        return;
+      }
+      if (command.type === "rest") {
+        if (!canRestOpeningHandCard(entry.zone || "hand")) {
+          reply("That card can't rest.");
+          return;
+        }
+        if (!entry.rotated) {
+          toggleOpeningHandCardRotation(cardEl, entry);
+        }
+        reply("Rested.");
+        return;
+      }
+      if (command.type === "ready") {
+        if (!canRestOpeningHandCard(entry.zone || "hand")) {
+          reply("That card can't ready.");
+          return;
+        }
+        if (entry.rotated) {
+          toggleOpeningHandCardRotation(cardEl, entry);
+        }
+        reply("Ready.");
+        return;
+      }
+      if (command.type === "flip") {
+        if (!canFlipOpeningHandCard(entry.zone || "hand")) {
+          reply("That card can't flip.");
+          return;
+        }
+        const nextFacedown = !entry.facedown;
+        toggleOpeningHandCardFace(cardEl, entry);
+        reply(nextFacedown ? "Face down." : "Face up.");
+        return;
+      }
+      return;
+    }
+    default: {
+      reply("Try end turn, reco, buff, rest, or help.", "Not recognized");
+    }
+  }
+}
+
+function stopPlaytestVoiceListening({ silent = false } = {}) {
+  const voice = state.openingHandVoice;
+  voice.listening = false;
+  try {
+    voice.recognition?.stop();
+  } catch {
+    // ignore
+  }
+  if (!silent) {
+    setOpeningHandVoiceStatus(voice.lastTranscript ? `Heard: ${voice.lastTranscript}` : "Tap to talk");
+  }
+}
+
+function startPlaytestVoiceListening() {
+  if (!isPlaytestVoiceSupported()) {
+    showTryItToast("Voice not supported here");
+    speakPlaytestVoice("Voice is not supported in this browser.");
+    return;
+  }
+  if (!state.mainDeckOpeningHand) {
+    showTryItToast("Start playtest first");
+    return;
+  }
+
+  const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new Ctor();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 3;
+  recognition.continuous = false;
+
+  state.openingHandVoice.recognition = recognition;
+  state.openingHandVoice.listening = true;
+  state.openingHandVoice.lastTranscript = "";
+  setOpeningHandVoiceStatus("Listening…", { listening: true });
+  closeOpeningHandBoardMenu();
+  closeOpeningHandCardMenu();
+
+  recognition.onresult = (event) => {
+    const result = event.results?.[event.results.length - 1];
+    const transcript = String(result?.[0]?.transcript || "").trim();
+    state.openingHandVoice.lastTranscript = transcript;
+    state.openingHandVoice.listening = false;
+    setOpeningHandVoiceStatus(transcript ? `Heard: ${transcript}` : "No speech");
+    const command = parsePlaytestVoiceCommand(transcript);
+    void executePlaytestVoiceCommand(command);
+  };
+
+  recognition.onerror = (event) => {
+    state.openingHandVoice.listening = false;
+    const err = event?.error || "error";
+    if (err === "not-allowed") {
+      setOpeningHandVoiceStatus("Mic blocked");
+      speakPlaytestVoice("Microphone permission is blocked.");
+      showTryItToast("Allow microphone for voice");
+      return;
+    }
+    if (err === "no-speech") {
+      setOpeningHandVoiceStatus("No speech");
+      return;
+    }
+    setOpeningHandVoiceStatus("Voice error");
+  };
+
+  recognition.onend = () => {
+    if (state.openingHandVoice.listening) {
+      state.openingHandVoice.listening = false;
+      setOpeningHandVoiceStatus(
+        state.openingHandVoice.lastTranscript
+          ? `Heard: ${state.openingHandVoice.lastTranscript}`
+          : "Tap to talk",
+      );
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch {
+    state.openingHandVoice.listening = false;
+    setOpeningHandVoiceStatus("Voice busy");
+    showTryItToast("Voice is busy — try again");
+  }
+}
+
+function togglePlaytestVoiceListening() {
+  if (state.openingHandVoice.listening) {
+    stopPlaytestVoiceListening();
+    return;
+  }
+  startPlaytestVoiceListening();
 }
 
 function setOpeningHandBoardMenuOpen(open, menuRoot = null) {
@@ -7006,6 +7450,7 @@ function openOpeningHandCardMenu(cardEl, entry, board) {
     requireOpeningHandSpiritChosen();
     return;
   }
+  setOpeningHandVoiceSelection(entry.instanceId, board);
 
   const zone = entry.zone || "hand";
   const ephemeral = Boolean(entry.ephemeral);
@@ -7232,6 +7677,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
 
     // Double-tap opens the card action menu (Info, Rest, Flip, zones…).
     if (!dragMoved) {
+      setOpeningHandVoiceSelection(entry.instanceId, board);
       const now = Date.now();
       if (now - lastTapAt > OPENING_HAND_TAP_WINDOW_MS) {
         tapCount = 0;
