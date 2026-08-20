@@ -3535,6 +3535,178 @@ body.deck-load-active {
   background: var(--gold-strong);
 }
 
+.gy-dialog-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.gy-dialog-card-actions .ghost.compact,
+.gy-dialog-card-actions .material-dialog-play {
+  width: 100%;
+  justify-content: center;
+  min-height: 34px;
+  font-size: 0.78rem;
+}
+
+.glimpse-dialog {
+  width: min(920px, calc(100% - 18px));
+}
+
+.glimpse-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.glimpse-section-title {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.glimpse-deck-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+  max-height: min(420px, 46vh);
+  overflow: auto;
+  padding: 4px 2px 8px;
+}
+
+.glimpse-deck-card {
+  position: relative;
+  aspect-ratio: 5 / 7;
+  border: 1px solid rgba(255, 204, 115, 0.28);
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  cursor: grab;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.glimpse-deck-card.is-dragging {
+  opacity: 0.55;
+}
+
+.glimpse-deck-card.is-revealed {
+  cursor: default;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 232, 186, 0.85);
+  background: rgba(255, 204, 115, 0.08);
+}
+
+.glimpse-deck-card-back {
+  position: absolute;
+  inset: 0;
+  transform: none;
+  box-shadow: none;
+  border-radius: 11px;
+}
+
+.glimpse-deck-card-index {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  z-index: 2;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #170f0b;
+  background: var(--gold-strong);
+  font-size: 0.68rem;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.glimpse-reveal-drop {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  border: 1px dashed rgba(255, 204, 115, 0.42);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.glimpse-reveal-drop.is-drop-target {
+  border-color: rgba(255, 204, 115, 0.9);
+  background: rgba(255, 204, 115, 0.1);
+}
+
+.glimpse-reveal-placeholder {
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 232, 186, 0.72);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.glimpse-reveal-card {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 180px);
+  justify-items: center;
+}
+
+.glimpse-reveal-card-image {
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 204, 115, 0.35);
+  background: #0a0a0b;
+}
+
+.glimpse-reveal-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.glimpse-reveal-card-name {
+  margin: 0;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.glimpse-reveal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.glimpse-reveal-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .glimpse-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .glimpse-deck-list {
+    max-height: min(280px, 38vh);
+  }
+
+  .glimpse-reveal-drop {
+    min-height: 200px;
+  }
+}
+
 .tryit-toast {
   position: fixed;
   left: 50%;

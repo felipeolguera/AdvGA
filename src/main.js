@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.11";
+const APP_VERSION = "1.12";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -242,6 +242,7 @@ const state = {
   openingHandTurn: 1,
   openingHandDamage: 0,
   openingHandSelectedInstanceId: "",
+  openingHandGlimpseInstanceId: "",
   openingHandVoice: {
     supported: null,
     listening: false,
@@ -709,6 +710,8 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
+        <li><strong>Graveyard</strong> — Double-tap a GY card to browse all graveyard cards and banish one</li>
+        <li><strong>Deck glimpse</strong> — Double-tap the deck to privately reveal a card, then send it to top or bottom</li>
         <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
         <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
@@ -716,7 +719,7 @@ function getTryItShellHtml() {
         <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
-        <li><strong>Deck pile</strong> — Tap to draw to Hand; drag to Field, Memory, Graveyard, or Hand</li>
+        <li><strong>Deck pile</strong> — Tap to draw to Hand; double-tap to glimpse; drag to Field, Memory, Graveyard, or Hand</li>
         <li><strong>Material pile</strong> — Open Material Deck; start by choosing your Spirit (Level 0 champion)</li>
         <li><strong>Tokens / Mastery</strong> — Spawn ephemeral extras onto the Field</li>
         <li><strong>Organize hand</strong> — Snap Hand cards into an even row</li>
@@ -749,6 +752,57 @@ function getTryItShellHtml() {
       <p class="hint" id="extras-dialog-status" aria-live="polite"></p>
       <div class="material-dialog-grid" id="extras-dialog-grid"></div>
       <p class="hint material-dialog-empty" id="extras-dialog-empty" hidden>No matching cards.</p>
+    </div>
+  </dialog>
+
+  <dialog class="material-dialog gy-dialog" id="graveyard-dialog" aria-labelledby="graveyard-dialog-title">
+    <div class="material-dialog-shell">
+      <header class="material-dialog-header">
+        <div>
+          <p class="eyebrow">Try it!</p>
+          <h2 id="graveyard-dialog-title">Graveyard</h2>
+          <p class="hint">Browse cards in your Graveyard. Banish moves a card to Banishment.</p>
+        </div>
+        <button class="icon-button" type="button" id="close-graveyard-dialog" aria-label="Close graveyard">×</button>
+      </header>
+      <div class="material-dialog-grid" id="graveyard-dialog-grid"></div>
+      <p class="hint material-dialog-empty" id="graveyard-dialog-empty" hidden>Graveyard is empty.</p>
+    </div>
+  </dialog>
+
+  <dialog class="material-dialog glimpse-dialog" id="glimpse-dialog" aria-labelledby="glimpse-dialog-title">
+    <div class="material-dialog-shell">
+      <header class="material-dialog-header">
+        <div>
+          <p class="eyebrow">Try it!</p>
+          <h2 id="glimpse-dialog-title">Deck glimpse</h2>
+          <p class="hint">Drag a facedown deck card into Reveal to look at it privately, then send it to the top or bottom of the deck.</p>
+        </div>
+        <button class="icon-button" type="button" id="close-glimpse-dialog" aria-label="Close deck glimpse">×</button>
+      </header>
+      <div class="glimpse-layout">
+        <section class="glimpse-deck-panel" aria-label="Deck order">
+          <h3 class="glimpse-section-title">Deck (top → bottom)</h3>
+          <div class="glimpse-deck-list" id="glimpse-deck-list"></div>
+          <p class="hint material-dialog-empty" id="glimpse-deck-empty" hidden>Deck is empty.</p>
+        </section>
+        <section
+          class="glimpse-reveal-panel"
+          id="glimpse-reveal-panel"
+          aria-label="Private reveal"
+        >
+          <h3 class="glimpse-section-title">Reveal (private)</h3>
+          <div class="glimpse-reveal-drop" id="glimpse-reveal-drop" data-glimpse-drop="true">
+            <p class="glimpse-reveal-placeholder" id="glimpse-reveal-placeholder">Drop a card here to reveal</p>
+            <article class="glimpse-reveal-card" id="glimpse-reveal-card" hidden></article>
+          </div>
+          <div class="glimpse-reveal-actions">
+            <button class="secondary compact" type="button" id="glimpse-to-top" disabled>Top of deck</button>
+            <button class="secondary compact" type="button" id="glimpse-to-bottom" disabled>Bottom of deck</button>
+            <button class="ghost compact" type="button" id="glimpse-cancel-reveal" disabled>Put back</button>
+          </div>
+        </section>
+      </div>
     </div>
   </dialog>
 
@@ -841,6 +895,20 @@ const extrasDialogEmpty = document.querySelector("#extras-dialog-empty");
 const extrasDialogStatus = document.querySelector("#extras-dialog-status");
 const extrasSearchInput = document.querySelector("#extras-search");
 const closeExtrasDialogButton = document.querySelector("#close-extras-dialog");
+const graveyardDialog = document.querySelector("#graveyard-dialog");
+const graveyardDialogGrid = document.querySelector("#graveyard-dialog-grid");
+const graveyardDialogEmpty = document.querySelector("#graveyard-dialog-empty");
+const closeGraveyardDialogButton = document.querySelector("#close-graveyard-dialog");
+const glimpseDialog = document.querySelector("#glimpse-dialog");
+const glimpseDeckList = document.querySelector("#glimpse-deck-list");
+const glimpseDeckEmpty = document.querySelector("#glimpse-deck-empty");
+const glimpseRevealDrop = document.querySelector("#glimpse-reveal-drop");
+const glimpseRevealPlaceholder = document.querySelector("#glimpse-reveal-placeholder");
+const glimpseRevealCard = document.querySelector("#glimpse-reveal-card");
+const glimpseToTopButton = document.querySelector("#glimpse-to-top");
+const glimpseToBottomButton = document.querySelector("#glimpse-to-bottom");
+const glimpseCancelRevealButton = document.querySelector("#glimpse-cancel-reveal");
+const closeGlimpseDialogButton = document.querySelector("#close-glimpse-dialog");
 const tryitHelpDialog = document.querySelector("#tryit-help-dialog");
 const closeTryitHelpDialogButton = document.querySelector("#close-tryit-help-dialog");
 const materialDialogTitle = document.querySelector("#material-dialog-title");
@@ -881,6 +949,58 @@ extrasDialog?.addEventListener("click", (event) => {
 extrasSearchInput?.addEventListener("input", () => {
   state.openingHandExtras.query = extrasSearchInput.value || "";
   renderExtrasDialogGrid(getActiveOpeningHandBoard());
+});
+
+closeGraveyardDialogButton?.addEventListener("click", () => closeGraveyardDialog());
+graveyardDialog?.addEventListener("click", (event) => {
+  if (event.target === graveyardDialog) {
+    closeGraveyardDialog();
+  }
+  const banishButton = event.target.closest("[data-gy-banish]");
+  if (banishButton && graveyardDialog.contains(banishButton)) {
+    event.preventDefault();
+    void banishOpeningHandGraveyardCard(banishButton.dataset.gyBanish);
+  }
+});
+graveyardDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeGraveyardDialog();
+});
+
+closeGlimpseDialogButton?.addEventListener("click", () => closeGlimpseDialog());
+glimpseDialog?.addEventListener("click", (event) => {
+  if (event.target === glimpseDialog) {
+    closeGlimpseDialog();
+  }
+});
+glimpseDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeGlimpseDialog();
+});
+glimpseToTopButton?.addEventListener("click", () => {
+  finishGlimpseReveal("top");
+});
+glimpseToBottomButton?.addEventListener("click", () => {
+  finishGlimpseReveal("bottom");
+});
+glimpseCancelRevealButton?.addEventListener("click", () => {
+  clearGlimpseReveal({ restore: true });
+  renderGlimpseDialog();
+});
+glimpseRevealDrop?.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  glimpseRevealDrop.classList.add("is-drop-target");
+});
+glimpseRevealDrop?.addEventListener("dragleave", () => {
+  glimpseRevealDrop.classList.remove("is-drop-target");
+});
+glimpseRevealDrop?.addEventListener("drop", (event) => {
+  event.preventDefault();
+  glimpseRevealDrop.classList.remove("is-drop-target");
+  const instanceId = event.dataTransfer?.getData("text/glimpse-instance") || "";
+  if (instanceId) {
+    setGlimpseReveal(instanceId);
+  }
 });
 
 closeTryitHelpDialogButton?.addEventListener("click", () => closeTryItHelpDialog());
@@ -6330,6 +6450,297 @@ function closeExtrasDialog() {
   extrasDialog.close();
 }
 
+function closeGraveyardDialog() {
+  if (!graveyardDialog?.open) {
+    return;
+  }
+  graveyardDialog.close();
+}
+
+function openGraveyardDialog(board = null) {
+  if (!graveyardDialog || !graveyardDialogGrid) {
+    return;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  if (!playBoard || playBoard.dataset.mpReadonly === "true") {
+    return;
+  }
+  closeOpeningHandCardMenu();
+  renderGraveyardDialogGrid(playBoard);
+  if (!graveyardDialog.open) {
+    graveyardDialog.showModal();
+  }
+}
+
+function getOpeningHandGraveyardEntries() {
+  return state.openingHandHand
+    .filter((entry) => (entry.zone || "hand") === "graveyard")
+    .sort((left, right) => (left.position?.z || 0) - (right.position?.z || 0));
+}
+
+function renderGraveyardDialogGrid(board = null) {
+  if (!graveyardDialogGrid || !graveyardDialogEmpty) {
+    return;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  const entries = getOpeningHandGraveyardEntries();
+  const title = document.querySelector("#graveyard-dialog-title");
+  if (title) {
+    title.textContent = `Graveyard (${entries.length})`;
+  }
+  graveyardDialogGrid.replaceChildren();
+  graveyardDialogEmpty.hidden = entries.length > 0;
+
+  entries.forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "material-dialog-card";
+    item.dataset.gyInstanceId = entry.instanceId;
+
+    const imageWrap = document.createElement("div");
+    imageWrap.className = "material-dialog-card-image";
+    const imageUrl = getImageUrl(resolveCardImage(entry.card));
+    if (imageUrl) {
+      const image = document.createElement("img");
+      image.src = imageUrl;
+      image.alt = entry.card?.name || "Graveyard card";
+      image.loading = "lazy";
+      image.draggable = false;
+      imageWrap.append(image);
+    }
+
+    const name = document.createElement("p");
+    name.className = "material-dialog-card-name";
+    name.textContent = entry.card?.name || "Unknown card";
+
+    const actions = document.createElement("div");
+    actions.className = "gy-dialog-card-actions";
+
+    const peekButton = document.createElement("button");
+    peekButton.type = "button";
+    peekButton.className = "ghost compact";
+    peekButton.textContent = "Info";
+    peekButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      showOpeningHandCardPreview(entry, { revealFacedown: true });
+    });
+
+    const banishButton = document.createElement("button");
+    banishButton.type = "button";
+    banishButton.className = "material-dialog-play";
+    banishButton.dataset.gyBanish = entry.instanceId;
+    banishButton.textContent = "Banish";
+
+    actions.append(peekButton, banishButton);
+    item.append(imageWrap, name, actions);
+    graveyardDialogGrid.append(item);
+  });
+
+  void playBoard;
+}
+
+async function banishOpeningHandGraveyardCard(instanceId) {
+  const playBoard = getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field || !instanceId) {
+    return;
+  }
+  const entry = state.openingHandHand.find(
+    (item) => item.instanceId === instanceId && (item.zone || "hand") === "graveyard",
+  );
+  if (!entry) {
+    return;
+  }
+  const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+  await moveOpeningHandCardToZone(playBoard, entry, cardEl, "banishment");
+  showTryItToast(`Banished ${entry.card?.name || "card"}`);
+  renderGraveyardDialogGrid(playBoard);
+  if (getOpeningHandGraveyardEntries().length === 0) {
+    closeGraveyardDialog();
+  }
+}
+
+function closeGlimpseDialog() {
+  if (!glimpseDialog?.open) {
+    return;
+  }
+  clearGlimpseReveal({ restore: true });
+  glimpseDialog.close();
+}
+
+function openGlimpseDialog(board = null) {
+  if (!glimpseDialog) {
+    return;
+  }
+  const playBoard = board || getActiveOpeningHandBoard();
+  if (!playBoard || playBoard.dataset.mpReadonly === "true") {
+    return;
+  }
+  if (state.openingHandAwaitingSpirit) {
+    requireOpeningHandSpiritChosen();
+    return;
+  }
+  if (state.openingHandLibrary.length === 0) {
+    showTryItToast("Deck is empty");
+    return;
+  }
+  closeOpeningHandCardMenu();
+  clearGlimpseReveal({ restore: false });
+  renderGlimpseDialog();
+  if (!glimpseDialog.open) {
+    glimpseDialog.showModal();
+  }
+}
+
+function clearGlimpseReveal({ restore = false } = {}) {
+  // Glimpse never removes cards from library until Top/Bottom commit.
+  state.openingHandGlimpseInstanceId = "";
+  if (glimpseRevealCard) {
+    glimpseRevealCard.hidden = true;
+    glimpseRevealCard.replaceChildren();
+  }
+  if (glimpseRevealPlaceholder) {
+    glimpseRevealPlaceholder.hidden = false;
+  }
+  if (glimpseToTopButton) {
+    glimpseToTopButton.disabled = true;
+  }
+  if (glimpseToBottomButton) {
+    glimpseToBottomButton.disabled = true;
+  }
+  if (glimpseCancelRevealButton) {
+    glimpseCancelRevealButton.disabled = true;
+  }
+  void restore;
+}
+
+function setGlimpseReveal(instanceId) {
+  const entry = state.openingHandLibrary.find((item) => item.instanceId === instanceId);
+  if (!entry) {
+    return;
+  }
+  state.openingHandGlimpseInstanceId = instanceId;
+  renderGlimpseDialog();
+}
+
+function renderGlimpseDialog() {
+  if (!glimpseDeckList || !glimpseRevealCard) {
+    return;
+  }
+  const revealedId = state.openingHandGlimpseInstanceId || "";
+  const library = state.openingHandLibrary || [];
+  glimpseDeckList.replaceChildren();
+  if (glimpseDeckEmpty) {
+    glimpseDeckEmpty.hidden = library.length > 0;
+  }
+
+  library.forEach((entry, index) => {
+    const isRevealed = entry.instanceId === revealedId;
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = isRevealed
+      ? "glimpse-deck-card is-revealed"
+      : "glimpse-deck-card is-facedown";
+    item.dataset.glimpseInstanceId = entry.instanceId;
+    item.draggable = !isRevealed;
+    item.setAttribute(
+      "aria-label",
+      isRevealed
+        ? `${entry.card?.name || "Card"} (currently revealed)`
+        : `Deck card ${index + 1} from top`,
+    );
+    if (isRevealed) {
+      item.disabled = true;
+      item.textContent = "Revealed";
+    } else {
+      const back = document.createElement("span");
+      back.className = "opening-hand-card-back glimpse-deck-card-back";
+      const label = document.createElement("span");
+      label.className = "glimpse-deck-card-index";
+      label.textContent = index === 0 ? "Top" : String(index + 1);
+      item.append(back, label);
+      item.addEventListener("dragstart", (event) => {
+        event.dataTransfer?.setData("text/glimpse-instance", entry.instanceId);
+        event.dataTransfer.effectAllowed = "move";
+        item.classList.add("is-dragging");
+      });
+      item.addEventListener("dragend", () => {
+        item.classList.remove("is-dragging");
+      });
+      item.addEventListener("click", () => {
+        setGlimpseReveal(entry.instanceId);
+      });
+    }
+    glimpseDeckList.append(item);
+  });
+
+  const revealed = library.find((entry) => entry.instanceId === revealedId) || null;
+  if (revealed) {
+    glimpseRevealPlaceholder.hidden = true;
+    glimpseRevealCard.hidden = false;
+    glimpseRevealCard.replaceChildren();
+    const imageWrap = document.createElement("div");
+    imageWrap.className = "glimpse-reveal-card-image";
+    const imageUrl = getImageUrl(resolveCardImage(revealed.card));
+    if (imageUrl) {
+      const image = document.createElement("img");
+      image.src = imageUrl;
+      image.alt = revealed.card?.name || "Revealed card";
+      image.draggable = false;
+      imageWrap.append(image);
+    }
+    const name = document.createElement("p");
+    name.className = "glimpse-reveal-card-name";
+    name.textContent = revealed.card?.name || "Unknown card";
+    glimpseRevealCard.append(imageWrap, name);
+    if (glimpseToTopButton) {
+      glimpseToTopButton.disabled = false;
+    }
+    if (glimpseToBottomButton) {
+      glimpseToBottomButton.disabled = false;
+    }
+    if (glimpseCancelRevealButton) {
+      glimpseCancelRevealButton.disabled = false;
+    }
+  } else {
+    clearGlimpseReveal({ restore: false });
+    if (glimpseRevealPlaceholder) {
+      glimpseRevealPlaceholder.hidden = false;
+    }
+  }
+}
+
+function finishGlimpseReveal(placement = "top") {
+  const instanceId = state.openingHandGlimpseInstanceId;
+  if (!instanceId) {
+    return;
+  }
+  const index = state.openingHandLibrary.findIndex((entry) => entry.instanceId === instanceId);
+  if (index < 0) {
+    clearGlimpseReveal({ restore: false });
+    renderGlimpseDialog();
+    return;
+  }
+  const [entry] = state.openingHandLibrary.splice(index, 1);
+  if (placement === "top") {
+    state.openingHandLibrary.unshift(entry);
+  } else {
+    state.openingHandLibrary.push(entry);
+  }
+  const playBoard = getActiveOpeningHandBoard();
+  updateOpeningHandDeckPile(playBoard);
+  queueMultiplayerSeatPublish();
+  showTryItToast(
+    placement === "top"
+      ? `${entry.card?.name || "Card"} → top of deck`
+      : `${entry.card?.name || "Card"} → bottom of deck`,
+  );
+  clearGlimpseReveal({ restore: false });
+  renderGlimpseDialog();
+  if (state.openingHandLibrary.length === 0) {
+    closeGlimpseDialog();
+  }
+}
+
 function setExtrasDialogFilter(filter) {
   const next = ["all", "token", "mastery"].includes(filter) ? filter : "all";
   state.openingHandExtras.filter = next;
@@ -6608,9 +7019,14 @@ function showTryItToast(message = "Added") {
   // Mount the toast inside the open dialog so it paints above the popup content.
   const boardMenuDialog = document.querySelector("dialog[data-oh-board-menu-panel][open]");
   const openDialog =
-    [extrasDialog, materialDialog, tryitHelpDialog, boardMenuDialog].find(
-      (dialog) => dialog?.open,
-    ) || null;
+    [
+      extrasDialog,
+      materialDialog,
+      tryitHelpDialog,
+      graveyardDialog,
+      glimpseDialog,
+      boardMenuDialog,
+    ].find((dialog) => dialog?.open) || null;
   const host = openDialog || document.querySelector(".tryit-page") || document.body;
   if (toast.parentElement !== host) {
     host.append(toast);
@@ -6942,7 +7358,7 @@ function updateOpeningHandDeckPile(board) {
     pile.setAttribute(
       "aria-label",
       state.openingHandLibrary.length
-        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; drag to Field, Graveyard, Memory, or Hand.`
+        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; double-tap to glimpse; drag to Field, Graveyard, Memory, or Hand.`
         : "Deck is empty",
     );
   }
@@ -7720,7 +8136,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       restackOpeningHandChampionCards(board);
     }
 
-    // Double-tap opens the card action menu (Info, Rest, Flip, zones…).
+    // Double-tap: Graveyard opens browse/banish dialog; otherwise card action menu.
     if (!dragMoved) {
       setOpeningHandVoiceSelection(entry.instanceId, board);
       const now = Date.now();
@@ -7734,7 +8150,11 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       if (tapCount >= 2) {
         tapCount = 0;
         lastTapAt = 0;
-        openOpeningHandCardMenu(cardEl, entry, board);
+        if ((entry.zone || "hand") === "graveyard") {
+          openGraveyardDialog(board);
+        } else {
+          openOpeningHandCardMenu(cardEl, entry, board);
+        }
       }
     } else {
       clearTapActionTimer();
@@ -7781,6 +8201,17 @@ function enableOpeningHandDeckDrag(pileEl, board) {
   let originX = 0;
   let originY = 0;
   let moved = false;
+  let lastTapAt = 0;
+  let lastTapX = 0;
+  let lastTapY = 0;
+  let pendingDrawTimer = null;
+
+  const clearPendingDraw = () => {
+    if (pendingDrawTimer != null) {
+      window.clearTimeout(pendingDrawTimer);
+      pendingDrawTimer = null;
+    }
+  };
 
   const cleanup = () => {
     ghost?.remove();
@@ -7805,6 +8236,19 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     return { field, point, zone };
   };
 
+  const drawFromDeck = async (dropZone = "hand", dropPosition = null) => {
+    if (state.openingHandLibrary.length === 0) {
+      return;
+    }
+    await drawOpeningHandCard(board, {
+      animate: true,
+      organize: dropZone === "hand" && !dropPosition,
+      zone: dropZone,
+      facedown: dropZone === "memory",
+      position: dropPosition,
+    });
+  };
+
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId || !ghost) {
       return;
@@ -7813,6 +8257,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     const dy = event.clientY - originY;
     if (Math.hypot(dx, dy) > 6) {
       moved = true;
+      clearPendingDraw();
     }
     ghost.style.left = `${event.clientX - FREEHAND_CARD_WIDTH / 2}px`;
     ghost.style.top = `${event.clientY - FREEHAND_CARD_HEIGHT / 2}px`;
@@ -7826,12 +8271,9 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     pointerId = null;
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
-    window.removeEventListener("pointercancel", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerCancel);
 
     const preview = syncDropZonePreview(event.clientX, event.clientY);
-    const overField = Boolean(preview);
-    const shouldDraw =
-      state.openingHandLibrary.length > 0 && (overField || !moved);
     let dropZone = "hand";
     let dropPosition = null;
     if (moved && preview) {
@@ -7852,6 +8294,9 @@ function enableOpeningHandDeckDrag(pileEl, board) {
         dropPosition = preview.point;
       }
     }
+    const wasMoved = moved;
+    const clientX = event.clientX;
+    const clientY = event.clientY;
     cleanup();
     try {
       pileEl.releasePointerCapture(event.pointerId);
@@ -7859,14 +8304,51 @@ function enableOpeningHandDeckDrag(pileEl, board) {
       // ignore
     }
 
-    if (shouldDraw) {
-      await drawOpeningHandCard(board, {
-        animate: true,
-        organize: dropZone === "hand" && !dropPosition,
-        zone: dropZone,
-        facedown: dropZone === "memory",
-        position: dropPosition,
-      });
+    if (wasMoved) {
+      clearPendingDraw();
+      lastTapAt = 0;
+      if (preview) {
+        await drawFromDeck(dropZone, dropPosition);
+      }
+      return;
+    }
+
+    const now = Date.now();
+    if (
+      now - lastTapAt <= OPENING_HAND_TAP_WINDOW_MS &&
+      Math.hypot(clientX - lastTapX, clientY - lastTapY) <= 18
+    ) {
+      clearPendingDraw();
+      lastTapAt = 0;
+      openGlimpseDialog(board);
+      return;
+    }
+
+    lastTapAt = now;
+    lastTapX = clientX;
+    lastTapY = clientY;
+    clearPendingDraw();
+    pendingDrawTimer = window.setTimeout(() => {
+      pendingDrawTimer = null;
+      lastTapAt = 0;
+      void drawFromDeck("hand", null);
+    }, OPENING_HAND_TAP_WINDOW_MS + 40);
+  };
+
+  const onPointerCancel = (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    pointerId = null;
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerCancel);
+    clearPendingDraw();
+    cleanup();
+    try {
+      pileEl.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
     }
   };
 
@@ -7883,6 +8365,9 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     }
     event.preventDefault();
     event.stopPropagation();
+    if (Date.now() - lastTapAt <= OPENING_HAND_TAP_WINDOW_MS) {
+      clearPendingDraw();
+    }
     pointerId = event.pointerId;
     moved = false;
     originX = event.clientX;
@@ -7904,7 +8389,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     }
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
   });
 }
 
