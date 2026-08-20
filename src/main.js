@@ -242,7 +242,7 @@ const state = {
   openingHandTurn: 1,
   openingHandDamage: 0,
   openingHandSelectedInstanceId: "",
-  openingHandGlimpseInstanceId: "",
+  openingHandGlimpseIds: [],
   openingHandVoice: {
     supported: null,
     listening: false,
@@ -711,7 +711,7 @@ function getTryItShellHtml() {
       </header>
       <ul class="tryit-help-list">
         <li><strong>Graveyard</strong> — Double-tap a GY card to browse all graveyard cards and banish one</li>
-        <li><strong>Deck glimpse</strong> — Double-tap the deck to privately reveal a card, then send it to top or bottom</li>
+        <li><strong>Deck glimpse</strong> — Double-tap the deck → Glimpse; enter how many cards to reveal privately, then Top/Bottom each</li>
         <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
         <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
@@ -719,7 +719,7 @@ function getTryItShellHtml() {
         <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
-        <li><strong>Deck pile</strong> — Tap to draw to Hand; double-tap to glimpse; drag to Field, Memory, Graveyard, or Hand</li>
+        <li><strong>Deck pile</strong> — Tap to draw to Hand; double-tap for Glimpse; drag to Field, Memory, Graveyard, or Hand</li>
         <li><strong>Material pile</strong> — Open Material Deck; start by choosing your Spirit (Level 0 champion)</li>
         <li><strong>Tokens / Mastery</strong> — Spawn ephemeral extras onto the Field</li>
         <li><strong>Organize hand</strong> — Snap Hand cards into an even row</li>
@@ -776,31 +776,39 @@ function getTryItShellHtml() {
         <div>
           <p class="eyebrow">Try it!</p>
           <h2 id="glimpse-dialog-title">Deck glimpse</h2>
-          <p class="hint">Drag a facedown deck card into Reveal to look at it privately, then send it to the top or bottom of the deck.</p>
+          <p class="hint">Enter how many cards to look at privately. Use Top / Bottom on each card to put it back on the deck.</p>
         </div>
         <button class="icon-button" type="button" id="close-glimpse-dialog" aria-label="Close deck glimpse">×</button>
       </header>
+      <form class="glimpse-count-row" id="glimpse-count-form">
+        <label class="glimpse-count-label" for="glimpse-count-input">Glimpse</label>
+        <input
+          id="glimpse-count-input"
+          class="glimpse-count-input"
+          type="number"
+          inputmode="numeric"
+          min="1"
+          step="1"
+          placeholder="0"
+          aria-label="Number of cards to glimpse"
+        />
+        <button class="secondary compact" type="submit" id="glimpse-reveal-button">Reveal</button>
+      </form>
       <div class="glimpse-layout">
-        <section class="glimpse-deck-panel" aria-label="Deck order">
-          <h3 class="glimpse-section-title">Deck (top → bottom)</h3>
-          <div class="glimpse-deck-list" id="glimpse-deck-list"></div>
-          <p class="hint material-dialog-empty" id="glimpse-deck-empty" hidden>Deck is empty.</p>
+        <section class="glimpse-cards-panel" aria-label="Glimpsed cards">
+          <h3 class="glimpse-section-title">Glimpsed cards</h3>
+          <div class="glimpse-cards-grid" id="glimpse-cards-grid"></div>
+          <p class="hint material-dialog-empty" id="glimpse-cards-empty">
+            Type a number above and press Reveal to look at that many cards from the top of your deck.
+          </p>
         </section>
-        <section
-          class="glimpse-reveal-panel"
-          id="glimpse-reveal-panel"
-          aria-label="Private reveal"
-        >
-          <h3 class="glimpse-section-title">Reveal (private)</h3>
-          <div class="glimpse-reveal-drop" id="glimpse-reveal-drop" data-glimpse-drop="true">
-            <p class="glimpse-reveal-placeholder" id="glimpse-reveal-placeholder">Drop a card here to reveal</p>
-            <article class="glimpse-reveal-card" id="glimpse-reveal-card" hidden></article>
+        <section class="glimpse-deck-panel" aria-label="Deck">
+          <h3 class="glimpse-section-title">Deck</h3>
+          <div class="glimpse-deck-pile" id="glimpse-deck-pile" aria-live="polite">
+            <div class="glimpse-deck-stack" id="glimpse-deck-stack"></div>
+            <span class="glimpse-deck-count" id="glimpse-deck-count">0</span>
           </div>
-          <div class="glimpse-reveal-actions">
-            <button class="secondary compact" type="button" id="glimpse-to-top" disabled>Top of deck</button>
-            <button class="secondary compact" type="button" id="glimpse-to-bottom" disabled>Bottom of deck</button>
-            <button class="ghost compact" type="button" id="glimpse-cancel-reveal" disabled>Put back</button>
-          </div>
+          <p class="hint glimpse-deck-hint" id="glimpse-deck-hint">Same deck as the board</p>
         </section>
       </div>
     </div>
@@ -900,14 +908,13 @@ const graveyardDialogGrid = document.querySelector("#graveyard-dialog-grid");
 const graveyardDialogEmpty = document.querySelector("#graveyard-dialog-empty");
 const closeGraveyardDialogButton = document.querySelector("#close-graveyard-dialog");
 const glimpseDialog = document.querySelector("#glimpse-dialog");
-const glimpseDeckList = document.querySelector("#glimpse-deck-list");
-const glimpseDeckEmpty = document.querySelector("#glimpse-deck-empty");
-const glimpseRevealDrop = document.querySelector("#glimpse-reveal-drop");
-const glimpseRevealPlaceholder = document.querySelector("#glimpse-reveal-placeholder");
-const glimpseRevealCard = document.querySelector("#glimpse-reveal-card");
-const glimpseToTopButton = document.querySelector("#glimpse-to-top");
-const glimpseToBottomButton = document.querySelector("#glimpse-to-bottom");
-const glimpseCancelRevealButton = document.querySelector("#glimpse-cancel-reveal");
+const glimpseCountForm = document.querySelector("#glimpse-count-form");
+const glimpseCountInput = document.querySelector("#glimpse-count-input");
+const glimpseRevealButton = document.querySelector("#glimpse-reveal-button");
+const glimpseCardsGrid = document.querySelector("#glimpse-cards-grid");
+const glimpseCardsEmpty = document.querySelector("#glimpse-cards-empty");
+const glimpseDeckStack = document.querySelector("#glimpse-deck-stack");
+const glimpseDeckCount = document.querySelector("#glimpse-deck-count");
 const closeGlimpseDialogButton = document.querySelector("#close-glimpse-dialog");
 const tryitHelpDialog = document.querySelector("#tryit-help-dialog");
 const closeTryitHelpDialogButton = document.querySelector("#close-tryit-help-dialog");
@@ -972,35 +979,29 @@ glimpseDialog?.addEventListener("click", (event) => {
   if (event.target === glimpseDialog) {
     closeGlimpseDialog();
   }
+  const topButton = event.target.closest("[data-glimpse-top]");
+  if (topButton && glimpseDialog.contains(topButton)) {
+    event.preventDefault();
+    finishGlimpseCard(topButton.dataset.glimpseTop, "top");
+    return;
+  }
+  const bottomButton = event.target.closest("[data-glimpse-bottom]");
+  if (bottomButton && glimpseDialog.contains(bottomButton)) {
+    event.preventDefault();
+    finishGlimpseCard(bottomButton.dataset.glimpseBottom, "bottom");
+  }
 });
 glimpseDialog?.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeGlimpseDialog();
 });
-glimpseToTopButton?.addEventListener("click", () => {
-  finishGlimpseReveal("top");
-});
-glimpseToBottomButton?.addEventListener("click", () => {
-  finishGlimpseReveal("bottom");
-});
-glimpseCancelRevealButton?.addEventListener("click", () => {
-  clearGlimpseReveal({ restore: true });
-  renderGlimpseDialog();
-});
-glimpseRevealDrop?.addEventListener("dragover", (event) => {
+glimpseCountForm?.addEventListener("submit", (event) => {
   event.preventDefault();
-  glimpseRevealDrop.classList.add("is-drop-target");
+  applyGlimpseCountFromInput();
 });
-glimpseRevealDrop?.addEventListener("dragleave", () => {
-  glimpseRevealDrop.classList.remove("is-drop-target");
-});
-glimpseRevealDrop?.addEventListener("drop", (event) => {
+glimpseRevealButton?.addEventListener("click", (event) => {
   event.preventDefault();
-  glimpseRevealDrop.classList.remove("is-drop-target");
-  const instanceId = event.dataTransfer?.getData("text/glimpse-instance") || "";
-  if (instanceId) {
-    setGlimpseReveal(instanceId);
-  }
+  applyGlimpseCountFromInput();
 });
 
 closeTryitHelpDialogButton?.addEventListener("click", () => closeTryItHelpDialog());
@@ -1014,11 +1015,16 @@ tryitHelpDialog?.addEventListener("cancel", (event) => {
   closeTryItHelpDialog();
 });
 document.addEventListener("pointerdown", (event) => {
-  const menu = document.querySelector("[data-oh-card-menu]");
+  const menu = document.querySelector("[data-oh-card-menu], [data-oh-deck-menu]");
   if (!menu) {
     return;
   }
-  if (event.target.closest("[data-oh-card-menu]") || event.target.closest(".opening-hand-card.is-menu-open")) {
+  if (
+    event.target.closest("[data-oh-card-menu]") ||
+    event.target.closest("[data-oh-deck-menu]") ||
+    event.target.closest(".opening-hand-card.is-menu-open") ||
+    event.target.closest("[data-oh-deck-pile].is-menu-open")
+  ) {
     return;
   }
   closeOpeningHandCardMenu();
@@ -6563,7 +6569,7 @@ function closeGlimpseDialog() {
   if (!glimpseDialog?.open) {
     return;
   }
-  clearGlimpseReveal({ restore: true });
+  clearGlimpseReveal();
   glimpseDialog.close();
 }
 
@@ -6584,139 +6590,149 @@ function openGlimpseDialog(board = null) {
     return;
   }
   closeOpeningHandCardMenu();
-  clearGlimpseReveal({ restore: false });
+  clearGlimpseReveal();
+  if (glimpseCountInput) {
+    glimpseCountInput.value = "";
+    glimpseCountInput.max = String(state.openingHandLibrary.length);
+  }
   renderGlimpseDialog();
   if (!glimpseDialog.open) {
     glimpseDialog.showModal();
   }
+  window.setTimeout(() => {
+    glimpseCountInput?.focus();
+    glimpseCountInput?.select?.();
+  }, 0);
 }
 
-function clearGlimpseReveal({ restore = false } = {}) {
-  // Glimpse never removes cards from library until Top/Bottom commit.
-  state.openingHandGlimpseInstanceId = "";
-  if (glimpseRevealCard) {
-    glimpseRevealCard.hidden = true;
-    glimpseRevealCard.replaceChildren();
-  }
-  if (glimpseRevealPlaceholder) {
-    glimpseRevealPlaceholder.hidden = false;
-  }
-  if (glimpseToTopButton) {
-    glimpseToTopButton.disabled = true;
-  }
-  if (glimpseToBottomButton) {
-    glimpseToBottomButton.disabled = true;
-  }
-  if (glimpseCancelRevealButton) {
-    glimpseCancelRevealButton.disabled = true;
-  }
-  void restore;
+function clearGlimpseReveal() {
+  state.openingHandGlimpseIds = [];
 }
 
-function setGlimpseReveal(instanceId) {
-  const entry = state.openingHandLibrary.find((item) => item.instanceId === instanceId);
-  if (!entry) {
+function applyGlimpseCountFromInput() {
+  const librarySize = state.openingHandLibrary.length;
+  if (librarySize === 0) {
+    showTryItToast("Deck is empty");
+    closeGlimpseDialog();
     return;
   }
-  state.openingHandGlimpseInstanceId = instanceId;
+  const raw = Number.parseInt(String(glimpseCountInput?.value || "").trim(), 10);
+  if (!Number.isFinite(raw) || raw < 1) {
+    showTryItToast("Enter how many cards to glimpse");
+    glimpseCountInput?.focus();
+    return;
+  }
+  const count = Math.min(librarySize, Math.max(1, raw));
+  if (glimpseCountInput) {
+    glimpseCountInput.value = String(count);
+  }
+  state.openingHandGlimpseIds = state.openingHandLibrary
+    .slice(0, count)
+    .map((entry) => entry.instanceId);
   renderGlimpseDialog();
+  showTryItToast(
+    count === 1 ? "Glimpsed 1 card" : `Glimpsed ${count} cards`,
+  );
 }
 
 function renderGlimpseDialog() {
-  if (!glimpseDeckList || !glimpseRevealCard) {
+  if (!glimpseCardsGrid) {
     return;
   }
-  const revealedId = state.openingHandGlimpseInstanceId || "";
   const library = state.openingHandLibrary || [];
-  glimpseDeckList.replaceChildren();
-  if (glimpseDeckEmpty) {
-    glimpseDeckEmpty.hidden = library.length > 0;
+  const glimpseIds = Array.isArray(state.openingHandGlimpseIds)
+    ? state.openingHandGlimpseIds.filter((id) =>
+        library.some((entry) => entry.instanceId === id),
+      )
+    : [];
+  state.openingHandGlimpseIds = glimpseIds;
+
+  if (glimpseCountInput) {
+    glimpseCountInput.max = String(Math.max(1, library.length));
   }
 
-  library.forEach((entry, index) => {
-    const isRevealed = entry.instanceId === revealedId;
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = isRevealed
-      ? "glimpse-deck-card is-revealed"
-      : "glimpse-deck-card is-facedown";
-    item.dataset.glimpseInstanceId = entry.instanceId;
-    item.draggable = !isRevealed;
-    item.setAttribute(
-      "aria-label",
-      isRevealed
-        ? `${entry.card?.name || "Card"} (currently revealed)`
-        : `Deck card ${index + 1} from top`,
-    );
-    if (isRevealed) {
-      item.disabled = true;
-      item.textContent = "Revealed";
-    } else {
-      const back = document.createElement("span");
-      back.className = "opening-hand-card-back glimpse-deck-card-back";
-      const label = document.createElement("span");
-      label.className = "glimpse-deck-card-index";
-      label.textContent = index === 0 ? "Top" : String(index + 1);
-      item.append(back, label);
-      item.addEventListener("dragstart", (event) => {
-        event.dataTransfer?.setData("text/glimpse-instance", entry.instanceId);
-        event.dataTransfer.effectAllowed = "move";
-        item.classList.add("is-dragging");
-      });
-      item.addEventListener("dragend", () => {
-        item.classList.remove("is-dragging");
-      });
-      item.addEventListener("click", () => {
-        setGlimpseReveal(entry.instanceId);
-      });
-    }
-    glimpseDeckList.append(item);
-  });
+  glimpseCardsGrid.replaceChildren();
+  if (glimpseCardsEmpty) {
+    glimpseCardsEmpty.hidden = glimpseIds.length > 0;
+  }
 
-  const revealed = library.find((entry) => entry.instanceId === revealedId) || null;
-  if (revealed) {
-    glimpseRevealPlaceholder.hidden = true;
-    glimpseRevealCard.hidden = false;
-    glimpseRevealCard.replaceChildren();
+  glimpseIds.forEach((instanceId, index) => {
+    const entry = library.find((item) => item.instanceId === instanceId);
+    if (!entry) {
+      return;
+    }
+    const item = document.createElement("article");
+    item.className = "glimpse-card";
+    item.dataset.glimpseInstanceId = instanceId;
+
     const imageWrap = document.createElement("div");
-    imageWrap.className = "glimpse-reveal-card-image";
-    const imageUrl = getImageUrl(resolveCardImage(revealed.card));
+    imageWrap.className = "glimpse-card-image";
+    const imageUrl = getImageUrl(resolveCardImage(entry.card));
     if (imageUrl) {
       const image = document.createElement("img");
       image.src = imageUrl;
-      image.alt = revealed.card?.name || "Revealed card";
+      image.alt = entry.card?.name || "Glimpsed card";
+      image.loading = "lazy";
       image.draggable = false;
       imageWrap.append(image);
     }
+
     const name = document.createElement("p");
-    name.className = "glimpse-reveal-card-name";
-    name.textContent = revealed.card?.name || "Unknown card";
-    glimpseRevealCard.append(imageWrap, name);
-    if (glimpseToTopButton) {
-      glimpseToTopButton.disabled = false;
-    }
-    if (glimpseToBottomButton) {
-      glimpseToBottomButton.disabled = false;
-    }
-    if (glimpseCancelRevealButton) {
-      glimpseCancelRevealButton.disabled = false;
-    }
-  } else {
-    clearGlimpseReveal({ restore: false });
-    if (glimpseRevealPlaceholder) {
-      glimpseRevealPlaceholder.hidden = false;
-    }
+    name.className = "glimpse-card-name";
+    name.textContent = entry.card?.name || "Unknown card";
+
+    const meta = document.createElement("p");
+    meta.className = "glimpse-card-meta";
+    meta.textContent = index === 0 ? "From top" : `#${index + 1}`;
+
+    const actions = document.createElement("div");
+    actions.className = "glimpse-card-actions";
+
+    const topButton = document.createElement("button");
+    topButton.type = "button";
+    topButton.className = "secondary compact";
+    topButton.dataset.glimpseTop = instanceId;
+    topButton.textContent = "TOP";
+
+    const bottomButton = document.createElement("button");
+    bottomButton.type = "button";
+    bottomButton.className = "secondary compact";
+    bottomButton.dataset.glimpseBottom = instanceId;
+    bottomButton.textContent = "BOTTOM";
+
+    actions.append(topButton, bottomButton);
+    item.append(imageWrap, name, meta, actions);
+    glimpseCardsGrid.append(item);
+  });
+
+  renderGlimpseDeckPile();
+}
+
+function renderGlimpseDeckPile() {
+  const librarySize = state.openingHandLibrary.length;
+  if (glimpseDeckCount) {
+    glimpseDeckCount.textContent = String(librarySize);
+  }
+  if (!glimpseDeckStack) {
+    return;
+  }
+  glimpseDeckStack.replaceChildren();
+  const layers = Math.min(4, librarySize);
+  for (let layer = 0; layer < layers; layer += 1) {
+    const back = document.createElement("span");
+    back.className = "opening-hand-card-back glimpse-deck-card-back";
+    back.style.setProperty("--stack-offset", `${layer * 2}px`);
+    glimpseDeckStack.append(back);
   }
 }
 
-function finishGlimpseReveal(placement = "top") {
-  const instanceId = state.openingHandGlimpseInstanceId;
+function finishGlimpseCard(instanceId, placement = "top") {
   if (!instanceId) {
     return;
   }
   const index = state.openingHandLibrary.findIndex((entry) => entry.instanceId === instanceId);
   if (index < 0) {
-    clearGlimpseReveal({ restore: false });
+    state.openingHandGlimpseIds = state.openingHandGlimpseIds.filter((id) => id !== instanceId);
     renderGlimpseDialog();
     return;
   }
@@ -6726,19 +6742,74 @@ function finishGlimpseReveal(placement = "top") {
   } else {
     state.openingHandLibrary.push(entry);
   }
+  state.openingHandGlimpseIds = state.openingHandGlimpseIds.filter((id) => id !== instanceId);
   const playBoard = getActiveOpeningHandBoard();
   updateOpeningHandDeckPile(playBoard);
   queueMultiplayerSeatPublish();
   showTryItToast(
     placement === "top"
-      ? `${entry.card?.name || "Card"} → top of deck`
-      : `${entry.card?.name || "Card"} → bottom of deck`,
+      ? `${entry.card?.name || "Card"} → TOP`
+      : `${entry.card?.name || "Card"} → BOTTOM`,
   );
-  clearGlimpseReveal({ restore: false });
   renderGlimpseDialog();
   if (state.openingHandLibrary.length === 0) {
     closeGlimpseDialog();
   }
+}
+
+function openOpeningHandDeckMenu(pileEl, board) {
+  closeOpeningHandCardMenu();
+  if (!pileEl || !board || board.dataset.mpReadonly === "true") {
+    return;
+  }
+  if (state.openingHandAwaitingSpirit) {
+    requireOpeningHandSpiritChosen();
+    return;
+  }
+  if (state.openingHandLibrary.length === 0) {
+    showTryItToast("Deck is empty");
+    return;
+  }
+
+  const menu = document.createElement("div");
+  menu.className = "opening-hand-card-menu";
+  menu.dataset.ohDeckMenu = "true";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", "Deck actions");
+
+  const addAction = (label, action) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "opening-hand-card-menu-item";
+    button.setAttribute("role", "menuitem");
+    button.textContent = label;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeOpeningHandCardMenu();
+      void action();
+    });
+    menu.append(button);
+  };
+
+  addAction("Glimpse", () => openGlimpseDialog(board));
+  addAction("Close", () => {});
+
+  pileEl.classList.add("is-menu-open");
+  document.body.append(menu);
+
+  const rect = pileEl.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  let left = rect.right + 8;
+  let top = rect.top;
+  if (left + menuRect.width > window.innerWidth - 8) {
+    left = Math.max(8, rect.left - menuRect.width - 8);
+  }
+  if (top + menuRect.height > window.innerHeight - 8) {
+    top = Math.max(8, window.innerHeight - menuRect.height - 8);
+  }
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
 }
 
 function setExtrasDialogFilter(filter) {
@@ -7358,7 +7429,7 @@ function updateOpeningHandDeckPile(board) {
     pile.setAttribute(
       "aria-label",
       state.openingHandLibrary.length
-        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; double-tap to glimpse; drag to Field, Graveyard, Memory, or Hand.`
+        ? `Draw from deck (${state.openingHandLibrary.length} left). Tap for Hand; double-tap for Glimpse; drag to Field, Graveyard, Memory, or Hand.`
         : "Deck is empty",
     );
   }
@@ -7809,8 +7880,11 @@ function enableTableCardHoldPreview(cardEl, entry) {
 }
 
 function closeOpeningHandCardMenu() {
-  document.querySelectorAll("[data-oh-card-menu]").forEach((el) => el.remove());
+  document.querySelectorAll("[data-oh-card-menu], [data-oh-deck-menu]").forEach((el) => el.remove());
   document.querySelectorAll(".opening-hand-card.is-menu-open").forEach((el) => {
+    el.classList.remove("is-menu-open");
+  });
+  document.querySelectorAll("[data-oh-deck-pile].is-menu-open").forEach((el) => {
     el.classList.remove("is-menu-open");
   });
 }
@@ -8320,7 +8394,7 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     ) {
       clearPendingDraw();
       lastTapAt = 0;
-      openGlimpseDialog(board);
+      openOpeningHandDeckMenu(pileEl, board);
       return;
     }
 
