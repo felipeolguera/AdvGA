@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.10";
+const APP_VERSION = "1.11";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -709,6 +709,7 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
+        <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
         <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
         <li><strong>Reco</strong> (below End turn) — Move all Memory cards back to Hand</li>
@@ -5893,8 +5894,8 @@ function applyOpeningHandCardFace(cardEl, entry) {
   const tableBoard = cardEl.closest("[data-opening-hand-board][data-mp-readonly='true']");
   if (tableBoard) {
     cardEl.title = facedown
-      ? "Hold 1s to reveal card"
-      : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
+      ? "Double-click or hold 1s to reveal card"
+      : `${entry.card?.name || "Card"} — double-click or hold 1s to enlarge`;
     return;
   }
   const zone = entry.zone || "hand";
@@ -7272,12 +7273,16 @@ function showOpeningHandCardPreview(entry, { revealFacedown = false } = {}) {
   closeButton.focus();
 }
 
-/** Tablet/host only: hold a card ~1s to open a full-size lightbox (reveals face-down too). */
+/** Opponent/readonly boards: double-tap or hold ~1s to open lightbox (reveals face-down too). */
 function enableTableCardHoldPreview(cardEl, entry) {
   let pointerId = null;
   let holdTimer = null;
   let originX = 0;
   let originY = 0;
+  let dragMoved = false;
+  let holdOpened = false;
+  let lastTapAt = 0;
+  let tapCount = 0;
 
   const clearHoldTimer = () => {
     if (holdTimer != null) {
@@ -7286,10 +7291,16 @@ function enableTableCardHoldPreview(cardEl, entry) {
     }
   };
 
+  const openPreview = () => {
+    showOpeningHandCardPreview(entry, { revealFacedown: true });
+  };
+
   const endHold = (event) => {
     if (pointerId != null && event?.pointerId != null && pointerId !== event.pointerId) {
       return;
     }
+    const wasHold = holdOpened;
+    const moved = dragMoved;
     pointerId = null;
     clearHoldTimer();
     try {
@@ -7302,6 +7313,26 @@ function enableTableCardHoldPreview(cardEl, entry) {
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", endHold);
     window.removeEventListener("pointercancel", endHold);
+
+    // Double-tap opens lightbox (same as local cards' peek affordance).
+    if (!wasHold && !moved) {
+      const now = Date.now();
+      if (now - lastTapAt > OPENING_HAND_TAP_WINDOW_MS) {
+        tapCount = 0;
+      }
+      tapCount += 1;
+      lastTapAt = now;
+      if (tapCount >= 2) {
+        tapCount = 0;
+        lastTapAt = 0;
+        openPreview();
+      }
+    } else {
+      tapCount = 0;
+      lastTapAt = 0;
+    }
+    holdOpened = false;
+    dragMoved = false;
   };
 
   const onPointerMove = (event) => {
@@ -7309,7 +7340,8 @@ function enableTableCardHoldPreview(cardEl, entry) {
       return;
     }
     if (Math.hypot(event.clientX - originX, event.clientY - originY) > 10) {
-      endHold(event);
+      dragMoved = true;
+      clearHoldTimer();
     }
   };
 
@@ -7322,6 +7354,8 @@ function enableTableCardHoldPreview(cardEl, entry) {
     pointerId = event.pointerId;
     originX = event.clientX;
     originY = event.clientY;
+    dragMoved = false;
+    holdOpened = false;
     clearHoldTimer();
     try {
       cardEl.setPointerCapture(event.pointerId);
@@ -7335,16 +7369,27 @@ function enableTableCardHoldPreview(cardEl, entry) {
     const holdPointerId = event.pointerId;
     holdTimer = window.setTimeout(() => {
       holdTimer = null;
-      if (pointerId !== holdPointerId) {
+      if (pointerId !== holdPointerId || dragMoved) {
         return;
       }
-      showOpeningHandCardPreview(entry, { revealFacedown: true });
+      holdOpened = true;
+      tapCount = 0;
+      lastTapAt = 0;
+      openPreview();
     }, TABLE_HOLD_PREVIEW_MS);
   });
 
+  cardEl.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    tapCount = 0;
+    lastTapAt = 0;
+    openPreview();
+  });
+
   cardEl.title = entry.facedown
-    ? "Hold 1s to reveal card"
-    : `${entry.card?.name || "Card"} — hold 1s to enlarge`;
+    ? "Double-click or hold 1s to reveal card"
+    : `${entry.card?.name || "Card"} — double-click or hold 1s to enlarge`;
 }
 
 function closeOpeningHandCardMenu() {
