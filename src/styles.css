@@ -1515,6 +1515,20 @@ body:has(.tryit-page.is-mp-dual) {
   display: grid;
   gap: 4px;
   padding: 16px 18px 22px;
+  touch-action: pan-x pan-y;
+}
+
+.tryit-playmat-panel.is-user-zoomed {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.tryit-page.is-mp-dual .tryit-playmat-panel.is-user-zoomed {
+  overflow: auto;
+}
+
+#tryit-root {
+  transform-origin: top center;
 }
 
 .tryit-empty {
