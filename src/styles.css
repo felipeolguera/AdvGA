@@ -2376,7 +2376,7 @@ body:has(.tryit-page.is-mp-dual) {
   height: var(--oh-board-height);
   min-height: var(--oh-board-height);
   max-height: var(--oh-board-height);
-  overflow: visible;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 18px;
   background-color: rgba(0, 0, 0, 0.16);

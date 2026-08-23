@@ -1148,6 +1148,20 @@ function applyTryItViewZoom() {
   }
   panel?.classList.toggle("is-user-zoomed", Math.abs(zoom - TRYIT_VIEW_ZOOM_DEFAULT) > 0.02);
   panel?.style.setProperty("--tryit-user-zoom", String(zoom));
+  // Zoom can exaggerate cards that sit slightly past zone edges — snap them back in.
+  document.querySelectorAll("[data-opening-hand-board]").forEach((board) => {
+    if (board.getClientRects().length === 0) {
+      return;
+    }
+    if (board.dataset.mpReadonly === "true" && board.dataset.mpSeat) {
+      const seatData = state.mp.seats[board.dataset.mpSeat];
+      if (seatData) {
+        withSeatBoardState(seatData, () => constrainOpeningHandCardsToZones(board));
+        return;
+      }
+    }
+    constrainOpeningHandCardsToZones(board);
+  });
 }
 
 function enableTryItPinchZoom() {
@@ -3793,6 +3807,7 @@ function renderMultiplayerDualPlay() {
 
   updateMultiplayerOpponentBoard(wrap);
   scheduleMultiplayerDualLayout(wrap);
+  applyTryItViewZoom();
 }
 
 function updateMultiplayerOpponentBoard(wrap = document.querySelector("[data-mp-dual]")) {
@@ -5844,7 +5859,7 @@ function getOpeningHandFieldPointFromClient(clientX, clientY, field) {
 }
 
 function clampOpeningHandFieldPosition(field, x, y, z = 1) {
-  const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
+  const maxX = Math.max(0, (field?.clientWidth || 0) - FREEHAND_CARD_WIDTH);
   const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
   const snapped = snapFreehandPosition({ x, y, z });
   return {
@@ -5852,6 +5867,112 @@ function clampOpeningHandFieldPosition(field, x, y, z = 1) {
     y: Math.min(maxY, Math.max(0, snapped.y)),
     z,
   };
+}
+
+function getOpeningHandCardVisualOffset(rotated = false) {
+  if (!rotated) {
+    return {
+      offsetX: 0,
+      offsetY: 0,
+      visualW: FREEHAND_CARD_WIDTH,
+      visualH: FREEHAND_CARD_HEIGHT,
+    };
+  }
+  // rotate(90deg) around center: visual AABB swaps width/height around the layout box.
+  return {
+    offsetX: (FREEHAND_CARD_WIDTH - FREEHAND_CARD_HEIGHT) / 2,
+    offsetY: (FREEHAND_CARD_HEIGHT - FREEHAND_CARD_WIDTH) / 2,
+    visualW: FREEHAND_CARD_HEIGHT,
+    visualH: FREEHAND_CARD_WIDTH,
+  };
+}
+
+function clampOpeningHandPositionToZone(
+  field,
+  zoneName,
+  x,
+  y,
+  z = 1,
+  { rotated = false } = {},
+) {
+  const zone = normalizeOpeningHandDropZone(zoneName);
+  if (!field || !zone || isOpeningHandDeckZone(zone) || zone === "material") {
+    return clampOpeningHandFieldPosition(field, x, y, z);
+  }
+  const box = getMeasuredZoneBox(field, zone);
+  if (!box) {
+    return clampOpeningHandFieldPosition(field, x, y, z);
+  }
+
+  const pad = 4;
+  const { offsetX, offsetY, visualW, visualH } = getOpeningHandCardVisualOffset(rotated);
+  const minVisualX = box.left + pad;
+  const maxVisualX = box.right - pad - visualW;
+  const minVisualY = box.top + pad;
+  const maxVisualY = box.bottom - pad - visualH;
+
+  let visualX = x + offsetX;
+  let visualY = y + offsetY;
+  if (maxVisualX < minVisualX) {
+    visualX = box.left + (box.width - visualW) / 2;
+  } else {
+    visualX = Math.min(maxVisualX, Math.max(minVisualX, visualX));
+  }
+  if (maxVisualY < minVisualY) {
+    visualY = box.top + (box.height - visualH) / 2;
+  } else {
+    visualY = Math.min(maxVisualY, Math.max(minVisualY, visualY));
+  }
+
+  const layoutX = visualX - offsetX;
+  const layoutY = visualY - offsetY;
+  // Avoid freehand snap here — it can push cards back outside the zone by up to SNAP/2.
+  const maxX = Math.max(0, (field?.clientWidth || 0) - FREEHAND_CARD_WIDTH);
+  const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
+  return {
+    x: Math.min(maxX, Math.max(0, layoutX)),
+    y: Math.min(maxY, Math.max(0, layoutY)),
+    z,
+  };
+}
+
+function constrainOpeningHandEntryToZone(field, entry) {
+  if (!field || !entry) {
+    return entry?.position || { x: 0, y: 0, z: 1 };
+  }
+  const zone = normalizeOpeningHandDropZone(entry.zone || "hand");
+  const position = entry.position || { x: 0, y: 0, z: 1 };
+  const next = clampOpeningHandPositionToZone(
+    field,
+    zone,
+    position.x || 0,
+    position.y || 0,
+    position.z || 1,
+    { rotated: Boolean(entry.rotated) && canRestOpeningHandCard(zone) },
+  );
+  entry.position = next;
+  return next;
+}
+
+function constrainOpeningHandCardsToZones(board = null) {
+  const playBoard = board || getActiveOpeningHandBoard();
+  const field = playBoard?.querySelector("[data-oh-field]");
+  if (!playBoard || !field) {
+    return;
+  }
+  layoutOpeningHandZones(field);
+  state.openingHandHand.forEach((entry) => {
+    const zone = entry.zone || "hand";
+    if (isOpeningHandDeckZone(zone)) {
+      return;
+    }
+    constrainOpeningHandEntryToZone(field, entry);
+    const cardEl = findOpeningHandCardElement(field, entry.instanceId);
+    if (cardEl) {
+      applyOpeningHandCardPosition(cardEl, entry);
+      applyOpeningHandCardRotation(cardEl, entry);
+    }
+  });
 }
 
 function normalizeOpeningHandDropZone(zone) {
@@ -6292,6 +6413,13 @@ function toggleOpeningHandCardRotation(cardEl, entry) {
   }
   entry.rotated = !entry.rotated;
   applyOpeningHandCardRotation(cardEl, entry);
+  const board = cardEl.closest("[data-opening-hand-board]");
+  const field = cardEl.closest("[data-oh-field]");
+  if (field) {
+    constrainOpeningHandEntryToZone(field, entry);
+    applyOpeningHandCardPosition(cardEl, entry);
+  }
+  void board;
   queueMultiplayerSeatPublish();
 }
 
@@ -7365,6 +7493,7 @@ function resizeOpeningHandField(board) {
   positionOpeningHandMaterialPile(board);
   positionOpeningHandExtrasButton(board);
   updateOpeningHandCounts(board);
+  constrainOpeningHandCardsToZones(board);
 }
 
 function delay(ms) {
@@ -8138,6 +8267,7 @@ async function moveOpeningHandCardToZone(board, entry, cardEl, zone) {
     } else if (targetZone === "field") {
       entry.position = getOpeningHandFieldSlot(field, siblings);
     }
+    constrainOpeningHandEntryToZone(field, entry);
     cardEl.classList.add("opening-hand-card-dealing");
     applyOpeningHandCardPosition(cardEl, entry);
     applyOpeningHandCardFace(cardEl, entry);
@@ -8330,11 +8460,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       clearTapActionTimer();
       closeOpeningHandCardMenu();
     }
-    const maxX = Math.max(0, field.clientWidth - FREEHAND_CARD_WIDTH);
-    const maxY = Math.max(0, OPENING_HAND_BOARD_HEIGHT - FREEHAND_CARD_HEIGHT);
-    const snapped = snapFreehandPosition({ x: nextX, y: nextY, z: 0 });
-    nextX = Math.min(maxX, Math.max(0, snapped.x));
-    nextY = Math.min(maxY, Math.max(0, snapped.y));
+    // While dragging, stay on the board; zone clamping happens on drop / zoom.
+    const clamped = clampOpeningHandFieldPosition(field, nextX, nextY, 0);
+    nextX = clamped.x;
+    nextY = clamped.y;
     cardEl.style.left = `${nextX}px`;
     cardEl.style.top = `${nextY}px`;
     syncFaceForPosition(field, nextX, nextY);
@@ -8406,6 +8535,15 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
     applyOpeningHandCardFace(cardEl, entry);
     applyOpeningHandCardRotation(cardEl, entry);
+    entry.position = clampOpeningHandPositionToZone(
+      field,
+      zone,
+      x,
+      y,
+      z,
+      { rotated: Boolean(entry.rotated) },
+    );
+    applyOpeningHandCardPosition(cardEl, entry);
     delete field.dataset.activeZone;
 
     if (zone === "champion" || previousZone === "champion") {
