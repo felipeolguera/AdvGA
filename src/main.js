@@ -87,7 +87,35 @@ const LIBRARY_SORT_OPTIONS = [
   { value: "cost-desc", label: "Cost high → low" },
   { value: "element-asc", label: "Element A → Z" },
   { value: "element-desc", label: "Element Z → A" },
+  { value: "rarity-desc", label: "Rarity high → low" },
+  { value: "rarity-asc", label: "Rarity low → high" },
+  { value: "type-asc", label: "Type A → Z" },
+  { value: "type-desc", label: "Type Z → A" },
 ];
+
+/** Higher number = rarer. Codes and full names from Grand Archive printings. */
+const RARITY_RANK = {
+  c: 10,
+  common: 10,
+  u: 20,
+  uncommon: 20,
+  r: 30,
+  rare: 30,
+  pr: 40,
+  promo: 40,
+  "promo rare": 40,
+  "promotional rare": 40,
+  sr: 50,
+  "super rare": 50,
+  ur: 60,
+  "ultra rare": 60,
+  cpr: 70,
+  "collector promo rare": 70,
+  csr: 80,
+  "collector super rare": 80,
+  cur: 90,
+  "collector ultra rare": 90,
+};
 
 const SORT_OPTIONS = [
   { label: "Name A-Z", sort: "name", order: "ASC" },
@@ -549,13 +577,7 @@ function getBuilderShellHtml() {
           </label>
           <label class="library-sort" for="library-sort">
             Sort
-            <select id="library-sort" class="summary-action" aria-label="Sort library results">
-              <option value="default">Default</option>
-              <option value="cost-asc">Cost low → high</option>
-              <option value="cost-desc">Cost high → low</option>
-              <option value="element-asc">Element A → Z</option>
-              <option value="element-desc">Element Z → A</option>
-            </select>
+            <select id="library-sort" class="summary-action" aria-label="Sort library results"></select>
           </label>
         </div>
       </summary>
@@ -1403,6 +1425,14 @@ function bootBuilderPage() {
     renderCards();
   });
   if (librarySortSelect) {
+    librarySortSelect.replaceChildren(
+      ...LIBRARY_SORT_OPTIONS.map((option) => {
+        const el = document.createElement("option");
+        el.value = option.value;
+        el.textContent = option.label;
+        return el;
+      }),
+    );
     librarySortSelect.value = state.librarySort;
   }
   libraryLoadAllCheckbox?.addEventListener("mousedown", (event) => {
@@ -10096,6 +10126,22 @@ function getSortedLibraryCards(cards) {
       if (mode === "element-desc") {
         comparison *= -1;
       }
+    } else if (mode === "rarity-asc" || mode === "rarity-desc") {
+      comparison = getCardSortRarityRank(left) - getCardSortRarityRank(right);
+      if (mode === "rarity-desc") {
+        comparison *= -1;
+      }
+      if (comparison === 0) {
+        comparison = getCardSortRarityLabel(left).localeCompare(getCardSortRarityLabel(right));
+        if (mode === "rarity-desc") {
+          comparison *= -1;
+        }
+      }
+    } else if (mode === "type-asc" || mode === "type-desc") {
+      comparison = getCardSortType(left).localeCompare(getCardSortType(right));
+      if (mode === "type-desc") {
+        comparison *= -1;
+      }
     }
 
     if (comparison !== 0) {
@@ -10115,6 +10161,43 @@ function getCardSortCost(card) {
 function getCardSortElement(card) {
   const elements = (card.elements || []).map((element) => normalizeText(element)).filter(Boolean);
   return elements.sort().join(" ") || "zzz";
+}
+
+function getCardSortRarityLabel(card) {
+  const rarities = getEditions(card)
+    .map((edition) => String(edition?.rarity || "").trim())
+    .filter(Boolean);
+  if (rarities.length === 0) {
+    return "";
+  }
+  // Prefer the highest-ranked printing when a card has multiple editions.
+  return [...rarities].sort(
+    (left, right) => getRarityRankValue(right) - getRarityRankValue(left),
+  )[0];
+}
+
+function getCardSortRarityRank(card) {
+  return getRarityRankValue(getCardSortRarityLabel(card));
+}
+
+function getRarityRankValue(rarity) {
+  const key = normalizeText(rarity);
+  if (!key) {
+    return 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(RARITY_RANK, key)) {
+    return RARITY_RANK[key];
+  }
+  // Unknown codes: keep them sorted after known tiers but stable by label.
+  return 5;
+}
+
+function getCardSortType(card) {
+  const types = (card.types || [])
+    .map((type) => normalizeText(type))
+    .filter(Boolean)
+    .sort();
+  return types.join(" ") || "zzz";
 }
 
 function createCardButton(card) {
