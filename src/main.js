@@ -27,6 +27,7 @@ const PRD_QUICK_SEARCH = "cards in PRD";
 const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
+const FREEHAND_DOUBLE_CLICK_MS = 500;
 const OPENING_HAND_FACE_FLIP_MS = 280;
 /** Resolve public assets to absolute URLs so CSS `url()` vars are not relative to the stylesheet. */
 function resolvePublicAssetUrl(relativePath) {
@@ -2956,7 +2957,8 @@ function createMainDeckFreehandBoard(sectionCards) {
 
   const hint = document.createElement("p");
   hint.className = "hint deck-freehand-hint";
-  hint.textContent = "Drag cards onto the grid to stack or arrange. Positions are kept when you leave Freehand mode.";
+  hint.textContent =
+    "Drag cards onto the grid to stack or arrange. Double-click a card to open the lightbox. Positions are kept when you leave Freehand mode.";
   board.append(hint);
 
   const instances = [];
@@ -2991,8 +2993,7 @@ function createFreehandDeckCard(card, instanceId, layoutIndex) {
   item.className = "deck-grid-card deck-freehand-card";
   item.dataset.freehandCard = instanceId;
   item.dataset.freehandIndex = String(layoutIndex);
-  item.dataset.deckLightbox = card.key;
-  item.title = `${card.name} — tap for details, drag to move`;
+  item.title = `${card.name} — double-click for details, drag to move`;
 
   // Provisional grid slot so cards are never stacked at 0,0 before measured layout.
   const provisional = estimateFreehandSlot(layoutIndex);
@@ -3151,6 +3152,17 @@ function enableFreehandDrag(cardEl, instanceId, card = null) {
   let originPointerX = 0;
   let originPointerY = 0;
   let dragMoved = false;
+  let lastTapAt = 0;
+  let tapCount = 0;
+
+  const openFreehandLightbox = () => {
+    if (!card || lightbox?.open) {
+      return;
+    }
+    tapCount = 0;
+    lastTapAt = 0;
+    void openDeckCardLightbox(card);
+  };
 
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId) {
@@ -3225,9 +3237,20 @@ function enableFreehandDrag(cardEl, instanceId, card = null) {
     state.mainDeckFreehandPositions[instanceId] = { x, y, z };
     saveMainDeckFreehandState();
 
-    // Tap (no drag) opens the deck-builder lightbox.
+    // Double-click / double-tap (no drag) opens the deck-builder lightbox.
     if (!dragMoved && card) {
-      void openDeckCardLightbox(card);
+      const now = Date.now();
+      if (now - lastTapAt > FREEHAND_DOUBLE_CLICK_MS) {
+        tapCount = 0;
+      }
+      tapCount += 1;
+      lastTapAt = now;
+      if (tapCount >= 2) {
+        openFreehandLightbox();
+      }
+    } else {
+      tapCount = 0;
+      lastTapAt = 0;
     }
   };
 
@@ -3261,6 +3284,12 @@ function enableFreehandDrag(cardEl, instanceId, card = null) {
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
+  });
+
+  cardEl.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openFreehandLightbox();
   });
 }
 
@@ -8881,6 +8910,10 @@ function handleDeckListClick(event) {
 
   const lightboxButton = event.target.closest("[data-deck-lightbox]");
   if (lightboxButton) {
+    // Freehand cards open the lightbox on double-click, not a single tap.
+    if (lightboxButton.closest("[data-freehand-card]")) {
+      return;
+    }
     event.preventDefault();
     const deckCard = state.deck.find((card) => card.key === lightboxButton.dataset.deckLightbox);
     if (deckCard) {
