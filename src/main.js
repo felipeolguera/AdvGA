@@ -20,7 +20,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.13";
+const APP_VERSION = "1.14";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -28,9 +28,6 @@ const TABLE_HOLD_PREVIEW_MS = 1000;
 const OPENING_HAND_DRAW_GLOW_MS = 3000;
 const OPENING_HAND_TAP_WINDOW_MS = 380;
 const OPENING_HAND_FACE_FLIP_MS = 280;
-const TRYIT_VIEW_ZOOM_MIN = 0.55;
-const TRYIT_VIEW_ZOOM_MAX = 2.4;
-const TRYIT_VIEW_ZOOM_DEFAULT = 1;
 /** Resolve public assets to absolute URLs so CSS `url()` vars are not relative to the stylesheet. */
 function resolvePublicAssetUrl(relativePath) {
   const baseUrl = new URL(import.meta.env.BASE_URL || "./", window.location.href);
@@ -283,8 +280,6 @@ const state = {
   },
   tryitMenuOpen: false,
   tryitToastTimer: null,
-  tryitViewZoom: TRYIT_VIEW_ZOOM_DEFAULT,
-  tryitPinchActive: false,
   searchFiltersOpen: false,
   status: "Loading Grand Archive card terms...",
   mp: {
@@ -737,7 +732,6 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
-        <li><strong>Pinch zoom</strong> — Pinch in/out on the playmat to zoom (Ctrl + scroll on desktop)</li>
         <li><strong>Graveyard</strong> — Double-tap a GY card to browse all graveyard cards and banish one</li>
         <li><strong>Deck glimpse</strong> — Double-tap the deck → Glimpse; enter how many cards to reveal privately, then Top/Bottom each</li>
         <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
@@ -746,6 +740,7 @@ function getTryItShellHtml() {
         <li><strong>Reco</strong> (below End turn) — Move all Memory cards back to Hand</li>
         <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
+        <li><strong>Triple-tap a card</strong> — Open lightbox to zoom in and read the card</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
         <li><strong>Deck pile</strong> — Tap to draw to Hand; double-tap for Glimpse; drag to Field, Memory, Graveyard, or Hand</li>
         <li><strong>Material pile</strong> — Open Material Deck; start by choosing your Spirit (Level 0 champion)</li>
@@ -1074,18 +1069,12 @@ function bootTryItPage() {
   page?.addEventListener("click", (event) => {
     handleTryItActionClick(event);
   });
-  enableTryItPinchZoom();
   document.addEventListener("click", (event) => {
     if (state.tryitMenuOpen && !event.target.closest("#tryit-menu")) {
       setTryItMenuOpen(false);
     }
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "0" && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      setTryItViewZoom(TRYIT_VIEW_ZOOM_DEFAULT, { announce: true });
-      return;
-    }
     if (event.key !== "Escape") {
       return;
     }
@@ -1125,185 +1114,6 @@ function bootTryItPage() {
   }
   state.mp.mode = "lobby";
   renderTryItPage();
-}
-
-function clampTryItViewZoom(zoom) {
-  const value = Number(zoom);
-  if (!Number.isFinite(value)) {
-    return TRYIT_VIEW_ZOOM_DEFAULT;
-  }
-  return Math.min(TRYIT_VIEW_ZOOM_MAX, Math.max(TRYIT_VIEW_ZOOM_MIN, value));
-}
-
-function getTryItZoomHost() {
-  return document.querySelector("#tryit-root");
-}
-
-function getTryItZoomPanel() {
-  return document.querySelector(".tryit-playmat-panel");
-}
-
-function setTryItViewZoom(zoom, { announce = false } = {}) {
-  const next = clampTryItViewZoom(zoom);
-  state.tryitViewZoom = next;
-  applyTryItViewZoom();
-  if (announce) {
-    showTryItToast(`${Math.round(next * 100)}%`);
-  }
-}
-
-function applyTryItViewZoom() {
-  const host = getTryItZoomHost();
-  const panel = getTryItZoomPanel();
-  if (!host) {
-    return;
-  }
-  const zoom = clampTryItViewZoom(state.tryitViewZoom);
-  state.tryitViewZoom = zoom;
-  if (typeof CSS !== "undefined" && CSS.supports?.("zoom", "1")) {
-    host.style.zoom = String(zoom);
-    host.style.transform = "";
-  } else {
-    host.style.zoom = "";
-    host.style.transform = `scale(${zoom})`;
-    host.style.transformOrigin = "top center";
-  }
-  panel?.classList.toggle("is-user-zoomed", Math.abs(zoom - TRYIT_VIEW_ZOOM_DEFAULT) > 0.02);
-  panel?.style.setProperty("--tryit-user-zoom", String(zoom));
-  // Zoom can exaggerate cards that sit slightly past zone edges — snap them back in.
-  document.querySelectorAll("[data-opening-hand-board]").forEach((board) => {
-    if (board.getClientRects().length === 0) {
-      return;
-    }
-    if (board.dataset.mpReadonly === "true" && board.dataset.mpSeat) {
-      const seatData = state.mp.seats[board.dataset.mpSeat];
-      if (seatData) {
-        withSeatBoardState(seatData, () => constrainOpeningHandCardsToZones(board));
-        return;
-      }
-    }
-    constrainOpeningHandCardsToZones(board);
-  });
-}
-
-function enableTryItPinchZoom() {
-  if (!IS_TRYIT_PAGE || document.documentElement.dataset.tryitPinchBound === "1") {
-    return;
-  }
-  document.documentElement.dataset.tryitPinchBound = "1";
-
-  const pointers = new Map();
-  let pinchStartDistance = 0;
-  let pinchStartZoom = TRYIT_VIEW_ZOOM_DEFAULT;
-  let pinchMoved = false;
-
-  const distanceBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-
-  const activePoints = () => [...pointers.values()];
-
-  const isInPlaymat = (clientX, clientY) => {
-    const panel = getTryItZoomPanel();
-    if (!panel) {
-      return false;
-    }
-    const rect = panel.getBoundingClientRect();
-    return (
-      clientX >= rect.left &&
-      clientX <= rect.right &&
-      clientY >= rect.top &&
-      clientY <= rect.bottom
-    );
-  };
-
-  const endPinch = () => {
-    const shouldAnnounce = pinchMoved;
-    state.tryitPinchActive = false;
-    pinchStartDistance = 0;
-    pinchMoved = false;
-    if (shouldAnnounce) {
-      showTryItToast(`${Math.round(state.tryitViewZoom * 100)}%`);
-    }
-  };
-
-  const onPointerDown = (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) {
-      return;
-    }
-    if (event.target.closest?.("dialog, .opening-hand-card-menu, .tryit-menu-panel")) {
-      return;
-    }
-    if (!isInPlaymat(event.clientX, event.clientY)) {
-      return;
-    }
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.size === 2) {
-      const [first, second] = activePoints();
-      pinchStartDistance = Math.max(1, distanceBetween(first, second));
-      pinchStartZoom = state.tryitViewZoom;
-      pinchMoved = false;
-      state.tryitPinchActive = true;
-      closeOpeningHandCardMenu();
-    }
-  };
-
-  const onPointerMove = (event) => {
-    if (!pointers.has(event.pointerId)) {
-      return;
-    }
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.size < 2 || pinchStartDistance <= 0) {
-      return;
-    }
-    const [first, second] = activePoints();
-    const distance = Math.max(1, distanceBetween(first, second));
-    const ratio = distance / pinchStartDistance;
-    if (Math.abs(ratio - 1) > 0.02) {
-      pinchMoved = true;
-    }
-    event.preventDefault();
-    setTryItViewZoom(pinchStartZoom * ratio);
-  };
-
-  const onPointerUp = (event) => {
-    if (!pointers.has(event.pointerId)) {
-      return;
-    }
-    pointers.delete(event.pointerId);
-    if (pointers.size < 2) {
-      endPinch();
-    }
-  };
-
-  const onWheel = (event) => {
-    if (!(event.ctrlKey || event.metaKey)) {
-      return;
-    }
-    if (!isInPlaymat(event.clientX, event.clientY)) {
-      return;
-    }
-    event.preventDefault();
-    const direction = event.deltaY > 0 ? -1 : 1;
-    const factor = direction > 0 ? 1.08 : 1 / 1.08;
-    setTryItViewZoom(state.tryitViewZoom * factor);
-  };
-
-  // Safari legacy gesture events (trackpad / older iOS).
-  const onGesture = (event) => {
-    if (!getTryItZoomPanel()) {
-      return;
-    }
-    event.preventDefault();
-  };
-
-  document.addEventListener("pointerdown", onPointerDown, true);
-  document.addEventListener("pointermove", onPointerMove, { capture: true, passive: false });
-  document.addEventListener("pointerup", onPointerUp, true);
-  document.addEventListener("pointercancel", onPointerUp, true);
-  document.addEventListener("wheel", onWheel, { capture: true, passive: false });
-  document.addEventListener("gesturestart", onGesture, { passive: false });
-  document.addEventListener("gesturechange", onGesture, { passive: false });
-  document.addEventListener("gestureend", onGesture, { passive: false });
-  applyTryItViewZoom();
 }
 
 function bootMultiplayerLayoutTest() {
@@ -3837,7 +3647,6 @@ function renderMultiplayerDualPlay() {
 
   updateMultiplayerOpponentBoard(wrap);
   scheduleMultiplayerDualLayout(wrap);
-  applyTryItViewZoom();
 }
 
 function updateMultiplayerOpponentBoard(wrap = document.querySelector("[data-mp-dual]")) {
@@ -4484,7 +4293,6 @@ function renderTryItPage() {
   }
 
   root.append(createOpeningHandBoard(sectionCards));
-  applyTryItViewZoom();
 }
 
 function handleTryItActionClick(event) {
@@ -8433,7 +8241,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerX = 0;
   let originPointerY = 0;
   let dragMoved = false;
-  let abortedForPinch = false;
   let lastTapAt = 0;
   let tapCount = 0;
   let tapActionTimer = null;
@@ -8446,13 +8253,12 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
   };
 
-  const restoreCardToStart = () => {
-    cardEl.style.left = `${startX}px`;
-    cardEl.style.top = `${startY}px`;
-    entry.position = { ...(entry.position || {}), x: startX, y: startY };
-    applyOpeningHandCardFace(cardEl, entry);
-    const field = cardEl.closest("[data-oh-field]");
-    delete field?.dataset.activeZone;
+  const openDoubleTapAction = (board) => {
+    if ((entry.zone || "hand") === "graveyard") {
+      openGraveyardDialog(board);
+      return;
+    }
+    openOpeningHandCardMenu(cardEl, entry, board);
   };
 
   const syncFaceForPosition = (field, x, y) => {
@@ -8473,11 +8279,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     if (pointerId !== event.pointerId) {
       return;
     }
-    if (state.tryitPinchActive) {
-      abortedForPinch = true;
-      restoreCardToStart();
-      return;
-    }
     const field = cardEl.closest("[data-oh-field]");
     if (!field) {
       return;
@@ -8490,7 +8291,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       clearTapActionTimer();
       closeOpeningHandCardMenu();
     }
-    // While dragging, stay on the board; zone clamping happens on drop / zoom.
+    // While dragging, stay on the board; zone clamping happens on drop / resize.
     const clamped = clampOpeningHandFieldPosition(field, nextX, nextY, 0);
     nextX = clamped.x;
     nextY = clamped.y;
@@ -8513,15 +8314,6 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
-
-    if (abortedForPinch || state.tryitPinchActive) {
-      abortedForPinch = false;
-      restoreCardToStart();
-      clearTapActionTimer();
-      tapCount = 0;
-      lastTapAt = 0;
-      return;
-    }
 
     const field = cardEl.closest("[data-oh-field]");
     const board = cardEl.closest("[data-opening-hand-board]");
@@ -8580,7 +8372,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       restackOpeningHandChampionCards(board);
     }
 
-    // Double-tap: Graveyard opens browse/banish dialog; otherwise card action menu.
+    // Double-tap → actions / GY browse (deferred). Triple-tap → lightbox zoom.
     if (!dragMoved) {
       setOpeningHandVoiceSelection(entry.instanceId, board);
       const now = Date.now();
@@ -8591,14 +8383,17 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       lastTapAt = now;
       clearTapActionTimer();
 
-      if (tapCount >= 2) {
+      if (tapCount >= 3) {
         tapCount = 0;
         lastTapAt = 0;
-        if ((entry.zone || "hand") === "graveyard") {
-          openGraveyardDialog(board);
-        } else {
-          openOpeningHandCardMenu(cardEl, entry, board);
-        }
+        showOpeningHandCardPreview(entry, { revealFacedown: true });
+      } else if (tapCount === 2) {
+        tapActionTimer = window.setTimeout(() => {
+          tapActionTimer = null;
+          tapCount = 0;
+          lastTapAt = 0;
+          openDoubleTapAction(board);
+        }, OPENING_HAND_TAP_WINDOW_MS + 40);
       }
     } else {
       clearTapActionTimer();
@@ -8615,14 +8410,10 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     if (event.button != null && event.button !== 0) {
       return;
     }
-    if (state.tryitPinchActive) {
-      return;
-    }
     event.preventDefault();
     event.stopPropagation();
     pointerId = event.pointerId;
     dragMoved = false;
-    abortedForPinch = false;
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -8701,12 +8492,6 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     if (pointerId !== event.pointerId || !ghost) {
       return;
     }
-    if (state.tryitPinchActive) {
-      moved = true;
-      clearPendingDraw();
-      cleanup();
-      return;
-    }
     const dx = event.clientX - originX;
     const dy = event.clientY - originY;
     if (Math.hypot(dx, dy) > 6) {
@@ -8726,18 +8511,6 @@ function enableOpeningHandDeckDrag(pileEl, board) {
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerCancel);
-
-    if (state.tryitPinchActive) {
-      clearPendingDraw();
-      cleanup();
-      lastTapAt = 0;
-      try {
-        pileEl.releasePointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-      return;
-    }
 
     const preview = syncDropZonePreview(event.clientX, event.clientY);
     let dropZone = "hand";
@@ -8827,9 +8600,6 @@ function enableOpeningHandDeckDrag(pileEl, board) {
       return;
     }
     if (event.button != null && event.button !== 0) {
-      return;
-    }
-    if (state.tryitPinchActive) {
       return;
     }
     event.preventDefault();
