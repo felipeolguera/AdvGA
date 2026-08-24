@@ -1295,6 +1295,13 @@ button.result-grid-add {
   gap: 16px;
 }
 
+/* Solo Playtest uses nearly the full viewport; dual mode stays edge-to-edge below. */
+.page-shell.tryit-page {
+  width: calc(100% - 16px);
+  max-width: none;
+  padding: 16px 0 20px;
+}
+
 .tryit-page-header {
   padding: 20px 22px;
 }
@@ -1514,7 +1521,19 @@ body:has(.tryit-page.is-mp-dual) {
 .tryit-playmat-panel {
   display: grid;
   gap: 4px;
-  padding: 16px 18px 22px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 8px 14px;
+}
+
+.tryit-page:not(.is-mp-dual) #tryit-root {
+  width: 100%;
+  min-width: 0;
+}
+
+.tryit-page:not(.is-mp-dual) .opening-hand-board {
+  width: 100%;
+  min-width: 0;
 }
 
 .tryit-empty {
@@ -3305,6 +3324,12 @@ body.deck-load-active {
   .page-shell {
     width: min(100% - 22px, 680px);
     padding: 28px 0;
+  }
+
+  .page-shell.tryit-page {
+    width: calc(100% - 8px);
+    max-width: none;
+    padding: 10px 0 12px;
   }
 
   .page-shell.tryit-page.is-mp-dual {
