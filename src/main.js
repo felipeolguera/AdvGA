@@ -732,7 +732,7 @@ function getTryItShellHtml() {
         <button class="icon-button" type="button" id="close-tryit-help-dialog" aria-label="Close help">×</button>
       </header>
       <ul class="tryit-help-list">
-        <li><strong>Graveyard</strong> — Double-tap a GY card to browse all graveyard cards and banish one</li>
+        <li><strong>Graveyard</strong> — Hold ~1s on the Graveyard (or a GY card) to browse all cards and banish</li>
         <li><strong>Deck glimpse</strong> — Double-tap the deck → Glimpse; enter how many cards to reveal privately, then Top/Bottom each</li>
         <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
         <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
@@ -5348,6 +5348,9 @@ function createOpeningHandBoard(
   updateOpeningHandDamageCounter(board);
   updateTryItTurnLabel();
   updateMultiplayerChrome();
+  if (!readonly) {
+    enableOpeningHandGraveyardHold(board);
+  }
 
   if (!skipDeal && !readonly) {
     // Cancel any deal tied to a previous board instance (home↔fullscreen remount).
@@ -6178,7 +6181,9 @@ function applyOpeningHandCardFace(cardEl, entry) {
                 : "Board";
   cardEl.title = facedown
     ? `Face-down (${zoneLabel}) — double-tap for actions`
-    : `${entry.card?.name || "Card"} — double-tap for actions`;
+    : zone === "graveyard"
+      ? `${entry.card?.name || "Card"} — hold to browse Graveyard`
+      : `${entry.card?.name || "Card"} — double-tap for actions`;
 }
 
 function setOpeningHandCardFacedown(cardEl, entry, facedown) {
@@ -6620,6 +6625,93 @@ function openGraveyardDialog(board = null) {
   if (!graveyardDialog.open) {
     graveyardDialog.showModal();
   }
+}
+
+/** Hold ~1s on the Graveyard zone to browse / banish (replaces double-tap-on-card). */
+function enableOpeningHandGraveyardHold(board) {
+  if (!board || board.dataset.mpReadonly === "true") {
+    return;
+  }
+  const zone = board.querySelector('[data-oh-zone="graveyard"]');
+  if (!zone || zone.dataset.ohGyHoldBound === "1") {
+    return;
+  }
+  zone.dataset.ohGyHoldBound = "1";
+  zone.classList.add("is-hold-target");
+  zone.setAttribute("role", "button");
+  zone.setAttribute("aria-label", "Hold to browse graveyard");
+  zone.removeAttribute("aria-hidden");
+
+  let pointerId = null;
+  let holdTimer = null;
+  let originX = 0;
+  let originY = 0;
+
+  const clearHoldTimer = () => {
+    if (holdTimer != null) {
+      window.clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+  };
+
+  const cleanup = (event) => {
+    if (pointerId != null && event?.pointerId != null && pointerId !== event.pointerId) {
+      return;
+    }
+    clearHoldTimer();
+    zone.classList.remove("is-holding");
+    try {
+      if (event?.pointerId != null) {
+        zone.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // ignore
+    }
+    pointerId = null;
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", cleanup);
+    window.removeEventListener("pointercancel", cleanup);
+  };
+
+  const onPointerMove = (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    if (Math.hypot(event.clientX - originX, event.clientY - originY) > 10) {
+      cleanup(event);
+    }
+  };
+
+  zone.addEventListener("pointerdown", (event) => {
+    if (event.button != null && event.button !== 0) {
+      return;
+    }
+    // Cards stacked in GY capture their own holds; zone covers empty gaps.
+    if (event.target.closest?.("[data-oh-card]")) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pointerId = event.pointerId;
+    originX = event.clientX;
+    originY = event.clientY;
+    zone.classList.add("is-holding");
+    try {
+      zone.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    clearHoldTimer();
+    holdTimer = window.setTimeout(() => {
+      holdTimer = null;
+      zone.classList.remove("is-holding");
+      pointerId = null;
+      openGraveyardDialog(board);
+    }, TABLE_HOLD_PREVIEW_MS);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  });
 }
 
 function getOpeningHandGraveyardEntries() {
@@ -8241,6 +8333,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
   let originPointerX = 0;
   let originPointerY = 0;
   let dragMoved = false;
+  let holdTimer = null;
+  let holdOpened = false;
   let lastTapAt = 0;
   let tapCount = 0;
   let tapActionTimer = null;
@@ -8253,12 +8347,11 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
   };
 
-  const openDoubleTapAction = (board) => {
-    if ((entry.zone || "hand") === "graveyard") {
-      openGraveyardDialog(board);
-      return;
+  const clearHoldTimer = () => {
+    if (holdTimer != null) {
+      window.clearTimeout(holdTimer);
+      holdTimer = null;
     }
-    openOpeningHandCardMenu(cardEl, entry, board);
   };
 
   const syncFaceForPosition = (field, x, y) => {
@@ -8275,6 +8368,21 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
   };
 
+  const abortPointerForHold = (event) => {
+    pointerId = null;
+    cardEl.classList.remove("dragging");
+    try {
+      cardEl.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+    const field = cardEl.closest("[data-oh-field]");
+    delete field?.dataset.activeZone;
+  };
+
   const onPointerMove = (event) => {
     if (pointerId !== event.pointerId) {
       return;
@@ -8288,6 +8396,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     let nextY = startY + (event.clientY - originPointerY) / scale.y;
     if (Math.hypot(event.clientX - originPointerX, event.clientY - originPointerY) > 8) {
       dragMoved = true;
+      clearHoldTimer();
       clearTapActionTimer();
       closeOpeningHandCardMenu();
     }
@@ -8306,6 +8415,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     }
     pointerId = null;
     cardEl.classList.remove("dragging");
+    clearHoldTimer();
     try {
       cardEl.releasePointerCapture(event.pointerId);
     } catch {
@@ -8314,6 +8424,14 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
+
+    if (holdOpened) {
+      holdOpened = false;
+      clearTapActionTimer();
+      tapCount = 0;
+      lastTapAt = 0;
+      return;
+    }
 
     const field = cardEl.closest("[data-oh-field]");
     const board = cardEl.closest("[data-opening-hand-board]");
@@ -8372,7 +8490,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
       restackOpeningHandChampionCards(board);
     }
 
-    // Double-tap → actions / GY browse (deferred). Triple-tap → lightbox zoom.
+    // Double-tap → actions. Triple-tap → lightbox zoom.
+    // Graveyard browse is hold (~1s), not double-tap.
     if (!dragMoved) {
       setOpeningHandVoiceSelection(entry.instanceId, board);
       const now = Date.now();
@@ -8392,7 +8511,7 @@ function enableOpeningHandCardDrag(cardEl, entry) {
           tapActionTimer = null;
           tapCount = 0;
           lastTapAt = 0;
-          openDoubleTapAction(board);
+          openOpeningHandCardMenu(cardEl, entry, board);
         }, OPENING_HAND_TAP_WINDOW_MS + 40);
       }
     } else {
@@ -8414,6 +8533,8 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     event.stopPropagation();
     pointerId = event.pointerId;
     dragMoved = false;
+    holdOpened = false;
+    clearHoldTimer();
     startX = Number.parseFloat(cardEl.style.left) || 0;
     startY = Number.parseFloat(cardEl.style.top) || 0;
     originPointerX = event.clientX;
@@ -8431,6 +8552,20 @@ function enableOpeningHandCardDrag(cardEl, entry) {
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
+
+    // Hold on a graveyard card opens the browse/banish dialog.
+    if ((entry.zone || "hand") === "graveyard") {
+      const board = cardEl.closest("[data-opening-hand-board]");
+      holdTimer = window.setTimeout(() => {
+        holdTimer = null;
+        if (pointerId == null || dragMoved) {
+          return;
+        }
+        holdOpened = true;
+        abortPointerForHold(event);
+        openGraveyardDialog(board);
+      }, TABLE_HOLD_PREVIEW_MS);
+    }
   });
 }
 
