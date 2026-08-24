@@ -35,6 +35,11 @@ body {
     linear-gradient(135deg, #100f18 0%, #191827 48%, #111017 100%);
 }
 
+body[data-page="tryit"] #app {
+  width: 100%;
+  max-width: none;
+}
+
 button,
 input {
   font: inherit;
@@ -1295,15 +1300,16 @@ button.result-grid-add {
   gap: 16px;
 }
 
-/* Solo Playtest uses nearly the full viewport; dual mode stays edge-to-edge below. */
+/* Solo Playtest spans the viewport; dual mode stays edge-to-edge below. */
 .page-shell.tryit-page {
-  width: calc(100% - 16px);
+  width: 100%;
   max-width: none;
-  padding: 16px 0 20px;
+  margin: 0;
+  padding: 8px 8px 12px;
 }
 
 .tryit-page-header {
-  padding: 20px 22px;
+  padding: 12px 16px;
 }
 
 .tryit-chrome-slim {
@@ -1523,7 +1529,7 @@ body:has(.tryit-page.is-mp-dual) {
   gap: 4px;
   width: 100%;
   min-width: 0;
-  padding: 10px 8px 14px;
+  padding: 8px 6px 10px;
 }
 
 .tryit-page:not(.is-mp-dual) #tryit-root {
@@ -3327,9 +3333,10 @@ body.deck-load-active {
   }
 
   .page-shell.tryit-page {
-    width: calc(100% - 8px);
+    width: 100%;
     max-width: none;
-    padding: 10px 0 12px;
+    margin: 0;
+    padding: 6px 6px 8px;
   }
 
   .page-shell.tryit-page.is-mp-dual {
