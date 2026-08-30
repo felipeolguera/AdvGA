@@ -359,33 +359,37 @@ function getBuilderShellHtml() {
                   placeholder="hand AND memory"
                 />
               </label>
-              <label>
+              <div class="search-filter-field">
                 Set
-                <select id="quick-filter-set" name="set">
-                  <option value="">Any</option>
-                </select>
-              </label>
-              <label>
+                <div class="multi-select" id="quick-filter-set" data-placeholder="Any">
+                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Sets"></div>
+                </div>
+              </div>
+              <div class="search-filter-field">
                 Element
-                <select id="quick-filter-element" name="element">
-                  <option value="">Any</option>
-                </select>
-              </label>
-              <label>
+                <div class="multi-select" id="quick-filter-element" data-placeholder="Any">
+                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Elements"></div>
+                </div>
+              </div>
+              <div class="search-filter-field">
                 Type
-                <select id="quick-filter-type" name="type">
-                  <option value="">Any</option>
-                </select>
-              </label>
-              <label>
+                <div class="multi-select" id="quick-filter-type" data-placeholder="Any">
+                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Types"></div>
+                </div>
+              </div>
+              <div class="search-filter-field">
                 Subtype
-                <select id="quick-filter-subtype" name="subtype">
-                  <option value="">Any</option>
-                </select>
-              </label>
+                <div class="multi-select" id="quick-filter-subtype" data-placeholder="Any">
+                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Subtypes"></div>
+                </div>
+              </div>
             </div>
             <p class="hint search-filter-hint">
-              Use <strong>AND</strong> in Effect to require multiple words (example: <code>hand AND memory</code>). Pick a Set to browse one release (try <code>PRD</code>).
+              Use <strong>AND</strong> in Effect to require multiple words (example: <code>hand AND memory</code>). Check more than one Set, Element, Type, or Subtype to include any of them (Fire + Normal, or multiple Asphodel sets).
             </p>
             <div class="search-filter-actions">
               <button type="button" id="apply-search-filters">Apply filters</button>
@@ -1252,11 +1256,15 @@ function bootBuilderPage() {
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    closeAllMultiSelects();
     runSearch(input.value.trim(), { reset: true, remember: true, scrollToLibrary: true });
   });
 
   toggleSearchFiltersButton.addEventListener("click", () => {
     state.searchFiltersOpen = !state.searchFiltersOpen;
+    if (!state.searchFiltersOpen) {
+      closeAllMultiSelects();
+    }
     updateSearchFiltersVisibility();
     if (state.searchFiltersOpen) {
       quickFilterEffect.focus();
@@ -1264,6 +1272,7 @@ function bootBuilderPage() {
   });
 
   applySearchFiltersButton.addEventListener("click", () => {
+    closeAllMultiSelects();
     runSearch(input.value.trim(), {
       reset: true,
       remember: Boolean(input.value.trim()),
@@ -1273,13 +1282,15 @@ function bootBuilderPage() {
 
   clearSearchFiltersButton.addEventListener("click", () => {
     quickFilterEffect.value = "";
-    quickFilterSet.value = "";
-    quickFilterElement.value = "";
-    quickFilterType.value = "";
-    quickFilterSubtype.value = "";
+    clearMultiSelect(quickFilterSet);
+    clearMultiSelect(quickFilterElement);
+    clearMultiSelect(quickFilterType);
+    clearMultiSelect(quickFilterSubtype);
     updateSearchFiltersButtonState();
     runSearch(input.value.trim(), { reset: true, remember: false, scrollToLibrary: true });
   });
+
+  bindQuickFilterMultiSelects();
 
   [quickFilterEffect, quickFilterSet, quickFilterElement, quickFilterType, quickFilterSubtype].forEach((field) => {
     field?.addEventListener("change", updateSearchFiltersButtonState);
@@ -2262,19 +2273,19 @@ function parseEffectAndTerms(effectValue) {
 function hasActiveQuickFilters() {
   return Boolean(
     quickFilterEffect?.value.trim() ||
-      quickFilterSet?.value ||
-      quickFilterElement?.value ||
-      quickFilterType?.value ||
-      quickFilterSubtype?.value,
+      getMultiSelectValues(quickFilterSet).length ||
+      getMultiSelectValues(quickFilterElement).length ||
+      getMultiSelectValues(quickFilterType).length ||
+      getMultiSelectValues(quickFilterSubtype).length,
   );
 }
 
 function applyQuickFilters(parsed) {
   const effectValue = quickFilterEffect?.value.trim() || "";
-  const setPrefix = quickFilterSet?.value || "";
-  const element = quickFilterElement?.value || "";
-  const type = quickFilterType?.value || "";
-  const subtype = quickFilterSubtype?.value || "";
+  const setPrefixes = getMultiSelectValues(quickFilterSet);
+  const elements = getMultiSelectValues(quickFilterElement);
+  const types = getMultiSelectValues(quickFilterType);
+  const subtypes = getMultiSelectValues(quickFilterSubtype);
 
   if (effectValue) {
     const terms = parseEffectAndTerms(effectValue);
@@ -2287,38 +2298,64 @@ function applyQuickFilters(parsed) {
     parsed.effectTerms = [];
   }
 
-  if (setPrefix) {
-    parsed.filters.prefix = [setPrefix];
-    upsertQuickFilterLabel(parsed, "Set", setPrefix, formatSetOptionLabel(
-      state.options.set.find((option) => option.value === setPrefix) || {
-        value: setPrefix,
-        text: setPrefix,
-      },
-    ));
+  if (setPrefixes.length > 0) {
+    parsed.filters.prefix = setPrefixes;
+    upsertQuickFilterLabels(
+      parsed,
+      "Set",
+      setPrefixes.map((value) => ({
+        value,
+        text: formatSetOptionLabel(
+          state.options.set.find((option) => option.value === value) || {
+            value,
+            text: value,
+          },
+        ),
+      })),
+    );
   }
-  if (element) {
-    parsed.filters.element = [element];
-    upsertQuickFilterLabel(parsed, "Element", element, titleCase(element));
+  if (elements.length > 0) {
+    parsed.filters.element = elements;
+    upsertQuickFilterLabels(
+      parsed,
+      "Element",
+      elements.map((value) => ({ value, text: titleCase(value) })),
+    );
   }
-  if (type) {
-    parsed.filters.type = [type];
-    upsertQuickFilterLabel(parsed, "Type", type, titleCase(type));
+  if (types.length > 0) {
+    parsed.filters.type = types;
+    upsertQuickFilterLabels(
+      parsed,
+      "Type",
+      types.map((value) => ({ value, text: titleCase(value) })),
+    );
   }
-  if (subtype) {
-    parsed.filters.subtype = [subtype];
-    upsertQuickFilterLabel(parsed, "Subtype", subtype, titleCase(subtype));
+  if (subtypes.length > 0) {
+    parsed.filters.subtype = subtypes;
+    upsertQuickFilterLabels(
+      parsed,
+      "Subtype",
+      subtypes.map((value) => ({ value, text: titleCase(value) })),
+    );
   }
 
   return parsed;
 }
 
 function upsertQuickFilterLabel(parsed, field, value, text) {
+  upsertQuickFilterLabels(parsed, field, [{ value, text }]);
+}
+
+function upsertQuickFilterLabels(parsed, field, entries) {
   parsed.matchedLabels = parsed.matchedLabels.filter((match) => match.field !== field);
+  if (!entries?.length) {
+    return;
+  }
   parsed.matchedLabels.push({
     field,
-    phrases: [value, text],
-    text,
-    value,
+    phrases: entries.flatMap((entry) => [entry.value, entry.text]),
+    text: entries.map((entry) => entry.text).join(", "),
+    value: entries.map((entry) => entry.value).join(","),
   });
 }
 
@@ -2469,10 +2506,10 @@ function renderAdvancedOptions() {
     STAT_DEFINITIONS.map((stat) => ({ text: stat.label, value: stat.key })),
     "No stat filter",
   );
-  fillSelect("#quick-filter-set", sortSetsForDisplay(state.options.set), "Any", formatSetOptionLabel);
-  fillSelect("#quick-filter-element", state.options.element, "Any");
-  fillSelect("#quick-filter-type", state.options.type, "Any");
-  fillSelect("#quick-filter-subtype", state.options.subtype, "Any");
+  fillMultiSelect(quickFilterSet, sortSetsForDisplay(state.options.set), formatSetOptionLabel);
+  fillMultiSelect(quickFilterElement, state.options.element);
+  fillMultiSelect(quickFilterType, state.options.type);
+  fillMultiSelect(quickFilterSubtype, state.options.subtype);
 }
 
 function renderSearchSuggestions() {
@@ -2508,6 +2545,128 @@ function fillSelect(selector, options, placeholder, formatLabel = null) {
       : option.display || option.text || option.value;
     select.append(createOption(option.value, label));
   }
+}
+
+function getMultiSelectValues(root) {
+  if (!root) {
+    return [];
+  }
+  return [...root.querySelectorAll('input[type="checkbox"]:checked')]
+    .map((inputEl) => inputEl.value)
+    .filter(Boolean);
+}
+
+function clearMultiSelect(root) {
+  if (!root) {
+    return;
+  }
+  root.querySelectorAll('input[type="checkbox"]').forEach((inputEl) => {
+    inputEl.checked = false;
+  });
+  updateMultiSelectToggle(root);
+  closeMultiSelect(root);
+}
+
+function fillMultiSelect(root, options, formatLabel = null) {
+  if (!root) {
+    return;
+  }
+  const panel = root.querySelector(".multi-select-panel");
+  if (!panel) {
+    return;
+  }
+  const selected = new Set(getMultiSelectValues(root));
+  panel.replaceChildren();
+  for (const option of options || []) {
+    const label = formatLabel
+      ? formatLabel(option)
+      : option.display || option.text || option.value;
+    const row = document.createElement("label");
+    row.className = "multi-select-option";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = option.value;
+    checkbox.checked = selected.has(option.value);
+    const text = document.createElement("span");
+    text.textContent = label;
+    row.append(checkbox, text);
+    panel.append(row);
+  }
+  updateMultiSelectToggle(root);
+}
+
+function updateMultiSelectToggle(root) {
+  const toggle = root?.querySelector(".multi-select-toggle");
+  if (!toggle) {
+    return;
+  }
+  const placeholder = root.dataset.placeholder || "Any";
+  const selectedLabels = [...root.querySelectorAll(".multi-select-option")]
+    .filter((row) => row.querySelector("input")?.checked)
+    .map((row) => row.querySelector("span")?.textContent?.trim())
+    .filter(Boolean);
+  toggle.textContent =
+    selectedLabels.length === 0
+      ? placeholder
+      : selectedLabels.length <= 2
+        ? selectedLabels.join(", ")
+        : `${selectedLabels[0]}, ${selectedLabels[1]} +${selectedLabels.length - 2}`;
+  toggle.classList.toggle("has-selection", selectedLabels.length > 0);
+}
+
+function setMultiSelectOpen(root, open) {
+  if (!root) {
+    return;
+  }
+  const toggle = root.querySelector(".multi-select-toggle");
+  const panel = root.querySelector(".multi-select-panel");
+  if (!toggle || !panel) {
+    return;
+  }
+  panel.hidden = !open;
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  root.classList.toggle("is-open", open);
+}
+
+function closeMultiSelect(root) {
+  setMultiSelectOpen(root, false);
+}
+
+function closeAllMultiSelects(except = null) {
+  document.querySelectorAll(".multi-select.is-open").forEach((root) => {
+    if (root !== except) {
+      closeMultiSelect(root);
+    }
+  });
+}
+
+function bindQuickFilterMultiSelects() {
+  const roots = [quickFilterSet, quickFilterElement, quickFilterType, quickFilterSubtype].filter(Boolean);
+  roots.forEach((root) => {
+    const toggle = root.querySelector(".multi-select-toggle");
+    toggle?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const nextOpen = !root.classList.contains("is-open");
+      closeAllMultiSelects(root);
+      setMultiSelectOpen(root, nextOpen);
+    });
+    root.addEventListener("change", () => {
+      updateMultiSelectToggle(root);
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".multi-select")) {
+      return;
+    }
+    closeAllMultiSelects();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeAllMultiSelects();
+    }
+  });
 }
 
 function formatSetOptionLabel(option) {
