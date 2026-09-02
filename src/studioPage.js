@@ -4,6 +4,18 @@ const DEFAULT_GROUPS = [
   { id: "payoff", name: "Payoff" },
   { id: "maybe", name: "Maybe / Cuts" },
 ];
+const STUDIO_MIN_QTY = 1;
+const STUDIO_MAX_QTY = 4;
+const STUDIO_TOAST_MS = 2400;
+const STUDIO_ADDED_MS = 2200;
+
+function clampStudioQty(value) {
+  const quantity = Math.round(Number(value));
+  if (!Number.isFinite(quantity) || quantity < STUDIO_MIN_QTY) {
+    return STUDIO_MIN_QTY;
+  }
+  return Math.min(STUDIO_MAX_QTY, quantity);
+}
 
 export function getStudioShellHtml({ appVersion, builderUrl }) {
   return `
@@ -90,7 +102,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
         <button type="button" data-studio-example="unique allies in PRD">unique allies in PRD</button>
       </div>
-      <p class="hint studio-search-status" id="studio-search-status">Search to fill the tray, then add cards to a pile.</p>
+      <p class="hint studio-search-status" id="studio-search-status">Search to fill the tray, then pick 1–4 to add a card to the selected pile.</p>
       <div class="studio-tray" id="studio-tray" aria-label="Search results tray"></div>
       <div class="studio-tray-actions">
         <button class="ghost compact hidden" type="button" id="studio-load-more">Load more</button>
@@ -108,11 +120,15 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       <aside class="panel studio-inspector" id="studio-inspector" aria-label="Card info"></aside>
     </div>
   </main>
+  <div class="studio-toast" id="studio-toast" role="status" aria-live="polite" hidden></div>
   `;
 }
 
 export function bootStudioPage(api) {
   const studio = loadStudioState();
+  const addedFeedback = {};
+  const addedFeedbackTimers = {};
+  let toastTimer = 0;
   const tray = {
     cards: [],
     page: 1,
@@ -206,6 +222,7 @@ export function bootStudioPage(api) {
     }
     studio.groups = DEFAULT_GROUPS.map((group) => ({ ...group, cardKeys: [] }));
     studio.cards = {};
+    studio.quantities = {};
     studio.selectedKey = "";
     studio.activeGroupId = studio.groups[0].id;
     persist();
@@ -268,7 +285,7 @@ export function bootStudioPage(api) {
       tray.parsed = null;
       tray.query = "";
       tray.reachedEnd = true;
-      statusEl.textContent = "Search to fill the tray, then add cards to a pile.";
+      statusEl.textContent = "Search to fill the tray, then pick 1–4 to add a card to the selected pile.";
       renderTray();
       return;
     }
@@ -293,7 +310,7 @@ export function bootStudioPage(api) {
       tray.reachedEnd = typeof hasMore === "boolean" ? !hasMore : cards.length < 50;
       const totalLabel = Number.isFinite(totalCards) ? ` of ${totalCards}` : "";
       statusEl.textContent = tray.cards.length
-        ? `${tray.cards.length}${totalLabel} in the tray · click to inspect, + to pile`
+        ? `${tray.cards.length}${totalLabel} in the tray · click to inspect, pick 1–4 to pile`
         : "No cards matched that search.";
     } catch (error) {
       console.error(error);
@@ -318,11 +335,16 @@ export function bootStudioPage(api) {
     loadMoreButton.textContent = tray.loading ? "Loading..." : "Load more";
   }
 
+  function groupQuantity(group) {
+    return group.cardKeys.reduce((total, key) => total + getQuantity(key), 0);
+  }
+
   function renderBoard() {
     boardEl.replaceChildren();
     let total = 0;
     for (const group of studio.groups) {
-      total += group.cardKeys.length;
+      const pileCount = groupQuantity(group);
+      total += pileCount;
       const pile = document.createElement("section");
       pile.className = "studio-pile";
       pile.dataset.studioPile = group.id;
@@ -332,7 +354,7 @@ export function bootStudioPage(api) {
       const title = document.createElement("button");
       title.type = "button";
       title.className = "studio-pile-title";
-      title.textContent = `${group.name} (${group.cardKeys.length})`;
+      title.textContent = `${group.name} (${pileCount})`;
       title.addEventListener("click", () => {
         studio.activeGroupId = group.id;
         persist();
@@ -446,13 +468,32 @@ export function bootStudioPage(api) {
     const actions = document.createElement("div");
     actions.className = "studio-inspector-actions";
     const onBoard = studio.groups.some((group) => group.cardKeys.includes(api.getCardKey(card)));
+    const qtyLabel = document.createElement("label");
+    qtyLabel.className = "studio-inspector-qty";
+    qtyLabel.append("Qty");
+    const qtySelect = createQuantitySelect({
+      includePlaceholder: !onBoard,
+      value: onBoard ? getQuantity(api.getCardKey(card)) : "",
+      ariaLabel: `Copies of ${card.name}`,
+      className: "studio-inspector-qty-select",
+    });
+    qtyLabel.append(qtySelect);
+    actions.append(qtyLabel);
     if (!onBoard) {
       const add = document.createElement("button");
       add.type = "button";
       add.textContent = `Add to ${activeGroup()?.name || "pile"}`;
-      add.addEventListener("click", () => addCardToGroup(api.getCardKey(card), studio.activeGroupId));
+      add.addEventListener("click", () => {
+        addCardToGroup(api.getCardKey(card), studio.activeGroupId, Number(qtySelect.value) || 1);
+      });
       actions.append(add);
     } else {
+      qtySelect.addEventListener("change", () => {
+        addCardToGroup(api.getCardKey(card), findGroupIdForCard(api.getCardKey(card)), Number(qtySelect.value), {
+          notify: true,
+          updated: true,
+        });
+      });
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "ghost";
@@ -465,17 +506,21 @@ export function bootStudioPage(api) {
 
   function createMiniCard(card, { inTray = false, groupId = "" } = {}) {
     const key = api.getCardKey(card);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "studio-card";
-    button.classList.toggle("is-selected", key === studio.selectedKey);
-    button.draggable = true;
-    button.title = card.name;
-    button.addEventListener("dragstart", (event) => {
+    const item = document.createElement("article");
+    item.className = "studio-card";
+    item.classList.toggle("is-selected", key === studio.selectedKey);
+    item.draggable = true;
+    item.title = card.name;
+    item.addEventListener("dragstart", (event) => {
       event.dataTransfer.setData("text/plain", key);
       event.dataTransfer.effectAllowed = "copyMove";
     });
-    button.addEventListener("click", () => {
+
+    const imageButton = document.createElement("button");
+    imageButton.type = "button";
+    imageButton.className = "studio-card-image";
+    imageButton.setAttribute("aria-label", `Inspect ${card.name}`);
+    imageButton.addEventListener("click", () => {
       studio.selectedKey = key;
       rememberCard(card);
       persist();
@@ -484,10 +529,10 @@ export function bootStudioPage(api) {
       renderInspector();
     });
     if (inTray) {
-      button.addEventListener("dblclick", (event) => {
+      imageButton.addEventListener("dblclick", (event) => {
         event.preventDefault();
         rememberCard(card);
-        addCardToGroup(key, studio.activeGroupId);
+        addCardToGroup(key, studio.activeGroupId, 1);
       });
     }
 
@@ -497,38 +542,89 @@ export function bootStudioPage(api) {
       image.src = imageUrl;
       image.alt = card.name;
       image.draggable = false;
-      button.append(image);
+      imageButton.append(image);
     } else {
-      button.append(api.createPlaceholder(card.name));
+      imageButton.append(api.createPlaceholder(card.name));
     }
+    item.append(imageButton);
 
     if (inTray) {
-      const add = document.createElement("span");
-      add.className = "studio-card-add";
-      add.textContent = "+";
-      add.title = `Add to ${activeGroup()?.name || "pile"}`;
-      add.addEventListener("click", (event) => {
-        event.stopPropagation();
-        rememberCard(card);
-        addCardToGroup(key, studio.activeGroupId);
+      const qtySelect = createQuantitySelect({
+        includePlaceholder: true,
+        value: "",
+        ariaLabel: `Add ${card.name} to ${activeGroup()?.name || "pile"}`,
       });
-      button.append(add);
+      qtySelect.addEventListener("click", (event) => event.stopPropagation());
+      qtySelect.addEventListener("mousedown", (event) => event.stopPropagation());
+      qtySelect.addEventListener("change", (event) => {
+        event.stopPropagation();
+        const amount = Number(qtySelect.value);
+        if (!amount) {
+          return;
+        }
+        rememberCard(card);
+        addCardToGroup(key, studio.activeGroupId, amount);
+      });
+      item.append(qtySelect);
     } else if (groupId) {
-      const remove = document.createElement("span");
+      const qtySelect = createQuantitySelect({
+        includePlaceholder: false,
+        value: getQuantity(key),
+        ariaLabel: `Copies of ${card.name}`,
+      });
+      qtySelect.addEventListener("click", (event) => event.stopPropagation());
+      qtySelect.addEventListener("mousedown", (event) => event.stopPropagation());
+      qtySelect.addEventListener("change", (event) => {
+        event.stopPropagation();
+        addCardToGroup(key, groupId, Number(qtySelect.value), { notify: true, updated: true });
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
       remove.className = "studio-card-remove";
+      remove.setAttribute("aria-label", `Remove ${card.name}`);
       remove.textContent = "×";
-      remove.title = "Remove from pile";
       remove.addEventListener("click", (event) => {
         event.stopPropagation();
         removeCardFromGroup(key, groupId);
       });
-      button.append(remove);
+      item.append(qtySelect, remove);
     }
 
-    return button;
+    if (addedFeedback[key]) {
+      const added = document.createElement("span");
+      added.className = "result-added-message studio-card-added show";
+      added.textContent = addedFeedback[key];
+      item.append(added);
+    }
+
+    return item;
   }
 
-  function addCardToGroup(key, groupId) {
+  function createQuantitySelect({ includePlaceholder, value, ariaLabel, className = "studio-card-qty" }) {
+    const select = document.createElement("select");
+    select.className = className;
+    select.setAttribute("aria-label", ariaLabel);
+    if (includePlaceholder) {
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "+";
+      select.append(placeholder);
+    }
+    for (let quantity = STUDIO_MIN_QTY; quantity <= STUDIO_MAX_QTY; quantity += 1) {
+      const option = document.createElement("option");
+      option.value = String(quantity);
+      option.textContent = String(quantity);
+      select.append(option);
+    }
+    if (value === "" || value == null) {
+      select.value = includePlaceholder ? "" : "1";
+    } else {
+      select.value = String(value);
+    }
+    return select;
+  }
+
+  function addCardToGroup(key, groupId, quantity = null, { notify = true, updated = false } = {}) {
     const card = studio.cards[key] || tray.cards.find((item) => api.getCardKey(item) === key);
     if (!card) {
       return;
@@ -538,13 +634,21 @@ export function bootStudioPage(api) {
     if (!group) {
       return;
     }
+    const alreadyHere = group.cardKeys.includes(key);
     studio.groups.forEach((item) => {
       item.cardKeys = item.cardKeys.filter((cardKey) => cardKey !== key);
     });
     group.cardKeys.push(key);
+    const nextQty = clampStudioQty(quantity ?? getQuantity(key));
+    studio.quantities[key] = nextQty;
     studio.activeGroupId = group.id;
     studio.selectedKey = key;
     persist();
+    if (notify) {
+      const verb = updated || alreadyHere ? "updated to" : "added to";
+      showStudioToast(`${nextQty} ${card.name} ${verb} ${group.name}`);
+      markAdded(key, `${nextQty} added`);
+    }
     renderBoard();
     renderTray();
     renderInspector();
@@ -558,6 +662,7 @@ export function bootStudioPage(api) {
     group.cardKeys = group.cardKeys.filter((cardKey) => cardKey !== key);
     persist();
     renderBoard();
+    renderTray();
     renderInspector();
   }
 
@@ -567,7 +672,45 @@ export function bootStudioPage(api) {
     });
     persist();
     renderBoard();
+    renderTray();
     renderInspector();
+  }
+
+  function getQuantity(key) {
+    return clampStudioQty(studio.quantities?.[key] ?? STUDIO_MIN_QTY);
+  }
+
+  function findGroupIdForCard(key) {
+    return studio.groups.find((group) => group.cardKeys.includes(key))?.id || "";
+  }
+
+  function markAdded(key, text) {
+    addedFeedback[key] = text;
+    window.clearTimeout(addedFeedbackTimers[key]);
+    addedFeedbackTimers[key] = window.setTimeout(() => {
+      delete addedFeedback[key];
+      renderTray();
+      renderBoard();
+    }, STUDIO_ADDED_MS);
+  }
+
+  function showStudioToast(message) {
+    const toast = document.querySelector("#studio-toast");
+    if (!toast) {
+      return;
+    }
+    document.body.append(toast);
+    window.clearTimeout(toastTimer);
+    toast.classList.remove("show");
+    toast.hidden = true;
+    toast.textContent = message;
+    toast.hidden = false;
+    void toast.offsetWidth;
+    toast.classList.add("show");
+    toastTimer = window.setTimeout(() => {
+      toast.classList.remove("show");
+      toast.hidden = true;
+    }, STUDIO_TOAST_MS);
   }
 
   function rememberCard(card) {
@@ -606,16 +749,23 @@ export function bootStudioPage(api) {
   }
 
   function persist() {
+    const liveKeys = new Set(studio.groups.flatMap((group) => group.cardKeys));
+    for (const key of Object.keys(studio.quantities || {})) {
+      if (!liveKeys.has(key)) {
+        delete studio.quantities[key];
+      }
+    }
     api.saveStoredJson(STUDIO_STORAGE_KEY, {
       groups: studio.groups,
       selectedKey: studio.selectedKey,
       activeGroupId: studio.activeGroupId,
       cards: studio.cards,
+      quantities: studio.quantities,
     });
   }
 
   function boardCardCount() {
-    return studio.groups.reduce((total, group) => total + group.cardKeys.length, 0);
+    return studio.groups.reduce((total, group) => total + groupQuantity(group), 0);
   }
 
   function formatStudioDecklist() {
@@ -632,11 +782,12 @@ export function bootStudioPage(api) {
         if (!name) {
           continue;
         }
+        const copies = getQuantity(key);
         const current = counts.get(name);
         if (current) {
-          current.qty += 1;
+          current.qty += copies;
         } else {
-          counts.set(name, { qty: 1, card });
+          counts.set(name, { qty: copies, card });
         }
       }
       const sidePile = /maybe|cut|side/i.test(`${group.id} ${group.name}`);
@@ -714,11 +865,18 @@ function loadStudioState() {
         cardKeys: Array.isArray(group.cardKeys) ? group.cardKeys.map(String) : [],
       }))
     : DEFAULT_GROUPS.map((group) => ({ ...group, cardKeys: [] }));
+  const liveKeys = new Set(groups.flatMap((group) => group.cardKeys));
+  const quantities = {};
+  const storedQuantities = stored.quantities && typeof stored.quantities === "object" ? stored.quantities : {};
+  for (const key of liveKeys) {
+    quantities[key] = clampStudioQty(storedQuantities[key] ?? STUDIO_MIN_QTY);
+  }
   return {
     groups,
     cards: stored.cards && typeof stored.cards === "object" ? stored.cards : {},
     selectedKey: String(stored.selectedKey || ""),
     activeGroupId: String(stored.activeGroupId || groups[0].id),
+    quantities,
   };
 }
 
