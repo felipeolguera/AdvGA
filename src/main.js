@@ -21,7 +21,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.17";
+const APP_VERSION = "1.18";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -170,6 +170,7 @@ const FALLBACK_OPTIONS = {
     "ITEM",
     "REGALIA",
     "TOKEN",
+    "UNIQUE",
     "WEAPON",
   ].map((value) => ({ text: titleCase(value), value })),
 };
@@ -180,6 +181,9 @@ const OPTION_ALIASES = {
   },
   set: {
     PRD: ["asphodel paradise", "asphodel/paradise", ".asphodel/paradise", "asphodel"],
+  },
+  type: {
+    ALLY: ["allies"],
   },
 };
 
@@ -1810,7 +1814,7 @@ function buildSearchParams(parsed, page) {
   });
 
   appendAll(params, "element", parsed.filters.element);
-  appendAll(params, "type", parsed.filters.type);
+  appendAll(params, "type", typesForApiQuery(parsed.filters.type));
   appendAll(params, "subtype", parsed.filters.subtype);
   appendAll(params, "class", parsed.filters.class);
   appendAll(params, "prefix", parsed.filters.prefix);
@@ -2228,7 +2232,7 @@ function hasAnyFilter(parsed) {
 function cardMatchesParsedQuery(card, parsed) {
   return (
     fieldMatches(card.elements, parsed.filters.element) &&
-    fieldMatches(card.types, parsed.filters.type) &&
+    stackedTypeMatches(card, parsed.filters.type) &&
     fieldMatches(card.subtypes, parsed.filters.subtype) &&
     fieldMatches(card.classes, parsed.filters.class) &&
     setMatches(card, parsed.filters.prefix) &&
@@ -2247,6 +2251,35 @@ function fieldMatches(cardValues = [], requiredValues = []) {
 
   const normalizedValues = new Set(cardValues.map((value) => String(value).toUpperCase()));
   return requiredValues.some((value) => normalizedValues.has(String(value).toUpperCase()));
+}
+
+function stackedTypeMatches(card, requiredTypes = []) {
+  if (requiredTypes.length === 0) {
+    return true;
+  }
+
+  const cardValues = new Set(
+    [...(card.types || []), ...(card.subtypes || [])].map((value) => String(value).toUpperCase()),
+  );
+  const required = requiredTypes.map((value) => String(value).toUpperCase());
+  const wantsUnique = required.includes("UNIQUE");
+  const others = required.filter((value) => value !== "UNIQUE");
+
+  if (wantsUnique && !cardValues.has("UNIQUE")) {
+    return false;
+  }
+  if (others.length === 0) {
+    return true;
+  }
+  return others.some((value) => cardValues.has(value));
+}
+
+function typesForApiQuery(types = []) {
+  const required = types.map((value) => String(value).toUpperCase());
+  if (required.includes("UNIQUE") && required.length > 1) {
+    return ["UNIQUE"];
+  }
+  return types;
 }
 
 function excludedFiltersMatch(card, excludeFilters) {

@@ -86,7 +86,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       <div class="studio-examples" aria-label="Example searches">
         <button type="button" data-studio-example="harmony in PRD">harmony in PRD</button>
         <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
-        <button type="button" data-studio-example="fire allies in PRD">fire allies in PRD</button>
+        <button type="button" data-studio-example="unique allies in PRD">unique allies in PRD</button>
       </div>
       <p class="hint studio-search-status" id="studio-search-status">Search to fill the tray, then add cards to a pile.</p>
       <div class="studio-tray" id="studio-tray" aria-label="Search results tray"></div>
