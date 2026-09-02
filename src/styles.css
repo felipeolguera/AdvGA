@@ -4185,6 +4185,21 @@ dialog .tryit-toast,
   background-color: #ffffff;
 }
 
+.studio-card-added {
+  top: 50%;
+  z-index: 5;
+  max-width: calc(100% - 8px);
+  padding: 6px 8px;
+  overflow: hidden;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  transform: translate(-50%, -50%);
+}
+
+.studio-card-added.show {
+  transform: translate(-50%, -50%);
+}
+
 .studio-card.is-selected {
   border-color: var(--gold-strong);
   box-shadow: 0 0 0 2px rgba(255, 204, 115, 0.45);
@@ -4322,7 +4337,7 @@ dialog .tryit-toast,
 .studio-toast {
   position: fixed;
   left: 50%;
-  bottom: max(24px, env(safe-area-inset-bottom, 0px) + 16px);
+  bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
   z-index: 2147483646;
   border: 1px solid rgba(255, 204, 115, 0.7);
   border-radius: 999px;

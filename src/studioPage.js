@@ -6,8 +6,8 @@ const DEFAULT_GROUPS = [
 ];
 const STUDIO_MIN_QTY = 1;
 const STUDIO_MAX_QTY = 4;
-const STUDIO_TOAST_MS = 1800;
-const STUDIO_ADDED_MS = 1300;
+const STUDIO_TOAST_MS = 2400;
+const STUDIO_ADDED_MS = 2200;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -592,7 +592,7 @@ export function bootStudioPage(api) {
 
     if (addedFeedback[key]) {
       const added = document.createElement("span");
-      added.className = "result-added-message show";
+      added.className = "result-added-message studio-card-added show";
       added.textContent = addedFeedback[key];
       item.append(added);
     }
@@ -699,6 +699,7 @@ export function bootStudioPage(api) {
     if (!toast) {
       return;
     }
+    document.body.append(toast);
     window.clearTimeout(toastTimer);
     toast.classList.remove("show");
     toast.hidden = true;
