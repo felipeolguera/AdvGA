@@ -1893,12 +1893,12 @@ body:has(.tryit-page.is-mp-dual) {
 }
 
 .mp-dual-seat-scale .opening-hand-side-rail {
-  width: 72px;
+  width: 80px;
   align-self: start;
 }
 
 .mp-dual-seat-scale .opening-hand-damage {
-  width: 72px;
+  width: 80px;
   min-height: 0;
   height: auto;
   align-self: start;
@@ -2305,10 +2305,10 @@ body:has(.tryit-page.is-mp-dual) {
 
 .opening-hand-side-rail {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   align-content: start;
   align-self: start;
-  width: 72px;
+  width: 80px;
   pointer-events: auto;
 }
 
@@ -2319,7 +2319,7 @@ body:has(.tryit-page.is-mp-dual) {
   justify-items: center;
   align-self: start;
   gap: 4px;
-  width: 72px;
+  width: 80px;
   min-height: 0;
   height: auto;
   padding: 8px 5px;
@@ -2334,7 +2334,7 @@ body:has(.tryit-page.is-mp-dual) {
 .opening-hand-board-menu {
   position: relative;
   display: grid;
-  gap: 5px;
+  gap: 12px;
   justify-items: stretch;
   width: 100%;
 }
@@ -2351,12 +2351,13 @@ body:has(.tryit-page.is-mp-dual) {
 
 .opening-hand-end-turn,
 .opening-hand-recollect,
+.opening-hand-banish-random,
 .opening-hand-board-menu-toggle,
 .opening-hand-voice-toggle {
   width: 100%;
-  min-height: 36px;
-  padding: 6px 4px;
-  font-size: 0.66rem;
+  min-height: 44px;
+  padding: 8px 5px;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   line-height: 1.15;
@@ -2546,15 +2547,17 @@ body:has(.tryit-page.is-mp-dual) {
 
   .opening-hand-board-menu {
     width: auto;
-    min-width: 88px;
+    min-width: 96px;
     justify-self: end;
+    gap: 10px;
   }
 
   .opening-hand-end-turn,
   .opening-hand-recollect,
+  .opening-hand-banish-random,
   .opening-hand-board-menu-toggle,
   .opening-hand-voice-toggle {
-    min-height: 34px;
+    min-height: 42px;
     font-size: 0.7rem;
   }
 
