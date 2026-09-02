@@ -1706,7 +1706,7 @@ body:has(.tryit-page.is-mp-dual) {
   align-items: stretch;
 }
 
-.tryit-inspector {
+.tryit-inspector.studio-inspector {
   max-height: min(78vh, 720px);
   width: 180px;
   min-width: 180px;
@@ -1715,9 +1715,14 @@ body:has(.tryit-page.is-mp-dual) {
   padding: 10px;
 }
 
+.tryit-inspector .studio-inspector-art {
+  width: 100%;
+}
+
 .tryit-inspector .studio-inspector-art img,
 .tryit-inspector .studio-inspector-art .placeholder-card {
   width: 100%;
+  max-width: none;
   max-height: none;
   height: auto;
   aspect-ratio: 0.716;
