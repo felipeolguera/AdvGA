@@ -8,6 +8,7 @@ import {
 } from "./multiplayer.js";
 import { AGGRO_DECK_SUGGESTIONS } from "./aggroDeckSuggestions.js";
 import { PLAY_GUIDES, PRD_DECK_SUGGESTIONS } from "./prdDeckSuggestions.js";
+import { getStudioShellHtml, bootStudioPage } from "./studioPage.js";
 import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
@@ -20,7 +21,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.16";
+const APP_VERSION = "1.17";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -36,8 +37,10 @@ function resolvePublicAssetUrl(relativePath) {
 }
 const CARD_BACK_URL = resolvePublicAssetUrl("card-back.jpg");
 const IS_TRYIT_PAGE = document.body?.dataset?.page === "tryit";
+const IS_STUDIO_PAGE = document.body?.dataset?.page === "studio";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
 const TRYIT_PAGE_URL = `${import.meta.env.BASE_URL}tryit.html`;
+const STUDIO_PAGE_URL = `${import.meta.env.BASE_URL}studio.html`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
 const FREEHAND_CARD_WIDTH = 96;
@@ -318,6 +321,10 @@ function getBuilderShellHtml() {
         <div class="hero-brand">
           <p class="eyebrow">Grand Archive TCG Deck Builder</p>
           <h2 class="hero-product-title">Grand Archive Advanced Book by RPGgamerPH</h2>
+          <nav class="page-switch" aria-label="App pages">
+            <a class="ghost compact" href="${STUDIO_PAGE_URL}">Studio</a>
+            <a class="ghost compact" href="${TRYIT_PAGE_URL}">Try it!</a>
+          </nav>
           <p class="hero-copy">
             Jump into .asphodel/paradise (PRD), search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
           </p>
@@ -848,6 +855,11 @@ function getTryItShellHtml() {
 
 if (IS_TRYIT_PAGE) {
   app.innerHTML = getTryItShellHtml();
+} else if (IS_STUDIO_PAGE) {
+  app.innerHTML = getStudioShellHtml({
+    appVersion: APP_VERSION,
+    builderUrl: BUILDER_PAGE_URL,
+  });
 } else {
   app.innerHTML = getBuilderShellHtml();
 }
@@ -1065,6 +1077,31 @@ document.addEventListener("keydown", (event) => {
 
 if (IS_TRYIT_PAGE) {
   bootTryItPage();
+} else if (IS_STUDIO_PAGE) {
+  bootStudioPage({
+    state,
+    parseNaturalQuery,
+    applyQuickFilters,
+    fetchCards,
+    cardMatchesParsedQuery,
+    getImageUrl,
+    resolveCardImage,
+    getPrimaryEdition,
+    getCardKey,
+    formatCardLine,
+    formatCost,
+    titleCase,
+    createPlaceholder,
+    uniqueBy,
+    loadOptions,
+    renderAdvancedOptions,
+    bindQuickFilterMultiSelects,
+    closeAllMultiSelects,
+    clearMultiSelect,
+    getMultiSelectValues,
+    saveStoredJson,
+    updateSearchFiltersVisibility,
+  });
 } else {
   bootBuilderPage();
 }
@@ -2513,6 +2550,9 @@ function renderAdvancedOptions() {
 }
 
 function renderSearchSuggestions() {
+  if (!suggestionsEl) {
+    return;
+  }
   const suggestions = [
     ...KEYWORD_SEARCHES,
     ...flattenOptionTexts(state.options.element),
@@ -2982,6 +3022,13 @@ function createFullscreenSectionHeader(section, sectionCards) {
     openingHandButton.textContent = "Try it!";
     openingHandButton.title = "Open the standalone Try it! playtest page";
     actions.append(openingHandButton);
+
+    const studioButton = document.createElement("a");
+    studioButton.className = "ghost compact";
+    studioButton.href = STUDIO_PAGE_URL;
+    studioButton.textContent = "Studio";
+    studioButton.title = "Open the Studio playground";
+    actions.append(studioButton);
   }
 
   const addButton = document.createElement("button");
@@ -10134,6 +10181,9 @@ function buildExplanation(parsed) {
 }
 
 function render() {
+  if (!statusEl || !resultsEl) {
+    return;
+  }
   statusEl.textContent = state.status;
   explanationEl.textContent = buildExplanation(state.parsed);
   renderChips();

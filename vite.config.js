@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         tryit: resolve(__dirname, "tryit.html"),
+        studio: resolve(__dirname, "studio.html"),
       },
     },
   },
