@@ -1710,6 +1710,17 @@ body:has(.tryit-page.is-mp-dual) {
   max-height: min(78vh, 720px);
 }
 
+.tryit-inspector-body,
+.tryit-inspector-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tryit-inspector-copy {
+  align-content: start;
+}
+
 .tryit-playmat-panel {
   display: grid;
   gap: 4px;
@@ -3553,33 +3564,39 @@ body.deck-load-active {
   .tryit-inspector.studio-inspector {
     max-height: none;
     overflow: visible;
-    grid-template-columns: 108px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    column-gap: 12px;
-    row-gap: 6px;
-    padding: 12px 12px 16px;
+    gap: 8px;
+    padding: 12px;
   }
 
   .tryit-inspector .eyebrow,
   .tryit-inspector .hint {
-    grid-column: 1 / -1;
-    margin-bottom: 0;
+    grid-column: auto;
+    margin: 0;
+  }
+
+  .tryit-inspector-body {
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 10px;
+    row-gap: 0;
   }
 
   .tryit-inspector .studio-inspector-art {
-    grid-column: 1;
-    grid-row: 2 / -1;
+    grid-column: auto;
+    grid-row: auto;
     align-self: start;
-    width: 108px;
-    overflow: visible;
+    width: 92px;
+    overflow: hidden;
   }
 
   .tryit-inspector .studio-inspector-art img,
   .tryit-inspector .studio-inspector-art .placeholder-card {
     display: block;
-    width: 108px;
+    width: 92px;
     max-height: none;
-    min-height: 150px;
+    min-height: 0;
     height: auto;
     aspect-ratio: 0.716;
     object-fit: contain;
@@ -3589,11 +3606,16 @@ body.deck-load-active {
   .tryit-inspector .studio-inspector-name,
   .tryit-inspector .studio-inspector-line,
   .tryit-inspector .studio-inspector-effect {
-    grid-column: 2;
+    grid-column: auto;
+    margin: 0;
   }
 
   .tryit-inspector .studio-inspector-name {
     font-size: 1.05rem;
+  }
+
+  .tryit-inspector-copy {
+    gap: 4px;
   }
 
   .page-shell.tryit-page.is-mp-dual {

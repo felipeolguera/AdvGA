@@ -28,7 +28,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.27";
+const APP_VERSION = "1.28";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -4742,7 +4742,15 @@ function renderTryItInspector() {
     ? "This card is face-down."
     : "No effect text on this printing.");
 
-  inspectorEl.append(figure, name, line, effect);
+  const copy = document.createElement("div");
+  copy.className = "tryit-inspector-copy";
+  copy.append(name, line, effect);
+
+  const body = document.createElement("div");
+  body.className = "tryit-inspector-body";
+  body.append(figure, copy);
+
+  inspectorEl.append(body);
 }
 
 function renderTryItPage() {
