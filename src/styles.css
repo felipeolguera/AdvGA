@@ -1410,8 +1410,11 @@ button.result-grid-add {
 
 /* Solo Playtest spans the viewport; dual mode stays edge-to-edge below. */
 .page-shell.tryit-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   width: 100%;
   max-width: none;
+  min-height: 100vh;
   margin: 0;
   padding: 8px 8px 12px;
 }
@@ -1473,6 +1476,17 @@ body:has(.tryit-page.is-mp-dual) {
 
 .tryit-page.is-mp-dual .tryit-chrome-full {
   display: none;
+}
+
+.tryit-page.is-mp-dual .tryit-workspace {
+  min-height: 0;
+  height: 100%;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+}
+
+.tryit-page.is-mp-dual .tryit-inspector {
+  max-height: none;
+  height: 100%;
 }
 
 .tryit-page.is-mp-dual .tryit-playmat-panel {
@@ -1630,6 +1644,19 @@ body:has(.tryit-page.is-mp-dual) {
   display: inline-grid;
   place-items: center;
   text-decoration: none;
+}
+
+.tryit-workspace {
+  display: grid;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.tryit-inspector {
+  max-height: min(78vh, 720px);
 }
 
 .tryit-playmat-panel {
@@ -3459,6 +3486,14 @@ body.deck-load-active {
     max-width: none;
     margin: 0;
     padding: 6px 6px 8px;
+  }
+
+  .tryit-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .tryit-inspector {
+    max-height: 240px;
   }
 
   .page-shell.tryit-page.is-mp-dual {

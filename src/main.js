@@ -21,7 +21,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.22";
+const APP_VERSION = "1.23";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -278,6 +278,7 @@ const state = {
   openingHandTurn: 1,
   openingHandDamage: 0,
   openingHandSelectedInstanceId: "",
+  tryitInspectedCard: null,
   openingHandGlimpseIds: [],
   openingHandVoice: {
     supported: null,
@@ -717,9 +718,12 @@ function getTryItShellHtml() {
         </div>
       </div>
     </header>
-    <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
-      <div id="tryit-root"></div>
-    </section>
+    <div class="tryit-workspace">
+      <aside class="panel studio-inspector tryit-inspector" id="tryit-inspector" aria-label="Card info"></aside>
+      <section class="panel tryit-playmat-panel" aria-label="Try it playmat">
+        <div id="tryit-root"></div>
+      </section>
+    </div>
   </main>
 
   <dialog class="material-dialog" id="material-dialog" aria-labelledby="material-dialog-title">
@@ -1164,6 +1168,7 @@ function bootTryItPage() {
   }
   state.mp.mode = "lobby";
   renderTryItPage();
+  renderTryItInspector();
 }
 
 function bootMultiplayerLayoutTest() {
@@ -4537,6 +4542,101 @@ function exitOpeningHandSession() {
   renderDeck();
 }
 
+function getPlaytestEffectText(card) {
+  return (
+    [
+      card?.effect_raw,
+      card?.effect,
+      card?.edition?.effect_raw,
+      ...(card?.result_editions || []).map((edition) => edition.effect_raw),
+      ...(card?.editions || []).map((edition) => edition.effect_raw),
+    ]
+      .filter(Boolean)
+      .find((text) => String(text).trim()) || ""
+  );
+}
+
+function inspectTryItCard(card) {
+  state.tryitInspectedCard = card || null;
+  renderTryItInspector();
+  if (card?.name && card.name !== "Face-down card" && !getPlaytestEffectText(card)) {
+    void enrichTryItInspectedCard(card);
+  }
+}
+
+async function enrichTryItInspectedCard(card) {
+  const name = String(card?.name || "").trim();
+  if (!name) {
+    return;
+  }
+  try {
+    const lookedUp = await lookupCardByName(name);
+    if (!lookedUp || state.tryitInspectedCard?.name !== name) {
+      return;
+    }
+    state.tryitInspectedCard = { ...card, ...lookedUp };
+    renderTryItInspector();
+  } catch {
+    // Keep the name and art even if the API lookup fails.
+  }
+}
+
+function renderTryItInspector() {
+  const inspectorEl = document.querySelector("#tryit-inspector");
+  if (!inspectorEl) {
+    return;
+  }
+  inspectorEl.replaceChildren();
+  const heading = document.createElement("p");
+  heading.className = "eyebrow";
+  heading.textContent = "Card info";
+  inspectorEl.append(heading);
+
+  const card = state.tryitInspectedCard;
+  if (!card) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Click a card to show its art, type line, and effect here.";
+    inspectorEl.append(empty);
+    return;
+  }
+
+  const figure = document.createElement("figure");
+  figure.className = "studio-inspector-art";
+  const imageUrl = getImageUrl(resolveCardImage(card) || getPrimaryEdition(card)?.image);
+  if (imageUrl && card.name !== "Face-down card") {
+    const image = document.createElement("img");
+    image.src = imageUrl;
+    image.alt = card.name;
+    figure.append(image);
+  } else {
+    figure.append(createPlaceholder(card.name || "Card"));
+  }
+
+  const name = document.createElement("h2");
+  name.className = "studio-inspector-name";
+  name.textContent = card.name || "Card";
+
+  const line = document.createElement("p");
+  line.className = "studio-inspector-line";
+  line.textContent = [
+    formatCardLine(card),
+    formatCost(card.cost_memory || card.cost),
+    getPrimaryEdition(card)?.set?.name || getPrimaryEdition(card)?.set?.prefix,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const effect = document.createElement("p");
+  effect.className = "studio-inspector-effect";
+  const effectText = getPlaytestEffectText(card).replace(/\s+\n/g, "\n").trim();
+  effect.textContent = effectText || (card.name === "Face-down card"
+    ? "This card is face-down."
+    : "No effect text on this printing.");
+
+  inspectorEl.append(figure, name, line, effect);
+}
+
 function renderTryItPage() {
   const root = document.querySelector("#tryit-root");
   if (!root) {
@@ -5130,6 +5230,9 @@ function setOpeningHandVoiceSelection(instanceId, board = null) {
   const field = playBoard?.querySelector("[data-oh-field]");
   const cardEl = findOpeningHandCardElement(field, instanceId);
   cardEl?.classList.add("is-voice-selected");
+  const entry = state.openingHandHand.find((item) => item.instanceId === instanceId);
+  const hideDetails = Boolean(entry?.facedown && playBoard?.dataset.mpReadonly === "true");
+  inspectTryItCard(hideDetails ? { name: "Face-down card" } : entry?.card);
 }
 
 function getOpeningHandVoiceSelectedEntry(board = null) {
@@ -8200,6 +8303,7 @@ function showOpeningHandCardPreview(entry, { revealFacedown = false } = {}) {
   if (!entry?.card || (entry.facedown && !revealFacedown)) {
     return;
   }
+  inspectTryItCard(entry.card);
   const imageUrl = getImageUrl(resolveCardImage(entry.card));
   if (!imageUrl) {
     return;
