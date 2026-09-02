@@ -118,7 +118,10 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       <section class="panel studio-board-panel" aria-label="Playground">
         <div class="studio-board-toolbar">
           <p class="studio-board-count" id="studio-board-count">Board 0</p>
-          <button class="secondary compact" type="button" id="studio-add-group">Add group</button>
+          <div class="studio-board-toolbar-actions">
+            <button class="try-it-button compact" type="button" id="studio-try-it">Try it!</button>
+            <button class="secondary compact" type="button" id="studio-add-group">Add group</button>
+          </div>
         </div>
         <div class="studio-board" id="studio-board"></div>
       </section>
@@ -233,6 +236,10 @@ export function bootStudioPage(api) {
     }
   });
   window.addEventListener("resize", () => updateCarouselUi());
+
+  document.querySelector("#studio-try-it")?.addEventListener("click", () => {
+    openStudioTryIt();
+  });
 
   document.querySelector("#studio-add-group")?.addEventListener("click", () => {
     const name = window.prompt("Group name", "New group");
@@ -972,6 +979,65 @@ export function bootStudioPage(api) {
         }
       }, 1800);
     }
+  }
+
+  function studioBoardToDeckCards() {
+    const merged = new Map();
+    for (const group of studio.groups) {
+      const sidePile = /maybe|cut|side/i.test(`${group.id} ${group.name}`);
+      for (const key of group.cardKeys) {
+        const card = studio.cards[key];
+        if (!card) {
+          continue;
+        }
+        const section = sidePile ? "sideboard" : api.defaultDeckSection(card);
+        const copies = getQuantity(key);
+        const existing = merged.get(key);
+        if (existing) {
+          if (existing.section === "sideboard" && section !== "sideboard") {
+            existing.section = section;
+          }
+          existing.quantity += copies;
+          continue;
+        }
+        merged.set(key, {
+          key,
+          name: card.name,
+          image: api.resolveCardImage(card) || "",
+          line: api.formatCardLine(card),
+          quantity: copies,
+          section,
+          types: Array.isArray(card.types) ? card.types : [],
+          subtypes: Array.isArray(card.subtypes) ? card.subtypes : [],
+          level: card.level ?? null,
+          costType: card.cost?.type || card.costType || "",
+        });
+      }
+    }
+    return [...merged.values()].map((card) => ({
+      ...card,
+      quantity: card.section === "material" ? Math.min(1, card.quantity) : Math.min(4, card.quantity),
+    }));
+  }
+
+  function openStudioTryIt() {
+    if (boardCardCount() === 0) {
+      window.alert("Add cards to a pile before opening Try it.");
+      return;
+    }
+    const cards = studioBoardToDeckCards();
+    const mainCount = cards
+      .filter((card) => card.section === "main")
+      .reduce((total, card) => total + card.quantity, 0);
+    if (mainCount === 0) {
+      window.alert("Add cards to a main pile (not only Maybe / Cuts) so Try it has a Main Deck.");
+      return;
+    }
+    if (typeof api.writeDeckForTryIt === "function") {
+      api.writeDeckForTryIt(cards, "Studio brew");
+      return;
+    }
+    window.location.assign(api.tryItUrl);
   }
 
   function downloadStudioDecklist() {

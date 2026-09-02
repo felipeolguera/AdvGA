@@ -21,7 +21,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.21";
+const APP_VERSION = "1.22";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -1106,6 +1106,8 @@ if (IS_TRYIT_PAGE) {
     saveStoredJson,
     updateSearchFiltersVisibility,
     defaultDeckSection,
+    writeDeckForTryIt,
+    tryItUrl: TRYIT_PAGE_URL,
     appVersion: APP_VERSION,
   });
 } else {
@@ -3640,6 +3642,14 @@ function shuffleArray(items) {
 
 function openTryItPage() {
   window.location.assign(TRYIT_PAGE_URL);
+}
+
+function writeDeckForTryIt(cards, deckName = "Studio brew") {
+  state.deck = normalizeStoredDeck(Array.isArray(cards) ? cards : []);
+  state.deckName = String(deckName || "Studio brew").trim() || "Studio brew";
+  saveDeck();
+  saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
+  openTryItPage();
 }
 
 function isMultiplayerPlayer() {

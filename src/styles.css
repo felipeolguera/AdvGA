@@ -4137,10 +4137,25 @@ dialog .tryit-toast,
 
 .studio-board-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.studio-board-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.studio-board-toolbar .try-it-button.compact {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.86rem;
 }
 
 .studio-board-count {
