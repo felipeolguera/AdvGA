@@ -9,6 +9,13 @@ import {
 import { AGGRO_DECK_SUGGESTIONS } from "./aggroDeckSuggestions.js";
 import { PLAY_GUIDES, PRD_DECK_SUGGESTIONS } from "./prdDeckSuggestions.js";
 import { getStudioShellHtml, bootStudioPage } from "./studioPage.js";
+import {
+  buildDeckShareUrl,
+  decodeDeckSharePayload,
+  encodeDeckSharePayload,
+  getTryItPageAbsoluteUrl,
+  readDeckSharePayload,
+} from "./tryitShare.js";
 import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
@@ -21,7 +28,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.23";
+const APP_VERSION = "1.24";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -702,6 +709,7 @@ function getTryItShellHtml() {
               <span aria-hidden="true">☰</span>
             </button>
             <div class="tryit-menu-panel" id="tryit-menu-panel" role="menu" hidden>
+              <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-share="true">Share playtest link</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-lobby="true">Multiplayer lobby</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-leave-room="true">Leave room</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-settings="true">Settings</button>
@@ -713,6 +721,7 @@ function getTryItShellHtml() {
           <p class="eyebrow">Try it!</p>
           <div class="tryit-page-title-row">
             <h1>Playtest</h1>
+            <button class="ghost compact tryit-share-button" type="button" data-tryit-share="true">Share</button>
           </div>
           <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
         </div>
@@ -858,6 +867,18 @@ function getTryItShellHtml() {
   </dialog>
 
   <div class="tryit-toast" id="tryit-toast" role="status" aria-live="polite" hidden>Added</div>
+
+  <div class="deck-load-overlay" id="deck-load-overlay" hidden aria-hidden="true">
+    <div class="deck-load-card" role="status" aria-live="polite" aria-busy="true">
+      <div class="deck-load-spinner" aria-hidden="true"></div>
+      <p class="deck-load-title" id="deck-load-title">Loading deck</p>
+      <p class="deck-load-detail" id="deck-load-detail">Looking up cards…</p>
+      <div class="deck-load-progress" aria-hidden="true">
+        <div class="deck-load-progress-bar" id="deck-load-progress-bar"></div>
+      </div>
+      <p class="deck-load-count" id="deck-load-count"></p>
+    </div>
+  </div>
 `;
 }
 
@@ -1156,19 +1177,87 @@ function bootTryItPage() {
     void leaveMultiplayerRoom({ silent: true });
   });
 
+  void bootTryItPageContents();
+}
+
+async function bootTryItPageContents() {
   const { room, role } = readRoomParams();
   const params = new URLSearchParams(window.location.search);
   if (params.get("mpLayoutTest") === "1") {
     bootMultiplayerLayoutTest();
     return;
   }
+
+  const sharePayload = readDeckSharePayload();
+  let loadedShare = false;
+  if (sharePayload) {
+    loadedShare = await loadTryItDeckFromSharePayload(sharePayload);
+    if (!loadedShare) {
+      window.alert("Could not load the shared deck from this link.");
+    }
+  }
+
   if (room && role) {
     void joinMultiplayerRoom({ roomCode: room, role });
     return;
   }
+
   state.mp.mode = "lobby";
   renderTryItPage();
   renderTryItInspector();
+  if (loadedShare) {
+    showTryItToast("Shared deck loaded");
+  }
+}
+
+async function loadTryItDeckFromSharePayload(raw) {
+  try {
+    const text = await decodeDeckSharePayload(raw);
+    if (!String(text || "").trim()) {
+      return false;
+    }
+    return await importDeckFromText(text, {
+      label: "shared deck",
+      showOverlay: true,
+      closeImportDialog: false,
+    });
+  } catch (error) {
+    console.error("Failed to load shared playtest deck", error);
+    return false;
+  }
+}
+
+async function shareTryItDeck() {
+  setTryItMenuOpen(false);
+  closeOpeningHandBoardMenu();
+  if (!state.deck.length) {
+    window.alert("Add cards to your deck before sharing a playtest link.");
+    return;
+  }
+
+  const text = formatDeckExport();
+  if (!text.trim()) {
+    window.alert("Add cards to your deck before sharing a playtest link.");
+    return;
+  }
+
+  let url = "";
+  try {
+    const payload = await encodeDeckSharePayload(text);
+    url = buildDeckShareUrl(getTryItPageAbsoluteUrl(), payload);
+  } catch (error) {
+    console.error("Failed to build playtest share link", error);
+    window.alert("Could not build a share link.");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showTryItToast("Link copied");
+  } catch {
+    window.prompt("Copy this playtest link", url);
+    showTryItToast("Link ready to copy");
+  }
 }
 
 function bootMultiplayerLayoutTest() {
@@ -2865,6 +2954,9 @@ function rememberSearch(query) {
 }
 
 function renderDeck() {
+  if (!deckCountEl) {
+    return;
+  }
   const totalCards = getDeckTotal();
   deckCountEl.textContent = String(totalCards);
   updateDeckIndividualToggleButtons();
@@ -4676,6 +4768,14 @@ function renderTryItPage() {
 }
 
 function handleTryItActionClick(event) {
+  const shareButton = event.target.closest("[data-tryit-share], [data-tryit-menu-share]");
+  if (shareButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    void shareTryItDeck();
+    return;
+  }
+
   const soloButton = event.target.closest("[data-mp-solo]");
   if (soloButton) {
     startOpeningHandSession();
@@ -5119,6 +5219,10 @@ function createOpeningHandBoardMenu() {
     title: "Add Token or Mastery cards to the Field",
   });
   addItem("Redeal", { "data-redeal-opening-hand": "true" });
+  addItem("Share playtest link", {
+    "data-tryit-share": "true",
+    title: "Copy a link that opens this deck in Playtest",
+  });
   addItem("Help", {
     "data-tryit-help": "true",
     title: "Game controls and shortcuts",
@@ -9559,13 +9663,19 @@ async function importDeckFromText(rawText, options = {}) {
 
   const parsed = parseDeckImport(rawText);
   if (parsed.entries.length === 0) {
-    importStatusEl.textContent = "No card lines found. Use formats like “4 Backstep” under a section heading.";
-    return;
+    if (importStatusEl) {
+      importStatusEl.textContent = "No card lines found. Use formats like “4 Backstep” under a section heading.";
+    }
+    return false;
   }
 
   const total = parsed.entries.length;
-  confirmImportButton.disabled = true;
-  importStatusEl.textContent = `Looking up ${total} card line${total === 1 ? "" : "s"}...`;
+  if (confirmImportButton) {
+    confirmImportButton.disabled = true;
+  }
+  if (importStatusEl) {
+    importStatusEl.textContent = `Looking up ${total} card line${total === 1 ? "" : "s"}...`;
+  }
 
   if (showOverlay) {
     showDeckLoadOverlay({
@@ -9587,7 +9697,9 @@ async function importDeckFromText(rawText, options = {}) {
       const progress = Math.round((current / total) * 100);
       const detail = `Looking up ${entry.name}…`;
 
-      importStatusEl.textContent = `Looking up ${current} / ${total}…`;
+      if (importStatusEl) {
+        importStatusEl.textContent = `Looking up ${current} / ${total}…`;
+      }
       if (showOverlay) {
         updateDeckLoadOverlay({ detail, progress, current, total });
       }
@@ -9631,7 +9743,9 @@ async function importDeckFromText(rawText, options = {}) {
     state.deck = nextDeck;
     if (parsed.deckName) {
       state.deckName = parsed.deckName;
-      deckNameInput.value = state.deckName;
+      if (deckNameInput) {
+        deckNameInput.value = state.deckName;
+      }
       saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
     }
     saveDeck();
@@ -9639,20 +9753,27 @@ async function importDeckFromText(rawText, options = {}) {
     renderCards();
 
     if (missing.length) {
-      importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}. Missing: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}`;
-      return;
+      if (importStatusEl) {
+        importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}. Missing: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}`;
+      }
+      return nextDeck.length > 0;
     }
 
-    importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}.`;
+    if (importStatusEl) {
+      importStatusEl.textContent = `Imported ${nextDeck.length} unique card${nextDeck.length === 1 ? "" : "s"}.`;
+    }
     if (shouldCloseImportDialog && importDialog?.open) {
       window.setTimeout(() => importDialog.close(), 700);
     }
+    return nextDeck.length > 0;
   } finally {
     if (showOverlay) {
       await new Promise((resolve) => window.setTimeout(resolve, 280));
       hideDeckLoadOverlay();
     }
-    confirmImportButton.disabled = false;
+    if (confirmImportButton) {
+      confirmImportButton.disabled = false;
+    }
   }
 }
 
@@ -10381,6 +10502,9 @@ function renderChips() {
 }
 
 function renderCards() {
+  if (!resultsEl) {
+    return;
+  }
   resultsEl.replaceChildren();
 
   if (state.loading && state.cards.length === 0) {

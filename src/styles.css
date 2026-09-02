@@ -1534,6 +1534,11 @@ body:has(.tryit-page.is-mp-dual) {
   min-width: 0;
 }
 
+.tryit-share-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .tryit-menu {
   position: relative;
   flex: 0 0 auto;
