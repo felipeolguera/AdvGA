@@ -28,7 +28,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.25";
+const APP_VERSION = "1.26";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -770,6 +770,7 @@ function getTryItShellHtml() {
         <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
         <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
         <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
+        <li><strong>Banish random</strong> (below Damage) — Banish 1 random card from Memory</li>
         <li><strong>Reco</strong> (below End turn) — Move all Memory cards back to Hand</li>
         <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
@@ -5162,6 +5163,14 @@ function createOpeningHandBoardMenu() {
   recollect.setAttribute("aria-label", "Reco — move Memory cards to Hand");
   recollect.textContent = "Reco";
 
+  const banish = document.createElement("button");
+  banish.type = "button";
+  banish.className = "secondary compact opening-hand-end-turn opening-hand-banish-random";
+  banish.dataset.banishOpeningHand = "true";
+  banish.title = "Banish 1 random card from Memory";
+  banish.setAttribute("aria-label", "Banish a random card from Memory");
+  banish.textContent = "Banish random";
+
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "secondary compact opening-hand-end-turn opening-hand-board-menu-toggle";
@@ -5225,10 +5234,6 @@ function createOpeningHandBoardMenu() {
   };
 
   addItem("Organize hand", { "data-organize-opening-hand": "true" });
-  addItem("Banish random", {
-    "data-banish-opening-hand": "true",
-    title: "Banish 1 random card from Memory",
-  });
   addItem("Tokens / Mastery", {
     "data-open-extras": "true",
     title: "Add Token or Mastery cards to the Field",
@@ -5256,7 +5261,7 @@ function createOpeningHandBoardMenu() {
     closeOpeningHandBoardMenu();
   });
 
-  wrap.append(turn, endTurn, recollect, toggle, createOpeningHandVoiceButton(), dialog);
+  wrap.append(turn, banish, endTurn, recollect, toggle, createOpeningHandVoiceButton(), dialog);
   return wrap;
 }
 
