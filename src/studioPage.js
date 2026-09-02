@@ -1,7 +1,7 @@
 const STUDIO_STORAGE_KEY = "advga.studio";
 const DEFAULT_GROUPS = [
   { id: "engine", name: "Engine" },
-  { id: "payoff", name: "Payoff" },
+  { id: "wincon", name: "Wincon" },
   { id: "maybe", name: "Maybe / Cuts" },
 ];
 const STUDIO_MIN_QTY = 1;
@@ -479,15 +479,31 @@ export function bootStudioPage(api) {
       pile.classList.toggle("is-active", group.id === studio.activeGroupId);
       const header = document.createElement("header");
       header.className = "studio-pile-header";
+      const heading = document.createElement("div");
+      heading.className = "studio-pile-heading";
       const title = document.createElement("button");
       title.type = "button";
       title.className = "studio-pile-title";
       title.textContent = `${group.name} (${pileCount})`;
+      title.title = "Select pile · double-click to rename";
       title.addEventListener("click", () => {
-        studio.activeGroupId = group.id;
-        persist();
-        renderBoard();
+        selectGroup(group.id);
       });
+      title.addEventListener("dblclick", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startRenameGroup(group);
+      });
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.className = "ghost compact";
+      rename.textContent = "Rename";
+      rename.setAttribute("aria-label", `Rename ${group.name}`);
+      rename.addEventListener("click", (event) => {
+        event.stopPropagation();
+        startRenameGroup(group);
+      });
+      heading.append(title, rename);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "ghost compact";
@@ -506,7 +522,7 @@ export function bootStudioPage(api) {
         renderBoard();
         renderInspector();
       });
-      header.append(title, remove);
+      header.append(heading, remove);
       const cards = document.createElement("div");
       cards.className = "studio-pile-cards";
       for (const key of group.cardKeys) {
@@ -527,6 +543,64 @@ export function bootStudioPage(api) {
       boardEl.append(pile);
     }
     boardCountEl.textContent = `Board ${total}`;
+  }
+
+  function selectGroup(groupId) {
+    if (studio.activeGroupId === groupId) {
+      return;
+    }
+    studio.activeGroupId = groupId;
+    persist();
+    boardEl.querySelectorAll("[data-studio-pile]").forEach((pile) => {
+      const active = pile.dataset.studioPile === groupId;
+      pile.classList.toggle("is-active", active);
+      const empty = pile.querySelector(".studio-pile-empty");
+      if (empty) {
+        empty.textContent = active ? "Selected pile · add from the tray" : "Empty pile";
+      }
+    });
+    renderInspector();
+  }
+
+  function startRenameGroup(group) {
+    const title = boardEl.querySelector(`[data-studio-pile="${group.id}"] .studio-pile-title`);
+    if (!title || title.tagName === "INPUT") {
+      return;
+    }
+    const input = document.createElement("input");
+    input.className = "studio-pile-name-input";
+    input.type = "text";
+    input.value = group.name;
+    input.maxLength = 32;
+    input.setAttribute("aria-label", "Group name");
+    let finished = false;
+    const finish = (save) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      const next = input.value.trim();
+      if (save && next) {
+        group.name = next;
+        persist();
+      }
+      renderBoard();
+      renderInspector();
+    };
+    input.addEventListener("click", (event) => event.stopPropagation());
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+    title.replaceWith(input);
+    input.focus();
+    input.select();
   }
 
   function renderInspector() {
@@ -999,11 +1073,7 @@ function loadStudioState() {
     }
   })();
   const groups = Array.isArray(stored.groups) && stored.groups.length
-    ? stored.groups.map((group) => ({
-        id: String(group.id || `group-${Math.random().toString(36).slice(2)}`),
-        name: String(group.name || "Group"),
-        cardKeys: Array.isArray(group.cardKeys) ? group.cardKeys.map(String) : [],
-      }))
+    ? stored.groups.map((group) => migrateStudioGroup(group))
     : DEFAULT_GROUPS.map((group) => ({ ...group, cardKeys: [] }));
   const liveKeys = new Set(groups.flatMap((group) => group.cardKeys));
   const quantities = {};
@@ -1015,9 +1085,34 @@ function loadStudioState() {
     groups,
     cards: stored.cards && typeof stored.cards === "object" ? stored.cards : {},
     selectedKey: String(stored.selectedKey || ""),
-    activeGroupId: String(stored.activeGroupId || groups[0].id),
+    activeGroupId: migrateActiveGroupId(stored.activeGroupId, groups),
     quantities,
   };
+}
+
+function migrateStudioGroup(group) {
+  let id = String(group.id || `group-${Math.random().toString(36).slice(2)}`);
+  let name = String(group.name || "Group");
+  if (id === "payoff" && /^payoff$/i.test(name.trim())) {
+    id = "wincon";
+    name = "Wincon";
+  }
+  return {
+    id,
+    name,
+    cardKeys: Array.isArray(group.cardKeys) ? group.cardKeys.map(String) : [],
+  };
+}
+
+function migrateActiveGroupId(storedId, groups) {
+  let activeGroupId = String(storedId || groups[0]?.id || "");
+  if (activeGroupId === "payoff" && groups.some((group) => group.id === "wincon") && !groups.some((group) => group.id === "payoff")) {
+    activeGroupId = "wincon";
+  }
+  if (!groups.some((group) => group.id === activeGroupId)) {
+    activeGroupId = groups[0]?.id || "";
+  }
+  return activeGroupId;
 }
 
 function getEffectText(card) {
