@@ -102,9 +102,14 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
         <button type="button" data-studio-example="unique allies in PRD">unique allies in PRD</button>
       </div>
-      <p class="hint studio-search-status" id="studio-search-status">Search to fill the tray, then pick 1–4 to add a card to the selected pile.</p>
-      <div class="studio-tray" id="studio-tray" aria-label="Search results tray"></div>
-      <div class="studio-tray-actions">
+      <p class="hint studio-search-status" id="studio-search-status">Search to fill the carousel, then pick 1–4 to add a card to the selected pile.</p>
+      <div class="studio-carousel" id="studio-carousel">
+        <button type="button" class="studio-carousel-nav" id="studio-carousel-prev" aria-label="Previous search results">‹</button>
+        <div class="studio-tray" id="studio-tray" tabindex="0" aria-label="Search results carousel"></div>
+        <button type="button" class="studio-carousel-nav" id="studio-carousel-next" aria-label="Next search results">›</button>
+      </div>
+      <div class="studio-carousel-meta">
+        <p class="studio-carousel-index" id="studio-carousel-index" hidden></p>
         <button class="ghost compact hidden" type="button" id="studio-load-more">Load more</button>
       </div>
     </section>
@@ -142,7 +147,12 @@ export function bootStudioPage(api) {
   const searchInput = document.querySelector("#studio-search-input");
   const statusEl = document.querySelector("#studio-search-status");
   const trayEl = document.querySelector("#studio-tray");
+  const carouselEl = document.querySelector("#studio-carousel");
+  const carouselPrev = document.querySelector("#studio-carousel-prev");
+  const carouselNext = document.querySelector("#studio-carousel-next");
+  const carouselIndexEl = document.querySelector("#studio-carousel-index");
   const loadMoreButton = document.querySelector("#studio-load-more");
+  let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
   const inspectorEl = document.querySelector("#studio-inspector");
   const boardCountEl = document.querySelector("#studio-board-count");
@@ -196,6 +206,33 @@ export function bootStudioPage(api) {
   loadMoreButton?.addEventListener("click", () => {
     void runSearch(tray.query, { reset: false });
   });
+
+  carouselPrev?.addEventListener("click", () => scrollCarousel(-1));
+  carouselNext?.addEventListener("click", () => {
+    if (!canScrollCarousel(1) && tray.parsed && !tray.reachedEnd) {
+      void runSearch(tray.query, { reset: false });
+      return;
+    }
+    scrollCarousel(1);
+  });
+  trayEl?.addEventListener("scroll", () => {
+    updateCarouselUi();
+    maybeLoadMoreCarousel();
+  }, { passive: true });
+  trayEl?.addEventListener("scrollend", () => {
+    carouselTarget = null;
+    updateCarouselUi();
+  });
+  trayEl?.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      scrollCarousel(1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      scrollCarousel(-1);
+    }
+  });
+  window.addEventListener("resize", () => updateCarouselUi());
 
   document.querySelector("#studio-add-group")?.addEventListener("click", () => {
     const name = window.prompt("Group name", "New group");
@@ -285,7 +322,7 @@ export function bootStudioPage(api) {
       tray.parsed = null;
       tray.query = "";
       tray.reachedEnd = true;
-      statusEl.textContent = "Search to fill the tray, then pick 1–4 to add a card to the selected pile.";
+      statusEl.textContent = "Search to fill the carousel, then pick 1–4 to add a card to the selected pile.";
       renderTray();
       return;
     }
@@ -294,6 +331,7 @@ export function bootStudioPage(api) {
       tray.cards = [];
       tray.page = 1;
       tray.reachedEnd = false;
+      tray.restoreScroll = 0;
     }
 
     tray.loading = true;
@@ -310,7 +348,7 @@ export function bootStudioPage(api) {
       tray.reachedEnd = typeof hasMore === "boolean" ? !hasMore : cards.length < 50;
       const totalLabel = Number.isFinite(totalCards) ? ` of ${totalCards}` : "";
       statusEl.textContent = tray.cards.length
-        ? `${tray.cards.length}${totalLabel} in the tray · click to inspect, pick 1–4 to pile`
+        ? `${tray.cards.length}${totalLabel} in the carousel · click to inspect, pick 1–4 to pile`
         : "No cards matched that search.";
     } catch (error) {
       console.error(error);
@@ -322,6 +360,7 @@ export function bootStudioPage(api) {
   }
 
   function renderTray() {
+    const restoreScroll = tray.restoreScroll ?? trayEl.scrollLeft;
     trayEl.replaceChildren();
     if (tray.loading && tray.cards.length === 0) {
       statusEl.textContent = "Searching cards...";
@@ -330,9 +369,98 @@ export function bootStudioPage(api) {
       rememberCard(card);
       trayEl.append(createMiniCard(card, { inTray: true }));
     }
-    loadMoreButton.classList.toggle("hidden", !tray.parsed || tray.reachedEnd);
-    loadMoreButton.disabled = tray.loading;
-    loadMoreButton.textContent = tray.loading ? "Loading..." : "Load more";
+    if (tray.parsed && !tray.reachedEnd) {
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "studio-carousel-more";
+      more.textContent = tray.loading ? "Loading..." : "Load more";
+      more.disabled = tray.loading;
+      more.addEventListener("click", () => {
+        void runSearch(tray.query, { reset: false });
+      });
+      trayEl.append(more);
+    }
+    loadMoreButton.classList.add("hidden");
+    carouselEl?.classList.toggle("is-empty", tray.cards.length === 0 && !tray.loading);
+    requestAnimationFrame(() => {
+      trayEl.scrollLeft = restoreScroll;
+      carouselTarget = null;
+      tray.restoreScroll = null;
+      updateCarouselUi();
+    });
+  }
+
+  function carouselCardStep() {
+    const card = trayEl.querySelector(".studio-card");
+    const styles = window.getComputedStyle(trayEl);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap) || 14;
+    const width = card ? card.getBoundingClientRect().width + gap : 180;
+    const visible = Math.max(1, Math.floor((trayEl.clientWidth + gap) / width));
+    return width * visible;
+  }
+
+  function canScrollCarousel(direction) {
+    const max = Math.max(0, trayEl.scrollWidth - trayEl.clientWidth);
+    if (direction < 0) {
+      return trayEl.scrollLeft > 8;
+    }
+    return trayEl.scrollLeft < max - 8;
+  }
+
+  function scrollCarousel(direction) {
+    const max = Math.max(0, trayEl.scrollWidth - trayEl.clientWidth);
+    const from = carouselTarget ?? trayEl.scrollLeft;
+    const next = Math.min(max, Math.max(0, from + direction * carouselCardStep()));
+    carouselTarget = next;
+    trayEl.scrollTo({ left: next, behavior: "smooth" });
+  }
+
+  function visibleCarouselRange() {
+    const cards = [...trayEl.querySelectorAll(".studio-card")];
+    if (cards.length === 0) {
+      return { start: 0, end: 0, total: 0 };
+    }
+    const trayBox = trayEl.getBoundingClientRect();
+    let start = cards.length;
+    let end = 0;
+    cards.forEach((card, index) => {
+      const cardBox = card.getBoundingClientRect();
+      if (cardBox.right > trayBox.left + 16 && cardBox.left < trayBox.right - 16) {
+        start = Math.min(start, index + 1);
+        end = Math.max(end, index + 1);
+      }
+    });
+    if (end === 0) {
+      return { start: 1, end: 1, total: cards.length };
+    }
+    return { start, end, total: cards.length };
+  }
+
+  function updateCarouselUi() {
+    const hasCards = tray.cards.length > 0;
+    const atStart = !canScrollCarousel(-1);
+    const atEnd = !canScrollCarousel(1);
+    carouselPrev.disabled = !hasCards || atStart;
+    carouselNext.disabled = !hasCards || (atEnd && (tray.reachedEnd || tray.loading));
+    const range = visibleCarouselRange();
+    if (!hasCards || range.total === 0) {
+      carouselIndexEl.hidden = true;
+      carouselIndexEl.textContent = "";
+      return;
+    }
+    carouselIndexEl.hidden = false;
+    carouselIndexEl.textContent = range.start === range.end
+      ? `${range.start} of ${range.total}`
+      : `${range.start}–${range.end} of ${range.total}`;
+  }
+
+  function maybeLoadMoreCarousel() {
+    if (tray.loading || !tray.parsed || tray.reachedEnd) {
+      return;
+    }
+    if (trayEl.scrollLeft + trayEl.clientWidth >= trayEl.scrollWidth - 120) {
+      void runSearch(tray.query, { reset: false });
+    }
   }
 
   function groupQuantity(group) {
@@ -508,6 +636,7 @@ export function bootStudioPage(api) {
     const key = api.getCardKey(card);
     const item = document.createElement("article");
     item.className = "studio-card";
+    item.classList.toggle("studio-card-in-tray", inTray);
     item.classList.toggle("is-selected", key === studio.selectedKey);
     item.draggable = true;
     item.title = card.name;
@@ -515,6 +644,9 @@ export function bootStudioPage(api) {
       event.dataTransfer.setData("text/plain", key);
       event.dataTransfer.effectAllowed = "copyMove";
     });
+
+    const frame = document.createElement("div");
+    frame.className = "studio-card-frame";
 
     const imageButton = document.createElement("button");
     imageButton.type = "button";
@@ -546,7 +678,7 @@ export function bootStudioPage(api) {
     } else {
       imageButton.append(api.createPlaceholder(card.name));
     }
-    item.append(imageButton);
+    frame.append(imageButton);
 
     if (inTray) {
       const qtySelect = createQuantitySelect({
@@ -565,7 +697,7 @@ export function bootStudioPage(api) {
         rememberCard(card);
         addCardToGroup(key, studio.activeGroupId, amount);
       });
-      item.append(qtySelect);
+      frame.append(qtySelect);
     } else if (groupId) {
       const qtySelect = createQuantitySelect({
         includePlaceholder: false,
@@ -587,14 +719,22 @@ export function bootStudioPage(api) {
         event.stopPropagation();
         removeCardFromGroup(key, groupId);
       });
-      item.append(qtySelect, remove);
+      frame.append(qtySelect, remove);
     }
 
     if (addedFeedback[key]) {
       const added = document.createElement("span");
       added.className = "result-added-message studio-card-added show";
       added.textContent = addedFeedback[key];
-      item.append(added);
+      frame.append(added);
+    }
+
+    item.append(frame);
+    if (inTray) {
+      const caption = document.createElement("p");
+      caption.className = "studio-card-name";
+      caption.textContent = card.name;
+      item.append(caption);
     }
 
     return item;
