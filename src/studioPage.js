@@ -612,11 +612,10 @@ export function bootStudioPage(api) {
     inspectorEl.replaceChildren();
     inspectorEl.classList.toggle("is-empty", !card);
 
-    const heading = document.createElement("p");
-    heading.className = "eyebrow studio-spotlight-kicker";
-    heading.textContent = "Spotlight";
-
     if (!card) {
+      const heading = document.createElement("p");
+      heading.className = "eyebrow studio-spotlight-kicker";
+      heading.textContent = "Spotlight";
       inspectorEl.append(heading);
       const empty = document.createElement("p");
       empty.className = "studio-spotlight-empty";
@@ -641,15 +640,14 @@ export function bootStudioPage(api) {
     name.className = "studio-inspector-name";
     name.textContent = card.name;
 
-    const line = document.createElement("p");
-    line.className = "studio-inspector-line";
-    line.textContent = [
-      api.formatCardLine(card),
-      api.formatCost(card.cost_memory || card.cost),
-      api.getPrimaryEdition(card)?.set?.name || api.getPrimaryEdition(card)?.set?.prefix,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const stats = document.createElement("div");
+    stats.className = "studio-stats";
+    const cost = getStudioCostStat(card);
+    stats.append(
+      createStudioStat(cost.label, cost.value),
+      createStudioStat("Power", formatStudioStat(card.power)),
+      createStudioStat("Life", formatStudioStat(card.life)),
+    );
 
     const effect = document.createElement("p");
     effect.className = "studio-inspector-effect";
@@ -658,22 +656,7 @@ export function bootStudioPage(api) {
 
     const copy = document.createElement("div");
     copy.className = "studio-inspector-copy";
-    copy.append(heading, name, line, effect);
-
-    const shared = getSharedTags(card);
-    if (shared.length) {
-      const label = document.createElement("p");
-      label.className = "studio-inspector-share-label";
-      label.textContent = "Also on this board";
-      const chips = document.createElement("div");
-      chips.className = "studio-share-chips";
-      for (const tag of shared) {
-        const chip = document.createElement("span");
-        chip.textContent = `${tag.label} · ${tag.count}`;
-        chips.append(chip);
-      }
-      copy.append(label, chips);
-    }
+    copy.append(name, stats, effect);
 
     const actions = document.createElement("div");
     actions.className = "studio-inspector-actions";
@@ -944,33 +927,6 @@ export function bootStudioPage(api) {
     return studio.groups.find((group) => group.id === studio.activeGroupId) || studio.groups[0];
   }
 
-  function getSharedTags(card) {
-    const boardCards = studio.groups.flatMap((group) =>
-      group.cardKeys.map((key) => studio.cards[key]).filter(Boolean),
-    );
-    const selectedKey = api.getCardKey(card);
-    const counts = new Map();
-    const add = (label) => {
-      const key = String(label || "").trim();
-      if (!key) {
-        return;
-      }
-      counts.set(key, (counts.get(key) || 0) + 1);
-    };
-    for (const other of boardCards) {
-      if (api.getCardKey(other) === selectedKey) {
-        continue;
-      }
-      intersect(card.subtypes, other.subtypes).forEach((value) => add(api.titleCase(value)));
-      intersect(card.elements, other.elements).forEach((value) => add(api.titleCase(value)));
-      intersect(card.types, other.types).forEach((value) => add(api.titleCase(value)));
-    }
-    return [...counts.entries()]
-      .map(([label, count]) => ({ label, count }))
-      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
-      .slice(0, 8);
-  }
-
   function persist() {
     const liveKeys = new Set(studio.groups.flatMap((group) => group.cardKeys));
     for (const key of Object.keys(studio.quantities || {})) {
@@ -1183,6 +1139,44 @@ function migrateActiveGroupId(storedId, groups) {
   return activeGroupId;
 }
 
+function formatStudioStat(value) {
+  if (value == null || value === "") {
+    return "—";
+  }
+  if (Number(value) === -1 || String(value).toUpperCase() === "X") {
+    return "X";
+  }
+  return String(value);
+}
+
+function getStudioCostStat(card) {
+  if (card.cost_memory != null) {
+    return { value: formatStudioStat(card.cost_memory), label: "Memory" };
+  }
+  if (card.cost_reserve != null) {
+    return { value: formatStudioStat(card.cost_reserve), label: "Cost" };
+  }
+  const cost = card.cost;
+  if (cost && cost.type && cost.type !== "none" && cost.value != null) {
+    const isMemory = String(cost.type).toLowerCase() === "memory";
+    return { value: formatStudioStat(cost.value), label: isMemory ? "Memory" : "Cost" };
+  }
+  return { value: "—", label: "Cost" };
+}
+
+function createStudioStat(label, value) {
+  const item = document.createElement("div");
+  item.className = "studio-stat";
+  const kicker = document.createElement("span");
+  kicker.className = "studio-stat-label";
+  kicker.textContent = label;
+  const number = document.createElement("span");
+  number.className = "studio-stat-value";
+  number.textContent = value;
+  item.append(kicker, number);
+  return item;
+}
+
 function getEffectText(card) {
   return (
     [
@@ -1195,9 +1189,4 @@ function getEffectText(card) {
       .filter(Boolean)
       .find((text) => String(text).trim()) || ""
   );
-}
-
-function intersect(left = [], right = []) {
-  const other = new Set((right || []).map((value) => String(value).toUpperCase()));
-  return (left || []).filter((value) => other.has(String(value).toUpperCase()));
 }
