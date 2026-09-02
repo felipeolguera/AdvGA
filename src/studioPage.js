@@ -152,6 +152,7 @@ export function bootStudioPage(api) {
   const carouselNext = document.querySelector("#studio-carousel-next");
   const carouselIndexEl = document.querySelector("#studio-carousel-index");
   const loadMoreButton = document.querySelector("#studio-load-more");
+  let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
   const inspectorEl = document.querySelector("#studio-inspector");
   const boardCountEl = document.querySelector("#studio-board-count");
@@ -218,6 +219,10 @@ export function bootStudioPage(api) {
     updateCarouselUi();
     maybeLoadMoreCarousel();
   }, { passive: true });
+  trayEl?.addEventListener("scrollend", () => {
+    carouselTarget = null;
+    updateCarouselUi();
+  });
   trayEl?.addEventListener("keydown", (event) => {
     if (event.key === "ArrowRight") {
       event.preventDefault();
@@ -379,6 +384,7 @@ export function bootStudioPage(api) {
     carouselEl?.classList.toggle("is-empty", tray.cards.length === 0 && !tray.loading);
     requestAnimationFrame(() => {
       trayEl.scrollLeft = restoreScroll;
+      carouselTarget = null;
       tray.restoreScroll = null;
       updateCarouselUi();
     });
@@ -402,7 +408,11 @@ export function bootStudioPage(api) {
   }
 
   function scrollCarousel(direction) {
-    trayEl.scrollBy({ left: direction * carouselCardStep(), behavior: "smooth" });
+    const max = Math.max(0, trayEl.scrollWidth - trayEl.clientWidth);
+    const from = carouselTarget ?? trayEl.scrollLeft;
+    const next = Math.min(max, Math.max(0, from + direction * carouselCardStep()));
+    carouselTarget = next;
+    trayEl.scrollTo({ left: next, behavior: "smooth" });
   }
 
   function visibleCarouselRange() {
