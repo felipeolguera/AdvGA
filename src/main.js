@@ -718,12 +718,16 @@ function getTryItShellHtml() {
           </div>
         </div>
         <div class="tryit-chrome-full">
-          <p class="eyebrow">Try it!</p>
           <div class="tryit-page-title-row">
-            <h1>Playtest</h1>
-            <button class="ghost compact tryit-share-button" type="button" data-tryit-share="true">Share</button>
+            <div class="tryit-page-title-group">
+              <h1>Playtest</h1>
+              <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
+            </div>
+            <div class="tryit-page-title-actions">
+              <span class="tryit-inline-version" aria-label="App version">v${APP_VERSION}</span>
+              <button class="ghost compact tryit-share-button" type="button" data-tryit-share="true">Share</button>
+            </div>
           </div>
-          <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
         </div>
       </div>
     </header>

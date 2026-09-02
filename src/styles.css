@@ -1405,7 +1405,7 @@ button.result-grid-add {
 
 .tryit-page {
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 
 /* Solo Playtest spans the viewport; dual mode stays edge-to-edge below. */
@@ -1416,11 +1416,12 @@ button.result-grid-add {
   max-width: none;
   min-height: 100vh;
   margin: 0;
-  padding: 8px 8px 12px;
+  padding: 6px 8px 8px;
 }
 
 .tryit-page-header {
-  padding: 12px 16px;
+  padding: 4px 10px;
+  border-radius: 14px;
 }
 
 .tryit-chrome-slim {
@@ -1438,7 +1439,11 @@ button.result-grid-add {
 }
 
 .tryit-page:not(.is-mp-dual) .tryit-chrome-slim {
-  justify-content: flex-end;
+  display: none;
+}
+
+body[data-page="tryit"]:not(:has(.tryit-page.is-mp-dual)) .app-version {
+  display: none;
 }
 
 .tryit-page:not(.is-mp-dual) .tryit-chrome-slim .mp-room-status {
@@ -1520,23 +1525,64 @@ body:has(.tryit-page.is-mp-dual) {
 
 .tryit-page-heading h1 {
   margin: 0;
+  max-width: none;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
 }
 
 .tryit-page-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 6px;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.tryit-page-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
 .tryit-page-title-row h1 {
+  flex: 0 0 auto;
+}
+
+.tryit-deck-name {
+  margin: 0;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.tryit-page-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.tryit-inline-version {
+  color: var(--gold-strong);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .tryit-share-button {
   flex: 0 0 auto;
   white-space: nowrap;
+  padding: 4px 10px !important;
+  border-radius: 10px;
+  font-size: 0.78rem;
 }
 
 .tryit-menu {
