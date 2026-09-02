@@ -1106,6 +1106,8 @@ if (IS_TRYIT_PAGE) {
     saveStoredJson,
     updateSearchFiltersVisibility,
     defaultDeckSection,
+    writeDeckForTryIt,
+    tryItUrl: TRYIT_PAGE_URL,
     appVersion: APP_VERSION,
   });
 } else {
@@ -3640,6 +3642,14 @@ function shuffleArray(items) {
 
 function openTryItPage() {
   window.location.assign(TRYIT_PAGE_URL);
+}
+
+function writeDeckForTryIt(cards, deckName = "Studio brew") {
+  state.deck = normalizeStoredDeck(Array.isArray(cards) ? cards : []);
+  state.deckName = String(deckName || "Studio brew").trim() || "Studio brew";
+  saveDeck();
+  saveStoredJson(DECK_NAME_STORAGE_KEY, state.deckName);
+  openTryItPage();
 }
 
 function isMultiplayerPlayer() {
