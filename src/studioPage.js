@@ -414,7 +414,8 @@ export function bootStudioPage(api) {
 
     const effect = document.createElement("p");
     effect.className = "studio-inspector-effect";
-    effect.textContent = getEffectText(card) || "No effect text on this printing.";
+    const effectText = getEffectText(card).replace(/\s+\n/g, "\n").trim();
+    effect.textContent = effectText || "No effect text on this printing.";
 
     inspectorEl.append(figure, name, line, effect);
 
