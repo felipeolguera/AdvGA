@@ -37,14 +37,12 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       </nav>
     </header>
 
-    <div class="studio-stage">
-      <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
-      <section class="studio-board-panel" aria-label="Brewing lanes">
+    <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
+    <div class="studio-dock">
+      <section class="studio-board-panel" aria-label="Deck strip">
         <div class="studio-board" id="studio-board"></div>
       </section>
-    </div>
-
-    <section class="studio-search-panel" aria-label="Search rack">
+      <section class="studio-search-panel" aria-label="Search rack">
       <form class="studio-search" id="studio-search-form">
         <label class="studio-search-label" for="studio-search-input">Search cards</label>
         <div class="studio-search-bar">
@@ -114,7 +112,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         </div>
       </form>
       <p class="hint studio-search-status" id="studio-search-status">Search the rack, then click a card to put it in the spotlight.</p>
-      <div class="studio-carousel" id="studio-carousel">
+      <div class="studio-carousel is-empty" id="studio-carousel">
         <button type="button" class="studio-carousel-nav" id="studio-carousel-prev" aria-label="Previous search results">‹</button>
         <div class="studio-tray" id="studio-tray" tabindex="0" aria-label="Search results carousel"></div>
         <button type="button" class="studio-carousel-nav" id="studio-carousel-next" aria-label="Next search results">›</button>
@@ -124,6 +122,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <button class="ghost compact hidden" type="button" id="studio-load-more">Load more</button>
       </div>
     </section>
+    </div>
   </main>
   <div class="studio-toast" id="studio-toast" role="status" aria-live="polite" hidden></div>
   `;
@@ -474,78 +473,86 @@ export function bootStudioPage(api) {
   function renderBoard() {
     boardEl.replaceChildren();
     let total = 0;
+    const tabs = document.createElement("div");
+    tabs.className = "studio-group-tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Deck groups");
+
+    let active = studio.groups.find((group) => group.id === studio.activeGroupId) || studio.groups[0];
     for (const group of studio.groups) {
       const pileCount = groupQuantity(group);
       total += pileCount;
-      const pile = document.createElement("section");
-      pile.className = "studio-pile";
-      pile.dataset.studioPile = group.id;
-      pile.classList.toggle("is-active", group.id === studio.activeGroupId);
-      const header = document.createElement("header");
-      header.className = "studio-pile-header";
-      const heading = document.createElement("div");
-      heading.className = "studio-pile-heading";
-      const title = document.createElement("button");
-      title.type = "button";
-      title.className = "studio-pile-title";
-      title.textContent = `${group.name} (${pileCount})`;
-      title.title = "Select pile · double-click to rename";
-      title.addEventListener("click", () => {
-        selectGroup(group.id);
-      });
-      title.addEventListener("dblclick", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        startRenameGroup(group);
-      });
-      const rename = document.createElement("button");
-      rename.type = "button";
-      rename.className = "ghost compact";
-      rename.textContent = "Rename";
-      rename.setAttribute("aria-label", `Rename ${group.name}`);
-      rename.addEventListener("click", (event) => {
-        event.stopPropagation();
-        startRenameGroup(group);
-      });
-      heading.append(title, rename);
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "ghost compact";
-      remove.textContent = "Remove";
-      remove.hidden = studio.groups.length <= 1;
-      remove.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (!window.confirm(`Remove group “${group.name}”?`)) {
-          return;
-        }
-        studio.groups = studio.groups.filter((item) => item.id !== group.id);
-        if (studio.activeGroupId === group.id) {
-          studio.activeGroupId = studio.groups[0]?.id || "";
-        }
-        persist();
-        renderBoard();
-        renderInspector();
-      });
-      header.append(heading, remove);
-      const cards = document.createElement("div");
-      cards.className = "studio-pile-cards";
-      for (const key of group.cardKeys) {
-        const card = studio.cards[key];
-        if (card) {
-          cards.append(createMiniCard(card, { groupId: group.id }));
-        }
-      }
-      if (group.cardKeys.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "hint studio-pile-empty";
-        empty.textContent = group.id === studio.activeGroupId
-          ? "Live lane · add from the rack"
-          : "Empty lane";
-        cards.append(empty);
-      }
-      pile.append(header, cards);
-      boardEl.append(pile);
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "studio-group-tab";
+      tab.classList.toggle("is-active", group.id === studio.activeGroupId);
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", group.id === studio.activeGroupId ? "true" : "false");
+      tab.textContent = `${group.name} ${pileCount}`;
+      tab.addEventListener("click", () => selectGroup(group.id));
+      tabs.append(tab);
     }
+    boardEl.append(tabs);
+
+    if (!active) {
+      boardCountEl.textContent = "0 cards";
+      return;
+    }
+
+    const tools = document.createElement("div");
+    tools.className = "studio-group-tools";
+    const title = document.createElement("button");
+    title.type = "button";
+    title.className = "studio-pile-title";
+    title.textContent = active.name;
+    title.title = "Double-click to rename";
+    title.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      startRenameGroup(active);
+    });
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "ghost compact";
+    rename.textContent = "Rename";
+    rename.setAttribute("aria-label", `Rename ${active.name}`);
+    rename.addEventListener("click", () => startRenameGroup(active));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "ghost compact";
+    remove.textContent = "Remove";
+    remove.hidden = studio.groups.length <= 1;
+    remove.addEventListener("click", () => {
+      if (!window.confirm(`Remove group “${active.name}”?`)) {
+        return;
+      }
+      studio.groups = studio.groups.filter((item) => item.id !== active.id);
+      studio.activeGroupId = studio.groups[0]?.id || "";
+      persist();
+      renderBoard();
+      renderInspector();
+    });
+    tools.append(title, rename, remove);
+    tabs.append(tools);
+
+    const pile = document.createElement("section");
+    pile.className = "studio-pile is-active";
+    pile.dataset.studioPile = active.id;
+    const cards = document.createElement("div");
+    cards.className = "studio-pile-cards";
+    for (const key of active.cardKeys) {
+      const card = studio.cards[key];
+      if (card) {
+        cards.append(createMiniCard(card, { groupId: active.id }));
+      }
+    }
+    if (active.cardKeys.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "hint studio-pile-empty";
+      empty.textContent = "Empty · add from search";
+      cards.append(empty);
+    }
+    pile.append(cards);
+    boardEl.append(pile);
     boardCountEl.textContent = total === 1 ? "1 card" : `${total} cards`;
   }
 
@@ -555,19 +562,12 @@ export function bootStudioPage(api) {
     }
     studio.activeGroupId = groupId;
     persist();
-    boardEl.querySelectorAll("[data-studio-pile]").forEach((pile) => {
-      const active = pile.dataset.studioPile === groupId;
-      pile.classList.toggle("is-active", active);
-      const empty = pile.querySelector(".studio-pile-empty");
-      if (empty) {
-        empty.textContent = active ? "Live lane · add from the rack" : "Empty lane";
-      }
-    });
+    renderBoard();
     renderInspector();
   }
 
   function startRenameGroup(group) {
-    const title = boardEl.querySelector(`[data-studio-pile="${group.id}"] .studio-pile-title`);
+    const title = boardEl.querySelector(".studio-pile-title");
     if (!title || title.tagName === "INPUT") {
       return;
     }
