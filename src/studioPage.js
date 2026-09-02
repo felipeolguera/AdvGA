@@ -17,6 +17,8 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       <p class="hint studio-header-hint">Search, pile cards into groups, then click a card to read it. Built for brewing on camera.</p>
       <nav class="studio-header-nav">
         <a class="ghost compact" href="${builderUrl}">Deck builder</a>
+        <button class="secondary compact" type="button" id="studio-copy-decklist">Copy decklist</button>
+        <button class="ghost compact" type="button" id="studio-download-decklist">Download .txt</button>
         <button class="ghost compact" type="button" id="studio-clear-board">Clear board</button>
       </nav>
     </header>
@@ -189,6 +191,13 @@ export function bootStudioPage(api) {
     studio.activeGroupId = id;
     persist();
     renderBoard();
+  });
+
+  document.querySelector("#studio-copy-decklist")?.addEventListener("click", (event) => {
+    void copyStudioDecklist(event.currentTarget);
+  });
+  document.querySelector("#studio-download-decklist")?.addEventListener("click", () => {
+    downloadStudioDecklist();
   });
 
   document.querySelector("#studio-clear-board")?.addEventListener("click", () => {
@@ -603,6 +612,90 @@ export function bootStudioPage(api) {
       activeGroupId: studio.activeGroupId,
       cards: studio.cards,
     });
+  }
+
+  function boardCardCount() {
+    return studio.groups.reduce((total, group) => total + group.cardKeys.length, 0);
+  }
+
+  function formatStudioDecklist() {
+    const buckets = {
+      material: [],
+      main: [],
+      sideboard: [],
+    };
+    for (const group of studio.groups) {
+      const counts = new Map();
+      for (const key of group.cardKeys) {
+        const card = studio.cards[key];
+        const name = String(card?.name || "").trim();
+        if (!name) {
+          continue;
+        }
+        const current = counts.get(name);
+        if (current) {
+          current.qty += 1;
+        } else {
+          counts.set(name, { qty: 1, card });
+        }
+      }
+      const sidePile = /maybe|cut|side/i.test(`${group.id} ${group.name}`);
+      for (const entry of counts.values()) {
+        const section = sidePile ? "sideboard" : api.defaultDeckSection(entry.card);
+        buckets[section].push(entry);
+      }
+    }
+
+    const header = [`// Studio brew`, `// Built with AdvGA Studio v${api.appVersion}`, ""].join("\n");
+    const sections = [
+      ["Material Deck", buckets.material],
+      ["Main Deck", buckets.main],
+      ["Sideboard", buckets.sideboard],
+    ]
+      .filter(([, cards]) => cards.length > 0)
+      .map(([title, cards]) => [`# ${title}`, "", ...cards.map((entry) => `${entry.qty} ${entry.card.name}`)].join("\n"));
+    return `${header}${sections.join("\n\n")}`.trim() + "\n";
+  }
+
+  async function copyStudioDecklist(button) {
+    if (boardCardCount() === 0) {
+      window.alert("Add cards to a pile before exporting a decklist.");
+      return;
+    }
+    const text = formatStudioDecklist();
+    const original = button?.textContent || "Copy decklist";
+    try {
+      await navigator.clipboard.writeText(text);
+      if (button) {
+        button.textContent = "Copied. Ready to paste.";
+      }
+    } catch {
+      window.prompt("Copy this decklist", text);
+      if (button) {
+        button.textContent = "Copied. Ready to paste.";
+      }
+    } finally {
+      window.setTimeout(() => {
+        if (button) {
+          button.textContent = original;
+        }
+      }, 1800);
+    }
+  }
+
+  function downloadStudioDecklist() {
+    if (boardCardCount() === 0) {
+      window.alert("Add cards to a pile before exporting a decklist.");
+      return;
+    }
+    const text = formatStudioDecklist();
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "studio-brew.txt";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 }
 
