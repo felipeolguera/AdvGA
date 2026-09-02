@@ -28,7 +28,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.35";
+const APP_VERSION = "1.36";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -4689,22 +4689,61 @@ async function enrichTryItInspectedCard(card) {
   }
 }
 
+function formatPlaytestStat(value) {
+  if (value == null || value === "") {
+    return "—";
+  }
+  if (Number(value) === -1 || String(value).toUpperCase() === "X") {
+    return "X";
+  }
+  return String(value);
+}
+
+function getPlaytestCostStat(card) {
+  if (card?.cost_memory != null) {
+    return { value: formatPlaytestStat(card.cost_memory), label: "Memory" };
+  }
+  if (card?.cost_reserve != null) {
+    return { value: formatPlaytestStat(card.cost_reserve), label: "Cost" };
+  }
+  const cost = card?.cost;
+  if (cost && cost.type && cost.type !== "none" && cost.value != null) {
+    const isMemory = String(cost.type).toLowerCase() === "memory";
+    return { value: formatPlaytestStat(cost.value), label: isMemory ? "Memory" : "Cost" };
+  }
+  return { value: "—", label: "Cost" };
+}
+
+function createPlaytestStat(label, value) {
+  const item = document.createElement("div");
+  item.className = "studio-stat";
+  const kicker = document.createElement("span");
+  kicker.className = "studio-stat-label";
+  kicker.textContent = label;
+  const number = document.createElement("span");
+  number.className = "studio-stat-value";
+  number.textContent = value;
+  item.append(kicker, number);
+  return item;
+}
+
 function renderTryItInspector() {
   const inspectorEl = document.querySelector("#tryit-inspector");
   if (!inspectorEl) {
     return;
   }
   inspectorEl.replaceChildren();
-  const heading = document.createElement("p");
-  heading.className = "eyebrow";
-  heading.textContent = "Card info";
-  inspectorEl.append(heading);
+  inspectorEl.classList.toggle("is-empty", !state.tryitInspectedCard);
 
   const card = state.tryitInspectedCard;
   if (!card) {
+    const heading = document.createElement("p");
+    heading.className = "eyebrow";
+    heading.textContent = "Card info";
+    inspectorEl.append(heading);
     const empty = document.createElement("p");
     empty.className = "hint";
-    empty.textContent = "Click a card to show its art, type line, and effect here.";
+    empty.textContent = "Click a card to show cost, power, life, and effect.";
     inspectorEl.append(empty);
     return;
   }
@@ -4725,15 +4764,14 @@ function renderTryItInspector() {
   name.className = "studio-inspector-name";
   name.textContent = card.name || "Card";
 
-  const line = document.createElement("p");
-  line.className = "studio-inspector-line";
-  line.textContent = [
-    formatCardLine(card),
-    formatCost(card.cost_memory || card.cost),
-    getPrimaryEdition(card)?.set?.name || getPrimaryEdition(card)?.set?.prefix,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const stats = document.createElement("div");
+  stats.className = "studio-stats";
+  const cost = getPlaytestCostStat(card);
+  stats.append(
+    createPlaytestStat(cost.label, cost.value),
+    createPlaytestStat("Power", formatPlaytestStat(card.power)),
+    createPlaytestStat("Life", formatPlaytestStat(card.life)),
+  );
 
   const effect = document.createElement("p");
   effect.className = "studio-inspector-effect";
@@ -4744,7 +4782,7 @@ function renderTryItInspector() {
 
   const copy = document.createElement("div");
   copy.className = "tryit-inspector-copy";
-  copy.append(name, line, effect);
+  copy.append(name, stats, effect);
 
   const body = document.createElement("div");
   body.className = "tryit-inspector-body";

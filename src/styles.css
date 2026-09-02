@@ -1725,10 +1725,26 @@ body:has(.tryit-page.is-mp-dual) {
 }
 
 .tryit-inspector .studio-inspector-name {
-  font-size: 1.05rem;
+  font-size: 1.02rem;
+  line-height: 1.15;
 }
 
-.tryit-inspector .studio-inspector-line,
+.tryit-inspector .studio-stats {
+  gap: 4px 12px;
+}
+
+.tryit-inspector .studio-stat {
+  gap: 4px;
+}
+
+.tryit-inspector .studio-stat-label {
+  font-size: 0.62rem;
+}
+
+.tryit-inspector .studio-stat-value {
+  font-size: 1.15rem;
+}
+
 .tryit-inspector .studio-inspector-effect {
   font-size: 0.82rem;
 }
@@ -3632,7 +3648,7 @@ body.deck-load-active {
   }
 
   .tryit-inspector .studio-inspector-name,
-  .tryit-inspector .studio-inspector-line,
+  .tryit-inspector .studio-stats,
   .tryit-inspector .studio-inspector-effect {
     grid-column: auto;
     margin: 0;
