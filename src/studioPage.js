@@ -19,39 +19,55 @@ function clampStudioQty(value) {
 
 export function getStudioShellHtml({ appVersion, builderUrl }) {
   return `
-  <p class="app-version" aria-label="App version">v${appVersion}</p>
   <main class="page-shell studio-page">
-    <header class="panel studio-header">
-      <div class="studio-header-copy">
-        <p class="eyebrow">AdvGA Studio</p>
-        <h1>Playground</h1>
+    <header class="studio-header">
+      <div class="studio-header-brand">
+        <p class="studio-live"><span class="studio-live-dot" aria-hidden="true"></span>On camera</p>
+        <h1>Studio</h1>
+        <p class="studio-header-version" aria-label="App version">v${appVersion}</p>
       </div>
-      <p class="hint studio-header-hint">Search, pile cards into groups, then click a card to read it. Built for brewing on camera.</p>
+      <p class="studio-board-count" id="studio-board-count">0 cards</p>
       <nav class="studio-header-nav">
-        <a class="ghost compact" href="${builderUrl}">Deck builder</a>
-        <button class="secondary compact" type="button" id="studio-copy-decklist">Copy decklist</button>
-        <button class="ghost compact" type="button" id="studio-download-decklist">Download .txt</button>
-        <button class="ghost compact" type="button" id="studio-clear-board">Clear board</button>
+        <button class="try-it-button compact" type="button" id="studio-try-it">Try it!</button>
+        <button class="secondary compact" type="button" id="studio-add-group">Add group</button>
+        <button class="ghost compact" type="button" id="studio-copy-decklist">Copy list</button>
+        <button class="ghost compact" type="button" id="studio-download-decklist">Download</button>
+        <button class="ghost compact" type="button" id="studio-clear-board">Clear</button>
+        <a class="ghost compact" href="${builderUrl}">Builder</a>
       </nav>
     </header>
 
-    <section class="panel studio-search-panel">
+    <div class="studio-stage">
+      <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
+      <section class="studio-board-panel" aria-label="Brewing lanes">
+        <div class="studio-board" id="studio-board"></div>
+      </section>
+    </div>
+
+    <section class="studio-search-panel" aria-label="Search rack">
       <form class="studio-search" id="studio-search-form">
         <label class="studio-search-label" for="studio-search-input">Search cards</label>
-        <div class="search-row studio-search-row">
-          <div class="search-input-wrap">
-            <input
-              id="studio-search-input"
-              name="query"
-              autocomplete="off"
-              spellcheck="true"
-              placeholder="harmony or melody in PRD"
-            />
+        <div class="studio-search-bar">
+          <div class="search-row studio-search-row">
+            <div class="search-input-wrap">
+              <input
+                id="studio-search-input"
+                name="query"
+                autocomplete="off"
+                spellcheck="true"
+                placeholder="Search a card to put on camera"
+              />
+            </div>
+            <button type="button" class="secondary" id="toggle-search-filters" aria-expanded="false" aria-controls="search-filters">
+              Filters
+            </button>
+            <button type="submit">Search</button>
           </div>
-          <button type="button" class="secondary" id="toggle-search-filters" aria-expanded="false" aria-controls="search-filters">
-            Filters
-          </button>
-          <button type="submit">Search</button>
+          <div class="studio-examples" aria-label="Example searches">
+            <button type="button" data-studio-example="harmony in PRD">harmony in PRD</button>
+            <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
+            <button type="button" data-studio-example="unique allies in PRD">unique allies</button>
+          </div>
         </div>
         <div class="search-filters" id="search-filters" hidden>
           <div class="search-filters-grid">
@@ -97,12 +113,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
           </div>
         </div>
       </form>
-      <div class="studio-examples" aria-label="Example searches">
-        <button type="button" data-studio-example="harmony in PRD">harmony in PRD</button>
-        <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
-        <button type="button" data-studio-example="unique allies in PRD">unique allies in PRD</button>
-      </div>
-      <p class="hint studio-search-status" id="studio-search-status">Search to fill the carousel, then pick 1–4 to add a card to the selected pile.</p>
+      <p class="hint studio-search-status" id="studio-search-status">Search the rack, then click a card to put it in the spotlight.</p>
       <div class="studio-carousel" id="studio-carousel">
         <button type="button" class="studio-carousel-nav" id="studio-carousel-prev" aria-label="Previous search results">‹</button>
         <div class="studio-tray" id="studio-tray" tabindex="0" aria-label="Search results carousel"></div>
@@ -113,20 +124,6 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <button class="ghost compact hidden" type="button" id="studio-load-more">Load more</button>
       </div>
     </section>
-
-    <div class="studio-workspace">
-      <section class="panel studio-board-panel" aria-label="Playground">
-        <div class="studio-board-toolbar">
-          <p class="studio-board-count" id="studio-board-count">Board 0</p>
-          <div class="studio-board-toolbar-actions">
-            <button class="try-it-button compact" type="button" id="studio-try-it">Try it!</button>
-            <button class="secondary compact" type="button" id="studio-add-group">Add group</button>
-          </div>
-        </div>
-        <div class="studio-board" id="studio-board"></div>
-      </section>
-      <aside class="panel studio-inspector" id="studio-inspector" aria-label="Card info"></aside>
-    </div>
   </main>
   <div class="studio-toast" id="studio-toast" role="status" aria-live="polite" hidden></div>
   `;
@@ -355,7 +352,7 @@ export function bootStudioPage(api) {
       tray.reachedEnd = typeof hasMore === "boolean" ? !hasMore : cards.length < 50;
       const totalLabel = Number.isFinite(totalCards) ? ` of ${totalCards}` : "";
       statusEl.textContent = tray.cards.length
-        ? `${tray.cards.length}${totalLabel} in the carousel · click to inspect, pick 1–4 to pile`
+        ? `${tray.cards.length}${totalLabel} in the rack · click for spotlight, pick 1–4 to add`
         : "No cards matched that search.";
     } catch (error) {
       console.error(error);
@@ -542,14 +539,14 @@ export function bootStudioPage(api) {
         const empty = document.createElement("p");
         empty.className = "hint studio-pile-empty";
         empty.textContent = group.id === studio.activeGroupId
-          ? "Selected pile · add from the tray"
-          : "Empty pile";
+          ? "Live lane · add from the rack"
+          : "Empty lane";
         cards.append(empty);
       }
       pile.append(header, cards);
       boardEl.append(pile);
     }
-    boardCountEl.textContent = `Board ${total}`;
+    boardCountEl.textContent = total === 1 ? "1 card" : `${total} cards`;
   }
 
   function selectGroup(groupId) {
@@ -563,7 +560,7 @@ export function bootStudioPage(api) {
       pile.classList.toggle("is-active", active);
       const empty = pile.querySelector(".studio-pile-empty");
       if (empty) {
-        empty.textContent = active ? "Selected pile · add from the tray" : "Empty pile";
+        empty.textContent = active ? "Live lane · add from the rack" : "Empty lane";
       }
     });
     renderInspector();
@@ -613,15 +610,17 @@ export function bootStudioPage(api) {
   function renderInspector() {
     const card = studio.cards[studio.selectedKey];
     inspectorEl.replaceChildren();
+    inspectorEl.classList.toggle("is-empty", !card);
+
     const heading = document.createElement("p");
-    heading.className = "eyebrow";
-    heading.textContent = "Card info";
-    inspectorEl.append(heading);
+    heading.className = "eyebrow studio-spotlight-kicker";
+    heading.textContent = "Spotlight";
 
     if (!card) {
+      inspectorEl.append(heading);
       const empty = document.createElement("p");
-      empty.className = "hint";
-      empty.textContent = "Click a card to show its art, type line, and effect here.";
+      empty.className = "studio-spotlight-empty";
+      empty.textContent = "Click a card to put it on camera.";
       inspectorEl.append(empty);
       return;
     }
@@ -657,13 +656,15 @@ export function bootStudioPage(api) {
     const effectText = getEffectText(card).replace(/\s+\n/g, "\n").trim();
     effect.textContent = effectText || "No effect text on this printing.";
 
-    inspectorEl.append(figure, name, line, effect);
+    const copy = document.createElement("div");
+    copy.className = "studio-inspector-copy";
+    copy.append(heading, name, line, effect);
 
     const shared = getSharedTags(card);
     if (shared.length) {
       const label = document.createElement("p");
       label.className = "studio-inspector-share-label";
-      label.textContent = "Also shares on this board";
+      label.textContent = "Also on this board";
       const chips = document.createElement("div");
       chips.className = "studio-share-chips";
       for (const tag of shared) {
@@ -671,7 +672,7 @@ export function bootStudioPage(api) {
         chip.textContent = `${tag.label} · ${tag.count}`;
         chips.append(chip);
       }
-      inspectorEl.append(label, chips);
+      copy.append(label, chips);
     }
 
     const actions = document.createElement("div");
@@ -691,7 +692,7 @@ export function bootStudioPage(api) {
     if (!onBoard) {
       const add = document.createElement("button");
       add.type = "button";
-      add.textContent = `Add to ${activeGroup()?.name || "pile"}`;
+      add.textContent = `Add to ${activeGroup()?.name || "lane"}`;
       add.addEventListener("click", () => {
         addCardToGroup(api.getCardKey(card), studio.activeGroupId, Number(qtySelect.value) || 1);
       });
@@ -706,11 +707,12 @@ export function bootStudioPage(api) {
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "ghost";
-      remove.textContent = "Remove from board";
+      remove.textContent = "Remove";
       remove.addEventListener("click", () => removeCardFromBoard(api.getCardKey(card)));
       actions.append(remove);
     }
-    inspectorEl.append(actions);
+    copy.append(actions);
+    inspectorEl.append(figure, copy);
   }
 
   function createMiniCard(card, { inTray = false, groupId = "" } = {}) {
