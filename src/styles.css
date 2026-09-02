@@ -3540,14 +3540,57 @@ body.deck-load-active {
     max-width: none;
     margin: 0;
     padding: 6px 6px 8px;
+    height: auto;
+    min-height: 100vh;
+    grid-template-rows: auto auto;
   }
 
   .tryit-workspace {
     grid-template-columns: 1fr;
+    align-items: start;
   }
 
-  .tryit-inspector {
-    max-height: 240px;
+  .tryit-inspector.studio-inspector {
+    max-height: none;
+    overflow: visible;
+    grid-template-columns: 108px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 12px;
+    row-gap: 6px;
+    padding: 12px 12px 14px;
+  }
+
+  .tryit-inspector .eyebrow,
+  .tryit-inspector .hint {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .tryit-inspector .studio-inspector-art {
+    grid-column: 1;
+    grid-row: 2 / span 3;
+    width: 108px;
+    overflow: hidden;
+  }
+
+  .tryit-inspector .studio-inspector-art img,
+  .tryit-inspector .studio-inspector-art .placeholder-card {
+    width: 108px;
+    max-height: none;
+    height: auto;
+    aspect-ratio: 0.716;
+    object-fit: contain;
+    object-position: top center;
+  }
+
+  .tryit-inspector .studio-inspector-name,
+  .tryit-inspector .studio-inspector-line,
+  .tryit-inspector .studio-inspector-effect {
+    grid-column: 2;
+  }
+
+  .tryit-inspector .studio-inspector-name {
+    font-size: 1.05rem;
   }
 
   .page-shell.tryit-page.is-mp-dual {
