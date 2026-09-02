@@ -1486,7 +1486,7 @@ body:has(.tryit-page.is-mp-dual) {
 .tryit-page.is-mp-dual .tryit-workspace {
   min-height: 0;
   height: 100%;
-  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .tryit-page.is-mp-dual .tryit-inspector {
@@ -1699,7 +1699,7 @@ body:has(.tryit-page.is-mp-dual) {
 
 .tryit-workspace {
   display: grid;
-  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
   min-height: 0;
@@ -1708,6 +1708,29 @@ body:has(.tryit-page.is-mp-dual) {
 
 .tryit-inspector {
   max-height: min(78vh, 720px);
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  justify-self: start;
+  padding: 10px;
+}
+
+.tryit-inspector .studio-inspector-art img,
+.tryit-inspector .studio-inspector-art .placeholder-card {
+  width: 100%;
+  max-height: none;
+  height: auto;
+  aspect-ratio: 0.716;
+  object-fit: contain;
+}
+
+.tryit-inspector .studio-inspector-name {
+  font-size: 1.05rem;
+}
+
+.tryit-inspector .studio-inspector-line,
+.tryit-inspector .studio-inspector-effect {
+  font-size: 0.82rem;
 }
 
 .tryit-inspector-body,
@@ -3570,6 +3593,9 @@ body.deck-load-active {
     align-items: start;
     gap: 8px;
     padding: 12px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
   }
 
   .tryit-inspector .eyebrow,
