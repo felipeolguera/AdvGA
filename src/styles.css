@@ -4073,7 +4073,20 @@ dialog .tryit-toast,
 }
 
 .studio-carousel:not(.is-empty) .studio-tray {
-  min-height: 228px;
+  min-height: 292px;
+}
+
+.studio-tray::-webkit-scrollbar {
+  height: 8px;
+}
+
+.studio-tray::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 204, 115, 0.45);
+}
+
+.studio-tray::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .studio-carousel-meta {
@@ -4096,11 +4109,11 @@ dialog .tryit-toast,
 
 .studio-carousel-more {
   flex: 0 0 auto;
-  width: min(168px, 46vw);
+  width: min(210px, 58vw);
   aspect-ratio: 0.716;
   scroll-snap-align: start;
   border: 1px dashed rgba(255, 204, 115, 0.5);
-  border-radius: 14px;
+  border-radius: 16px;
   color: var(--gold-strong);
   background: rgba(244, 184, 93, 0.08);
   font-size: 0.92rem;
@@ -4225,7 +4238,7 @@ dialog .tryit-toast,
   display: grid;
   grid-template-rows: auto auto;
   flex: 0 0 auto;
-  width: min(168px, 46vw);
+  width: min(210px, 58vw);
   aspect-ratio: auto;
   overflow: visible;
   border: 0;
@@ -4239,16 +4252,17 @@ dialog .tryit-toast,
   height: auto;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
 }
 
 .studio-card-name {
   display: -webkit-box;
-  margin: 7px 2px 0;
+  margin: 8px 4px 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 700;
   line-height: 1.25;
   -webkit-box-orient: vertical;
@@ -4507,10 +4521,10 @@ dialog .tryit-toast,
 
   .studio-card-in-tray,
   .studio-carousel-more {
-    width: min(148px, 58vw);
+    width: min(176px, 68vw);
   }
 
   .studio-carousel:not(.is-empty) .studio-tray {
-    min-height: 210px;
+    min-height: 250px;
   }
 }
