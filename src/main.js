@@ -28,7 +28,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.24";
+const APP_VERSION = "1.25";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -718,12 +718,16 @@ function getTryItShellHtml() {
           </div>
         </div>
         <div class="tryit-chrome-full">
-          <p class="eyebrow">Try it!</p>
           <div class="tryit-page-title-row">
-            <h1>Playtest</h1>
-            <button class="ghost compact tryit-share-button" type="button" data-tryit-share="true">Share</button>
+            <div class="tryit-page-title-group">
+              <h1>Playtest</h1>
+              <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
+            </div>
+            <div class="tryit-page-title-actions">
+              <span class="tryit-inline-version" aria-label="App version">v${APP_VERSION}</span>
+              <button class="ghost compact tryit-share-button" type="button" data-tryit-share="true">Share</button>
+            </div>
           </div>
-          <p class="hint tryit-deck-name">Deck: <strong>${deckLabel}</strong></p>
         </div>
       </div>
     </header>
@@ -1251,12 +1255,23 @@ async function shareTryItDeck() {
     return;
   }
 
+  const headerShare = document.querySelector(".tryit-share-button");
+  const headerShareLabel = headerShare?.textContent;
   try {
     await navigator.clipboard.writeText(url);
-    showTryItToast("Link copied");
+    if (headerShare) {
+      headerShare.textContent = "Copied";
+    }
+    showTryItToast("Link copied", 3200);
   } catch {
     window.prompt("Copy this playtest link", url);
-    showTryItToast("Link ready to copy");
+    showTryItToast("Link ready to copy", 3200);
+  } finally {
+    if (headerShare && headerShareLabel) {
+      window.setTimeout(() => {
+        headerShare.textContent = headerShareLabel;
+      }, 1800);
+    }
   }
 }
 
@@ -7804,7 +7819,7 @@ async function playOpeningHandExtraCard(board, card, kind = "token") {
   showTryItToast(`Added ${kindLabel}: ${cardName}`);
 }
 
-function showTryItToast(message = "Added") {
+function showTryItToast(message = "Added", durationMs = 1600) {
   const toast = tryitToastEl;
   if (!toast) {
     return;
@@ -7834,7 +7849,7 @@ function showTryItToast(message = "Added") {
   toast.classList.add("show");
   state.tryitToastTimer = window.setTimeout(() => {
     hideTryItToast();
-  }, 1600);
+  }, Math.max(800, Number(durationMs) || 1600));
 }
 
 function hideTryItToast() {
