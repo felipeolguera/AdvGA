@@ -4147,6 +4147,7 @@ body[data-page="studio"] #app {
   height: 100%;
   min-height: 0;
   margin: 0;
+  overflow: hidden;
   padding:
     8px
     max(12px, env(safe-area-inset-right, 0px))
@@ -4251,6 +4252,7 @@ body[data-page="studio"] #app {
   min-width: 0;
   max-width: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .studio-dock-row {
@@ -4263,6 +4265,11 @@ body[data-page="studio"] #app {
 
 .studio-page .studio-search {
   position: relative;
+  min-width: 0;
+}
+
+.studio-page .studio-search .search-row,
+.studio-page .search-input-wrap {
   min-width: 0;
 }
 
@@ -4331,32 +4338,35 @@ body[data-page="studio"] #app {
 
 .studio-page .studio-inspector-art {
   overflow: hidden;
+  align-self: stretch;
   height: 100%;
   max-height: 100%;
   min-height: 0;
   min-width: 0;
   width: auto;
   justify-self: start;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 18px;
   background: transparent;
 }
 
 .studio-page .studio-inspector-art img,
 .studio-page .studio-inspector-art .placeholder-card {
+  display: block;
   max-width: min(100%, 34vw, 400px);
   max-height: 100%;
   width: auto;
-  height: 100%;
-  margin: 0 auto;
+  height: auto;
+  margin: 0;
   aspect-ratio: 0.716;
   object-fit: contain;
   object-position: center;
   border-radius: 16px;
   box-shadow:
     0 0 0 1px rgba(255, 204, 115, 0.28),
-    0 28px 60px rgba(0, 0, 0, 0.55);
+    0 24px 48px rgba(0, 0, 0, 0.55);
 }
 
 .studio-inspector-copy {
@@ -5091,6 +5101,12 @@ body[data-page="studio"] #app {
     gap: 8px 10px;
     padding: 4px 10px;
     flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .studio-header-nav {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
   }
 
   .studio-header h1 {
@@ -5274,7 +5290,8 @@ body[data-page="studio"] #app {
   }
 
   .studio-dock {
-    max-height: 46%;
+    max-height: 42%;
+    overflow: hidden;
   }
 
   .studio-dock-row {
@@ -5319,8 +5336,9 @@ body[data-page="studio"] #app {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .studio-search-status {
-    margin: 2px 0 0;
+  .studio-search-status,
+  .studio-carousel-meta {
+    display: none;
   }
 
   .studio-pile-cards {
@@ -5365,5 +5383,33 @@ body[data-page="studio"] #app {
   .studio-page:has(.studio-carousel:not(.is-empty)) .studio-carousel-more {
     width: 80px;
     min-width: 80px;
+  }
+}
+
+/* iPad Pro 11" and other shorter tablet landscape viewports. */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 561px) and (max-height: 900px) {
+  .studio-dock {
+    max-height: 38%;
+  }
+
+  .studio-page .studio-inspector-name {
+    font-size: clamp(1.25rem, 2.1vw, 1.8rem);
+  }
+
+  .studio-stat-value {
+    font-size: clamp(1.45rem, 2.4vw, 2.1rem);
+  }
+
+  .studio-board-panel .studio-card,
+  .studio-page:has(.studio-carousel:not(.is-empty)) .studio-board-panel .studio-card {
+    width: 78px;
+  }
+
+  .studio-card-in-tray,
+  .studio-carousel-more,
+  .studio-page:has(.studio-carousel:not(.is-empty)) .studio-card-in-tray,
+  .studio-page:has(.studio-carousel:not(.is-empty)) .studio-carousel-more {
+    width: 72px;
+    min-width: 72px;
   }
 }
