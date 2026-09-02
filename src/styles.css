@@ -3557,7 +3557,7 @@ body.deck-load-active {
     align-items: start;
     column-gap: 12px;
     row-gap: 6px;
-    padding: 12px 12px 14px;
+    padding: 12px 12px 16px;
   }
 
   .tryit-inspector .eyebrow,
@@ -3568,15 +3568,18 @@ body.deck-load-active {
 
   .tryit-inspector .studio-inspector-art {
     grid-column: 1;
-    grid-row: 2 / span 3;
+    grid-row: 2 / -1;
+    align-self: start;
     width: 108px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .tryit-inspector .studio-inspector-art img,
   .tryit-inspector .studio-inspector-art .placeholder-card {
+    display: block;
     width: 108px;
     max-height: none;
+    min-height: 150px;
     height: auto;
     aspect-ratio: 0.716;
     object-fit: contain;
