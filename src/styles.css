@@ -5271,10 +5271,12 @@ body[data-page="studio"] #app {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .studio-examples button {
-    min-height: 32px;
-    padding: 4px 10px;
-    font-size: 0.76rem;
+  .studio-examples {
+    display: none;
+  }
+
+  .studio-page .studio-search-bar {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .studio-pile-cards {
