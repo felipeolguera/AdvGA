@@ -1251,12 +1251,23 @@ async function shareTryItDeck() {
     return;
   }
 
+  const headerShare = document.querySelector(".tryit-share-button");
+  const headerShareLabel = headerShare?.textContent;
   try {
     await navigator.clipboard.writeText(url);
-    showTryItToast("Link copied");
+    if (headerShare) {
+      headerShare.textContent = "Copied";
+    }
+    showTryItToast("Link copied", 3200);
   } catch {
     window.prompt("Copy this playtest link", url);
-    showTryItToast("Link ready to copy");
+    showTryItToast("Link ready to copy", 3200);
+  } finally {
+    if (headerShare && headerShareLabel) {
+      window.setTimeout(() => {
+        headerShare.textContent = headerShareLabel;
+      }, 1800);
+    }
   }
 }
 
@@ -7804,7 +7815,7 @@ async function playOpeningHandExtraCard(board, card, kind = "token") {
   showTryItToast(`Added ${kindLabel}: ${cardName}`);
 }
 
-function showTryItToast(message = "Added") {
+function showTryItToast(message = "Added", durationMs = 1600) {
   const toast = tryitToastEl;
   if (!toast) {
     return;
@@ -7834,7 +7845,7 @@ function showTryItToast(message = "Added") {
   toast.classList.add("show");
   state.tryitToastTimer = window.setTimeout(() => {
     hideTryItToast();
-  }, 1600);
+  }, Math.max(800, Number(durationMs) || 1600));
 }
 
 function hideTryItToast() {
