@@ -2363,6 +2363,7 @@ body:has(.tryit-page.is-mp-dual) {
 .opening-hand-end-turn,
 .opening-hand-recollect,
 .opening-hand-banish-random,
+.opening-hand-draw,
 .opening-hand-board-menu-toggle,
 .opening-hand-voice-toggle {
   width: 100%;
@@ -2566,6 +2567,7 @@ body:has(.tryit-page.is-mp-dual) {
   .opening-hand-end-turn,
   .opening-hand-recollect,
   .opening-hand-banish-random,
+  .opening-hand-draw,
   .opening-hand-board-menu-toggle,
   .opening-hand-voice-toggle {
     min-height: 42px;

@@ -28,7 +28,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.28";
+const APP_VERSION = "1.29";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -768,11 +768,11 @@ function getTryItShellHtml() {
         <li><strong>Graveyard</strong> — Hold ~1s on the Graveyard (or a GY card) to browse all cards and banish</li>
         <li><strong>Deck glimpse</strong> — Double-tap the deck → Glimpse; enter how many cards to reveal privately, then Top/Bottom each</li>
         <li><strong>Opponent cards</strong> — Double-tap (or hold 1s) to open lightbox and read the card</li>
-        <li><strong>Voice</strong> (below Menu) — Push-to-talk: “End turn”, “Reco”, “Buff”, “Rest”, “Flip”, “Help”…</li>
-        <li><strong>End turn</strong> (below Damage) — Wake rested cards and organize Field cards</li>
-        <li><strong>Banish random</strong> (below Damage) — Banish 1 random card from Memory</li>
-        <li><strong>Reco</strong> (below End turn) — Move all Memory cards back to Hand</li>
-        <li><strong>Menu</strong> (below Damage) — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
+        <li><strong>End phase</strong> (below Damage) — Wake rested cards and organize Field cards</li>
+        <li><strong>Banish</strong> — Banish 1 random card from Memory</li>
+        <li><strong>Reco</strong> — Move all Memory cards back to Hand</li>
+        <li><strong>Draw</strong> — Draw the top card of your deck to Hand</li>
+        <li><strong>Menu</strong> — Organize hand, Tokens/Mastery, Redeal, Help, and more</li>
         <li><strong>Double-tap a card</strong> — Open actions: Info, Rest, Flip, Buff +1, Deck, Banish, Graveyard, and more</li>
         <li><strong>Triple-tap a card</strong> — Open lightbox to zoom in and read the card</li>
         <li><strong>Drag cards</strong> — Move between Hand, Field, Memory, Graveyard, Banishment, Champion</li>
@@ -4836,6 +4836,17 @@ function handleTryItActionClick(event) {
     return;
   }
 
+  const drawButton = event.target.closest("[data-draw-opening-hand]");
+  if (drawButton) {
+    event.preventDefault();
+    if (!requireOpeningHandSpiritChosen()) {
+      return;
+    }
+    closeOpeningHandBoardMenu();
+    void drawOpeningHandFromRail();
+    return;
+  }
+
   const boardMenuToggle = event.target.closest("[data-oh-board-menu-toggle]");
   if (boardMenuToggle) {
     event.preventDefault();
@@ -4991,6 +5002,22 @@ function endTryItTurn() {
     });
   }
   queueMultiplayerSeatPublish();
+}
+
+async function drawOpeningHandFromRail() {
+  const board = getActiveOpeningHandBoard();
+  if (!board) {
+    return;
+  }
+  if (state.openingHandLibrary.length === 0) {
+    showTryItToast("Deck is empty");
+    return;
+  }
+  await drawOpeningHandCard(board, {
+    animate: true,
+    organize: true,
+    zone: "hand",
+  });
 }
 
 /** At end of turn, rested (rotated) Field/Champion cards wake upright again. */
@@ -5160,8 +5187,16 @@ function createOpeningHandBoardMenu() {
   endTurn.type = "button";
   endTurn.className = "secondary compact opening-hand-end-turn";
   endTurn.dataset.endTurn = "true";
-  endTurn.setAttribute("aria-label", "End turn");
-  endTurn.textContent = "End turn";
+  endTurn.setAttribute("aria-label", "End phase");
+  endTurn.textContent = "End phase";
+
+  const banish = document.createElement("button");
+  banish.type = "button";
+  banish.className = "secondary compact opening-hand-end-turn opening-hand-banish-random";
+  banish.dataset.banishOpeningHand = "true";
+  banish.title = "Banish 1 random card from Memory";
+  banish.setAttribute("aria-label", "Banish a random card from Memory");
+  banish.textContent = "Banish";
 
   const recollect = document.createElement("button");
   recollect.type = "button";
@@ -5171,13 +5206,13 @@ function createOpeningHandBoardMenu() {
   recollect.setAttribute("aria-label", "Reco — move Memory cards to Hand");
   recollect.textContent = "Reco";
 
-  const banish = document.createElement("button");
-  banish.type = "button";
-  banish.className = "secondary compact opening-hand-end-turn opening-hand-banish-random";
-  banish.dataset.banishOpeningHand = "true";
-  banish.title = "Banish 1 random card from Memory";
-  banish.setAttribute("aria-label", "Banish a random card from Memory");
-  banish.textContent = "Banish random";
+  const draw = document.createElement("button");
+  draw.type = "button";
+  draw.className = "secondary compact opening-hand-end-turn opening-hand-draw";
+  draw.dataset.drawOpeningHand = "true";
+  draw.title = "Draw the top card of your deck to Hand";
+  draw.setAttribute("aria-label", "Draw a card");
+  draw.textContent = "Draw";
 
   const toggle = document.createElement("button");
   toggle.type = "button";
@@ -5269,7 +5304,7 @@ function createOpeningHandBoardMenu() {
     closeOpeningHandBoardMenu();
   });
 
-  wrap.append(turn, banish, endTurn, recollect, toggle, createOpeningHandVoiceButton(), dialog);
+  wrap.append(turn, endTurn, banish, recollect, draw, toggle, dialog);
   return wrap;
 }
 
