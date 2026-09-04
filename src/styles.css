@@ -4156,13 +4156,15 @@ body[data-page="studio"] #app {
 
 .page-shell.studio-page {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   width: 100%;
   max-width: none;
   height: 100%;
   min-height: 0;
   margin: 0;
+  overflow: hidden;
   padding:
     8px
     max(12px, env(safe-area-inset-right, 0px))
@@ -4255,6 +4257,136 @@ body[data-page="studio"] #app {
   text-decoration: none;
 }
 
+.studio-open-search {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: #170f0b;
+  background: linear-gradient(135deg, var(--gold-strong), var(--gold));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.studio-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(160px, 38vh) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.studio-playground {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid rgba(255, 204, 115, 0.16);
+  border-radius: 16px;
+  background: rgba(16, 14, 24, 0.55);
+}
+
+.studio-search-dialog {
+  width: min(980px, calc(100vw - 28px));
+  height: min(840px, calc(100dvh - 28px));
+  max-width: none;
+  max-height: none;
+  border: 1px solid rgba(255, 204, 115, 0.28);
+  border-radius: 20px;
+  padding: 16px 18px 14px;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(244, 184, 93, 0.12), transparent 36%),
+    #12101a;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.studio-search-dialog::backdrop {
+  background: rgba(4, 3, 10, 0.72);
+}
+
+.studio-search-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.studio-search-dialog-head h2 {
+  margin: 4px 0 0;
+  font-size: 1.45rem;
+  letter-spacing: -0.04em;
+}
+
+.studio-search-dialog {
+  display: none;
+}
+
+.studio-search-dialog[open] {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.studio-search-dialog .studio-search-bar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.studio-search-dialog .studio-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.studio-search-dialog .studio-carousel {
+  min-height: 0;
+  margin-top: 10px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.studio-search-dialog .studio-carousel-nav {
+  display: none;
+}
+
+.studio-search-dialog .studio-tray {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 12px;
+  overflow: auto;
+  overflow-x: hidden;
+  scroll-snap-type: none;
+  min-height: 0;
+  padding: 4px 2px 8px;
+}
+
+.studio-search-dialog .studio-card-in-tray,
+.studio-search-dialog .studio-carousel-more {
+  width: auto;
+  min-width: 0;
+}
+
+.studio-search-dialog .studio-card-name {
+  display: -webkit-box;
+}
+
+.studio-search-dialog .search-filters {
+  position: static;
+  width: auto;
+  max-height: none;
+}
+
 .studio-header .try-it-button.compact {
   min-height: 36px;
   padding: 0 14px;
@@ -4293,16 +4425,17 @@ body[data-page="studio"] #app {
 }
 
 .studio-page .studio-inspector {
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  align-items: stretch;
-  gap: 18px 32px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  align-content: start;
+  gap: 12px;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  padding: 8px 10px;
-  background: transparent;
+  overflow: auto;
+  border: 1px solid rgba(255, 204, 115, 0.16);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(16, 14, 24, 0.55);
   box-shadow: none;
 }
 
@@ -4347,12 +4480,12 @@ body[data-page="studio"] #app {
 
 .studio-page .studio-inspector-art {
   overflow: hidden;
-  height: 100%;
-  max-height: 100%;
+  height: auto;
+  max-height: none;
   min-height: 0;
   min-width: 0;
-  width: auto;
-  justify-self: start;
+  width: 100%;
+  justify-self: center;
   display: grid;
   place-items: center;
   border-radius: 18px;
@@ -4361,10 +4494,10 @@ body[data-page="studio"] #app {
 
 .studio-page .studio-inspector-art img,
 .studio-page .studio-inspector-art .placeholder-card {
-  max-width: min(100%, 34vw, 400px);
-  max-height: 100%;
-  width: auto;
-  height: 100%;
+  max-width: 100%;
+  max-height: min(46vh, 380px);
+  width: 100%;
+  height: auto;
   margin: 0 auto;
   aspect-ratio: 0.716;
   object-fit: contain;
@@ -4372,19 +4505,19 @@ body[data-page="studio"] #app {
   border-radius: 16px;
   box-shadow:
     0 0 0 1px rgba(255, 204, 115, 0.28),
-    0 28px 60px rgba(0, 0, 0, 0.55);
+    0 24px 48px rgba(0, 0, 0, 0.55);
 }
 
 .studio-inspector-copy {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   align-content: start;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   min-height: 0;
-  max-width: 42rem;
-  max-height: 100%;
-  overflow: hidden;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
 }
 
 .studio-inspector-name {
@@ -4536,6 +4669,7 @@ body[data-page="studio"] #app {
   display: grid;
   gap: 6px;
   min-height: 0;
+  height: 100%;
 }
 
 .studio-group-tabs {
@@ -4643,24 +4777,28 @@ body[data-page="studio"] #app {
 
 .studio-pile-cards {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
-  min-height: 118px;
-  padding: 4px 8px 6px 4px;
-  overflow-x: auto;
+  min-height: 0;
+  height: 100%;
+  padding: 4px 4px 8px;
+  overflow: auto;
   scrollbar-width: thin;
-  scroll-padding-inline: 8px;
 }
 
 .studio-pile-empty {
   margin: 18px 6px;
-  white-space: nowrap;
 }
 
-.studio-board-panel .studio-card {
+.studio-playground .studio-pile {
+  height: 100%;
+  min-height: 0;
+}
+
+.studio-playground .studio-card {
   flex: 0 0 auto;
-  width: 104px;
+  width: 108px;
 }
 
 .studio-card {
@@ -5097,7 +5235,7 @@ body[data-page="studio"] #app {
   .page-shell.studio-page {
     height: 100%;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 6px;
     padding: 6px 10px 8px;
   }
@@ -5381,5 +5519,54 @@ body[data-page="studio"] #app {
   .studio-page:has(.studio-carousel:not(.is-empty)) .studio-carousel-more {
     width: 80px;
     min-width: 80px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 900px) {
+  .studio-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .studio-page .studio-inspector {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    align-content: start;
+    gap: 10px;
+    overflow: auto;
+    padding: 12px 14px;
+  }
+
+  .studio-page .studio-inspector-art img,
+  .studio-page .studio-inspector-art .placeholder-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(48vh, 420px);
+    height: auto;
+  }
+
+  .studio-page .studio-inspector-copy {
+    max-width: none;
+    overflow: visible;
+  }
+
+  .studio-page .studio-inspector-name {
+    font-size: clamp(1.15rem, 1.8vw, 1.7rem);
+  }
+
+  .studio-stat-value {
+    font-size: clamp(1.2rem, 2vw, 1.85rem);
+  }
+
+  .studio-page .studio-inspector-effect {
+    font-size: 0.92rem;
+  }
+
+  .studio-playground .studio-card {
+    width: 108px;
+  }
+
+  .studio-search-dialog .studio-examples {
+    display: flex;
   }
 }

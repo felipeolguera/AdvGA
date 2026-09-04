@@ -21,6 +21,14 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
   return `
   <main class="page-shell studio-page">
     <header class="studio-header">
+      <button
+        class="studio-open-search"
+        type="button"
+        id="studio-open-search"
+        aria-label="Search cards"
+        aria-haspopup="dialog"
+        aria-controls="studio-search-dialog"
+      >+</button>
       <div class="studio-header-brand">
         <p class="studio-live"><span class="studio-live-dot" aria-hidden="true"></span>On camera</p>
         <h1>Studio</h1>
@@ -37,94 +45,102 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       </nav>
     </header>
 
-    <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
-    <div class="studio-dock">
-      <div class="studio-dock-row">
+    <div class="studio-stage">
+      <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
+      <section class="studio-playground" aria-label="Playground">
         <div class="studio-group-tabs" id="studio-group-tabs" role="tablist" aria-label="Deck groups"></div>
-        <form class="studio-search" id="studio-search-form">
-          <label class="studio-search-label" for="studio-search-input">Search cards</label>
-          <div class="studio-search-bar">
-            <div class="search-row studio-search-row">
-              <div class="search-input-wrap">
-                <input
-                  id="studio-search-input"
-                  name="query"
-                  autocomplete="off"
-                  spellcheck="true"
-                  placeholder="Search a card"
-                />
-              </div>
-              <button type="button" class="secondary" id="toggle-search-filters" aria-expanded="false" aria-controls="search-filters">
-                Filters
-              </button>
-              <button type="submit">Search</button>
-            </div>
-            <div class="studio-examples" aria-label="Example searches">
-              <button type="button" data-studio-example="harmony in PRD">harmony in PRD</button>
-              <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
-              <button type="button" data-studio-example="unique allies in PRD">unique allies</button>
-            </div>
-          </div>
-          <div class="search-filters" id="search-filters" hidden>
-            <div class="search-filters-grid">
-              <label class="search-filter-effect">
-                Effect
-                <input id="quick-filter-effect" name="effect" autocomplete="off" spellcheck="true" placeholder="hand AND memory" />
-              </label>
-              <div class="search-filter-field">
-                Set
-                <div class="multi-select" id="quick-filter-set" data-placeholder="Any">
-                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
-                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Sets"></div>
-                </div>
-              </div>
-              <div class="search-filter-field">
-                Element
-                <div class="multi-select" id="quick-filter-element" data-placeholder="Any">
-                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
-                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Elements"></div>
-                </div>
-              </div>
-              <div class="search-filter-field">
-                Type
-                <div class="multi-select" id="quick-filter-type" data-placeholder="Any">
-                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
-                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Types"></div>
-                </div>
-              </div>
-              <div class="search-filter-field">
-                Subtype
-                <div class="multi-select" id="quick-filter-subtype" data-placeholder="Any">
-                  <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
-                  <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Subtypes"></div>
-                </div>
-              </div>
-            </div>
-            <p class="hint search-filter-hint">
-              Same search as the deck builder. Check more than one Set, Element, Type, or Subtype to include any of them.
-            </p>
-            <div class="search-filter-actions">
-              <button type="button" id="apply-search-filters">Apply filters</button>
-              <button class="ghost" type="button" id="clear-search-filters">Clear filters</button>
-            </div>
-          </div>
-        </form>
-      </div>
-      <section class="studio-board-panel" aria-label="Deck strip">
         <div class="studio-board" id="studio-board"></div>
       </section>
-      <p class="hint studio-search-status" id="studio-search-status">Search, then click a card for the spotlight.</p>
-      <div class="studio-carousel is-empty" id="studio-carousel">
-        <button type="button" class="studio-carousel-nav" id="studio-carousel-prev" aria-label="Previous search results">‹</button>
-        <div class="studio-tray" id="studio-tray" tabindex="0" aria-label="Search results carousel"></div>
-        <button type="button" class="studio-carousel-nav" id="studio-carousel-next" aria-label="Next search results">›</button>
-      </div>
-      <div class="studio-carousel-meta">
-        <p class="studio-carousel-index" id="studio-carousel-index" hidden></p>
-        <button class="ghost compact hidden" type="button" id="studio-load-more">Load more</button>
-      </div>
     </div>
   </main>
+
+  <dialog class="studio-search-dialog" id="studio-search-dialog" aria-labelledby="studio-search-title">
+    <div class="studio-search-dialog-head">
+      <div>
+        <p class="eyebrow">Grand Archive TCG</p>
+        <h2 id="studio-search-title">Card search</h2>
+      </div>
+      <button class="ghost compact" type="button" id="studio-close-search" aria-label="Close search">Close</button>
+    </div>
+    <form class="studio-search search-card" id="studio-search-form">
+      <label class="studio-search-label" for="studio-search-input">Search cards</label>
+      <div class="studio-search-bar">
+        <div class="search-row studio-search-row">
+          <div class="search-input-wrap">
+            <input
+              id="studio-search-input"
+              name="query"
+              autocomplete="off"
+              spellcheck="true"
+              placeholder="normal ally that cost 2 in PRD"
+            />
+          </div>
+          <button type="button" class="secondary" id="toggle-search-filters" aria-expanded="false" aria-controls="search-filters">
+            Filters
+          </button>
+          <button type="submit">Search</button>
+        </div>
+        <div class="studio-examples quick-searches" aria-label="Example searches">
+          <button type="button" data-studio-example="harmony in PRD">harmony in PRD</button>
+          <button type="button" data-studio-example="melody in PRD">melody in PRD</button>
+          <button type="button" data-studio-example="unique allies in PRD">unique allies</button>
+        </div>
+      </div>
+      <div class="search-filters" id="search-filters" hidden>
+        <div class="search-filters-grid">
+          <label class="search-filter-effect">
+            Effect
+            <input id="quick-filter-effect" name="effect" autocomplete="off" spellcheck="true" placeholder="hand AND memory" />
+          </label>
+          <div class="search-filter-field">
+            Set
+            <div class="multi-select" id="quick-filter-set" data-placeholder="Any">
+              <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+              <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Sets"></div>
+            </div>
+          </div>
+          <div class="search-filter-field">
+            Element
+            <div class="multi-select" id="quick-filter-element" data-placeholder="Any">
+              <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+              <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Elements"></div>
+            </div>
+          </div>
+          <div class="search-filter-field">
+            Type
+            <div class="multi-select" id="quick-filter-type" data-placeholder="Any">
+              <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+              <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Types"></div>
+            </div>
+          </div>
+          <div class="search-filter-field">
+            Subtype
+            <div class="multi-select" id="quick-filter-subtype" data-placeholder="Any">
+              <button type="button" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">Any</button>
+              <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true" aria-label="Subtypes"></div>
+            </div>
+          </div>
+        </div>
+        <p class="hint search-filter-hint">
+          Same search as the deck builder. Check more than one Set, Element, Type, or Subtype to include any of them.
+        </p>
+        <div class="search-filter-actions">
+          <button type="button" id="apply-search-filters">Apply filters</button>
+          <button class="ghost" type="button" id="clear-search-filters">Clear filters</button>
+        </div>
+      </div>
+    </form>
+    <p class="hint studio-search-status" id="studio-search-status">Search, then pick 1–4 to add a card to the playground.</p>
+    <div class="studio-carousel is-empty" id="studio-carousel">
+      <button type="button" class="studio-carousel-nav" id="studio-carousel-prev" aria-label="Previous search results">‹</button>
+      <div class="studio-tray" id="studio-tray" tabindex="0" aria-label="Search results"></div>
+      <button type="button" class="studio-carousel-nav" id="studio-carousel-next" aria-label="Next search results">›</button>
+    </div>
+    <div class="studio-carousel-meta">
+      <p class="studio-carousel-index" id="studio-carousel-index" hidden></p>
+      <button class="ghost compact hidden" type="button" id="studio-load-more">Load more</button>
+    </div>
+  </dialog>
   <div class="studio-toast" id="studio-toast" role="status" aria-live="polite" hidden></div>
   `;
 }
@@ -161,6 +177,38 @@ export function bootStudioPage(api) {
   const searchFiltersEl = document.querySelector("#search-filters");
   const applyFiltersButton = document.querySelector("#apply-search-filters");
   const clearFiltersButton = document.querySelector("#clear-search-filters");
+  const searchDialog = document.querySelector("#studio-search-dialog");
+  const openSearchButton = document.querySelector("#studio-open-search");
+  const closeSearchButton = document.querySelector("#studio-close-search");
+
+  function openSearchDialog() {
+    if (!searchDialog) {
+      return;
+    }
+    if (typeof searchDialog.showModal === "function" && !searchDialog.open) {
+      searchDialog.showModal();
+    }
+    requestAnimationFrame(() => searchInput?.focus());
+  }
+
+  function closeSearchDialog() {
+    if (searchDialog?.open) {
+      searchDialog.close();
+    }
+    api.closeAllMultiSelects();
+    openSearchButton?.focus();
+  }
+
+  openSearchButton?.addEventListener("click", () => openSearchDialog());
+  closeSearchButton?.addEventListener("click", () => closeSearchDialog());
+  searchDialog?.addEventListener("click", (event) => {
+    if (event.target === searchDialog) {
+      closeSearchDialog();
+    }
+  });
+  searchDialog?.addEventListener("close", () => {
+    api.closeAllMultiSelects();
+  });
 
   api.bindQuickFilterMultiSelects();
   api.updateSearchFiltersVisibility?.();
@@ -296,6 +344,9 @@ export function bootStudioPage(api) {
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (searchDialog?.open) {
+        return;
+      }
       studio.selectedKey = "";
       renderBoard();
       renderInspector();
@@ -327,7 +378,7 @@ export function bootStudioPage(api) {
       tray.parsed = null;
       tray.query = "";
       tray.reachedEnd = true;
-      statusEl.textContent = "Search to fill the carousel, then pick 1–4 to add a card to the selected pile.";
+      statusEl.textContent = "Search, then pick 1–4 to add a card to the playground.";
       renderTray();
       return;
     }
@@ -353,7 +404,7 @@ export function bootStudioPage(api) {
       tray.reachedEnd = typeof hasMore === "boolean" ? !hasMore : cards.length < 50;
       const totalLabel = Number.isFinite(totalCards) ? ` of ${totalCards}` : "";
       statusEl.textContent = tray.cards.length
-        ? `${tray.cards.length}${totalLabel} in the rack · click for spotlight, pick 1–4 to add`
+        ? `${tray.cards.length}${totalLabel} results · click for spotlight, pick 1–4 to add`
         : "No cards matched that search.";
     } catch (error) {
       console.error(error);
@@ -463,7 +514,10 @@ export function bootStudioPage(api) {
     if (tray.loading || !tray.parsed || tray.reachedEnd) {
       return;
     }
-    if (trayEl.scrollLeft + trayEl.clientWidth >= trayEl.scrollWidth - 120) {
+    if (
+      trayEl.scrollLeft + trayEl.clientWidth >= trayEl.scrollWidth - 120 ||
+      trayEl.scrollTop + trayEl.clientHeight >= trayEl.scrollHeight - 120
+    ) {
       void runSearch(tray.query, { reset: false });
     }
   }
@@ -547,7 +601,7 @@ export function bootStudioPage(api) {
     if (active.cardKeys.length === 0) {
       const empty = document.createElement("p");
       empty.className = "hint studio-pile-empty";
-      empty.textContent = "Empty · add from search";
+      empty.textContent = "Empty · tap + to search";
       cards.append(empty);
     }
     pile.append(cards);
