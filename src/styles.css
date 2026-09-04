@@ -4906,27 +4906,25 @@ body[data-page="studio"] #app {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
-.studio-card.studio-freehand-card .studio-card-qty,
-.studio-card.studio-freehand-card .studio-qty-stepper {
+.studio-card-qty-badge {
   position: absolute;
-  top: auto;
-  bottom: 6px;
-  left: 50%;
+  top: 4px;
+  left: 4px;
   z-index: 4;
-  margin-top: 0;
-  transform: translate(-50%, 0);
-}
-
-.studio-card-qty-stepper .studio-qty-btn {
-  width: 28px;
+  display: grid;
+  place-items: center;
   min-width: 28px;
-  min-height: 28px;
-  font-size: 1rem;
-}
-
-.studio-card-qty-stepper .studio-qty-value {
-  min-width: 22px;
-  font-size: 0.8rem;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: #170f0b;
+  background: linear-gradient(135deg, var(--gold-strong), var(--gold));
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .studio-card.studio-freehand-card.is-organizing {
