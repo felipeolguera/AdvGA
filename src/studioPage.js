@@ -20,8 +20,7 @@ const STUDIO_FRICTION = 0.0042;
 const STUDIO_MIN_SPEED = 0.02;
 const STUDIO_MAX_TILT = 15;
 const STUDIO_RESTITUTION = 0.08;
-const STUDIO_PUSH = 0.5;
-const STUDIO_QTY_HANG = 22;
+const STUDIO_QTY_HANG = 8;
 const STUDIO_GRAVITY = 0.0045;
 const STUDIO_BOUNCE_KEEP = 0;
 const STUDIO_SQUASH_SPRING = 0.0007;
@@ -1193,7 +1192,7 @@ export function bootStudioPage(api) {
     if (!(target instanceof Element)) {
       return false;
     }
-    if (target.closest(".studio-card, .studio-zone-splitter, button, select, a, input, textarea")) {
+    if (target.closest(".studio-card, .studio-zone-splitter, .studio-qty-stepper, button, select, a, input, textarea")) {
       return false;
     }
     return Boolean(target.closest(".studio-board, .studio-playground, .studio-zones"));
@@ -1321,12 +1320,17 @@ export function bootStudioPage(api) {
   }
 
   function resolveStudioCollisions(bodies) {
-    for (let pass = 0; pass < 3; pass += 1) {
+    for (let pass = 0; pass < 2; pass += 1) {
       for (let i = 0; i < bodies.length; i += 1) {
         for (let j = i + 1; j < bodies.length; j += 1) {
           const a = bodies[i];
           const b = bodies[j];
           if (a.body.held || b.body.held) {
+            continue;
+          }
+          const aActive = studioBodyDrifting(a.body);
+          const bActive = studioBodyDrifting(b.body);
+          if (!aActive && !bActive) {
             continue;
           }
           const dx = (a.x + STUDIO_CARD_WIDTH / 2) - (b.x + STUDIO_CARD_WIDTH / 2);
@@ -1336,24 +1340,42 @@ export function bootStudioPage(api) {
           if (overlapX <= 0 || overlapY <= 0) {
             continue;
           }
-          if (overlapX < overlapY) {
-            const push = overlapX * STUDIO_PUSH * (dx < 0 ? -1 : 1);
-            a.x += push;
-            b.x -= push;
-            const rel = a.body.vx - b.body.vx;
-            a.body.vx = a.body.vx - rel * (1 + STUDIO_RESTITUTION) * 0.5;
-            b.body.vx = b.body.vx + rel * (1 + STUDIO_RESTITUTION) * 0.5;
+          const alongX = overlapX < overlapY;
+          const dir = alongX ? (dx < 0 ? -1 : 1) : (dy < 0 ? -1 : 1);
+          const overlap = alongX ? overlapX : overlapY;
+          if (aActive && !bActive) {
+            if (alongX) {
+              a.x += overlap * dir;
+              a.body.vx *= 0.12;
+            } else {
+              a.y += overlap * dir;
+              a.body.vy *= 0.12;
+            }
+          } else if (bActive && !aActive) {
+            if (alongX) {
+              b.x -= overlap * dir;
+              b.body.vx *= 0.12;
+            } else {
+              b.y -= overlap * dir;
+              b.body.vy *= 0.12;
+            }
           } else {
-            const push = overlapY * STUDIO_PUSH * (dy < 0 ? -1 : 1);
-            a.y += push;
-            b.y -= push;
-            const rel = a.body.vy - b.body.vy;
-            a.body.vy = a.body.vy - rel * (1 + STUDIO_RESTITUTION) * 0.5;
-            b.body.vy = b.body.vy + rel * (1 + STUDIO_RESTITUTION) * 0.5;
+            const push = overlap * 0.32 * dir;
+            if (alongX) {
+              a.x += push;
+              b.x -= push;
+            } else {
+              a.y += push;
+              b.y -= push;
+            }
           }
         }
       }
     }
+  }
+
+  function studioBodyDrifting(body) {
+    return body.lift > 0.16 || Math.hypot(body.vx, body.vy) > STUDIO_MIN_SPEED * 3;
   }
 
   function stepStudioPhysics(now) {
@@ -1520,7 +1542,7 @@ export function bootStudioPage(api) {
       if (event.button != null && event.button !== 0) {
         return;
       }
-      if (event.target.closest(".studio-card-qty, .studio-card-remove, select, button.studio-card-remove")) {
+      if (event.target.closest(".studio-card-qty, .studio-qty-stepper, .studio-card-remove, select, button.studio-card-remove")) {
         return;
       }
       event.preventDefault();
@@ -1612,32 +1634,34 @@ export function bootStudioPage(api) {
     const actions = document.createElement("div");
     actions.className = "studio-inspector-actions";
     const onBoard = studio.cardKeys.includes(api.getCardKey(card));
-    const qtyLabel = document.createElement("label");
+    const qtyLabel = document.createElement("div");
     qtyLabel.className = "studio-inspector-qty";
-    qtyLabel.append("Qty");
-    const qtySelect = createQuantitySelect({
-      includePlaceholder: !onBoard,
-      value: onBoard ? getQuantity(api.getCardKey(card)) : "",
+    const qtyText = document.createElement("span");
+    qtyText.textContent = "Qty";
+    const qtyStepper = createQuantityStepper({
+      value: onBoard ? getQuantity(api.getCardKey(card)) : STUDIO_MIN_QTY,
       ariaLabel: `Copies of ${card.name}`,
-      className: "studio-inspector-qty-select",
+      className: "studio-inspector-qty-stepper",
+      onChange: onBoard
+        ? (amount) => {
+            addCardToPlayground(api.getCardKey(card), amount, {
+              notify: true,
+              updated: true,
+            });
+          }
+        : null,
     });
-    qtyLabel.append(qtySelect);
+    qtyLabel.append(qtyText, qtyStepper);
     actions.append(qtyLabel);
     if (!onBoard) {
       const add = document.createElement("button");
       add.type = "button";
       add.textContent = "Add to playground";
       add.addEventListener("click", () => {
-        addCardToPlayground(api.getCardKey(card), Number(qtySelect.value) || 1);
+        addCardToPlayground(api.getCardKey(card), Number(qtyStepper.dataset.qty) || 1);
       });
       actions.append(add);
     } else {
-      qtySelect.addEventListener("change", () => {
-        addCardToPlayground(api.getCardKey(card), Number(qtySelect.value), {
-          notify: true,
-          updated: true,
-        });
-      });
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "ghost";
@@ -1731,17 +1755,13 @@ export function bootStudioPage(api) {
       });
       frame.append(qtySelect);
     } else if (onBoard) {
-      const qtySelect = createQuantitySelect({
-        includePlaceholder: false,
+      const qtyStepper = createQuantityStepper({
         value: getQuantity(key),
         ariaLabel: `Copies of ${card.name}`,
-      });
-      qtySelect.addEventListener("click", (event) => event.stopPropagation());
-      qtySelect.addEventListener("mousedown", (event) => event.stopPropagation());
-      qtySelect.addEventListener("pointerdown", (event) => event.stopPropagation());
-      qtySelect.addEventListener("change", (event) => {
-        event.stopPropagation();
-        addCardToPlayground(key, Number(qtySelect.value), { notify: true, updated: true });
+        className: "studio-card-qty-stepper",
+        onChange: (amount) => {
+          addCardToPlayground(key, amount, { notify: true, updated: true });
+        },
       });
       const remove = document.createElement("button");
       remove.type = "button";
@@ -1753,7 +1773,7 @@ export function bootStudioPage(api) {
         event.stopPropagation();
         removeCardFromBoard(key);
       });
-      frame.append(qtySelect, remove);
+      frame.append(qtyStepper, remove);
     }
 
     if (addedFeedback[key]) {
@@ -1775,6 +1795,60 @@ export function bootStudioPage(api) {
     }
 
     return item;
+  }
+
+  function createQuantityStepper({ value, ariaLabel, onChange = null, className = "" }) {
+    const wrap = document.createElement("div");
+    wrap.className = `studio-qty-stepper ${className}`.trim();
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", ariaLabel);
+    wrap.dataset.qty = String(clampStudioQty(value));
+
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "studio-qty-btn";
+    minus.setAttribute("aria-label", "Decrease quantity");
+    minus.textContent = "−";
+
+    const display = document.createElement("span");
+    display.className = "studio-qty-value";
+    display.setAttribute("aria-hidden", "true");
+
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "studio-qty-btn";
+    plus.setAttribute("aria-label", "Increase quantity");
+    plus.textContent = "+";
+
+    const apply = (next, emit) => {
+      const qty = clampStudioQty(next);
+      wrap.dataset.qty = String(qty);
+      display.textContent = String(qty);
+      minus.disabled = qty <= STUDIO_MIN_QTY;
+      plus.disabled = qty >= STUDIO_MAX_QTY;
+      if (emit && typeof onChange === "function") {
+        onChange(qty);
+      }
+    };
+
+    const halt = (event) => {
+      event.stopPropagation();
+    };
+    wrap.addEventListener("pointerdown", halt);
+    wrap.addEventListener("mousedown", halt);
+    wrap.addEventListener("click", halt);
+    minus.addEventListener("click", (event) => {
+      event.preventDefault();
+      apply(Number(wrap.dataset.qty) - 1, true);
+    });
+    plus.addEventListener("click", (event) => {
+      event.preventDefault();
+      apply(Number(wrap.dataset.qty) + 1, true);
+    });
+
+    apply(value, false);
+    wrap.append(minus, display, plus);
+    return wrap;
   }
 
   function createQuantitySelect({ includePlaceholder, value, ariaLabel, className = "studio-card-qty" }) {
