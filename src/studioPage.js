@@ -1686,7 +1686,7 @@ export function bootStudioPage(api) {
     item.classList.toggle("studio-card-in-tray", inTray);
     item.classList.toggle("studio-freehand-card", onBoard);
     item.classList.toggle("is-selected", key === studio.selectedKey);
-    item.title = onBoard ? `${card.name} — drag to move` : card.name;
+    item.title = onBoard ? `${card.name} ×${getQuantity(key)} — drag to move` : card.name;
     if (inTray) {
       item.draggable = true;
       item.addEventListener("dragstart", (event) => {
@@ -1760,14 +1760,11 @@ export function bootStudioPage(api) {
       });
       frame.append(qtySelect);
     } else if (onBoard) {
-      const qtyStepper = createQuantityStepper({
-        value: getQuantity(key),
-        ariaLabel: `Copies of ${card.name}`,
-        className: "studio-card-qty-stepper",
-        onChange: (amount) => {
-          addCardToPlayground(key, amount, { notify: true, updated: true });
-        },
-      });
+      const qty = getQuantity(key);
+      const qtyBadge = document.createElement("span");
+      qtyBadge.className = "studio-card-qty-badge";
+      qtyBadge.textContent = `×${qty}`;
+      qtyBadge.setAttribute("aria-label", `${qty} ${qty === 1 ? "copy" : "copies"}`);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "studio-card-remove";
@@ -1778,7 +1775,7 @@ export function bootStudioPage(api) {
         event.stopPropagation();
         removeCardFromBoard(key);
       });
-      frame.append(qtyStepper, remove);
+      frame.append(qtyBadge, remove);
     }
 
     if (addedFeedback[key]) {
