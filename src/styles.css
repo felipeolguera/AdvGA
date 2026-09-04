@@ -4443,6 +4443,21 @@ body[data-page="studio"] #app {
   margin-top: 10px;
 }
 
+.studio-search-dialog .studio-autocomplete-list {
+  margin-top: 12px;
+  max-height: min(36vh, 300px);
+}
+
+.studio-search-dialog .studio-carousel.is-suggesting,
+.studio-search-dialog:has(.studio-autocomplete-list:not([hidden])) .studio-carousel-meta {
+  display: none;
+}
+
+.studio-search-dialog .studio-search {
+  min-width: 0;
+  min-height: 0;
+}
+
 .studio-search-dialog .studio-carousel {
   min-height: 0;
   margin-top: 10px;
