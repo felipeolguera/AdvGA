@@ -1,13 +1,15 @@
 const STUDIO_STORAGE_KEY = "advga.studio";
-const DEFAULT_GROUPS = [
-  { id: "engine", name: "Engine" },
-  { id: "wincon", name: "Wincon" },
-  { id: "maybe", name: "Maybe / Cuts" },
-];
 const STUDIO_MIN_QTY = 1;
 const STUDIO_MAX_QTY = 4;
 const STUDIO_TOAST_MS = 2400;
 const STUDIO_ADDED_MS = 2200;
+const STUDIO_CARD_WIDTH = 108;
+const STUDIO_CARD_HEIGHT = 151;
+const STUDIO_GAP_X = 16;
+const STUDIO_GAP_Y = 16;
+const STUDIO_PADDING = 16;
+const STUDIO_HINT_SPACE = 36;
+const STUDIO_SNAP = 16;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -37,7 +39,6 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       <p class="studio-board-count" id="studio-board-count">0 cards</p>
       <nav class="studio-header-nav">
         <button class="try-it-button compact" type="button" id="studio-try-it">Try it!</button>
-        <button class="secondary compact" type="button" id="studio-add-group">Add group</button>
         <button class="ghost compact" type="button" id="studio-copy-decklist">Copy list</button>
         <button class="ghost compact" type="button" id="studio-download-decklist">Download</button>
         <button class="ghost compact" type="button" id="studio-clear-board">Clear</button>
@@ -48,8 +49,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
     <div class="studio-stage">
       <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
       <section class="studio-playground" aria-label="Playground">
-        <div class="studio-group-tabs" id="studio-group-tabs" role="tablist" aria-label="Deck groups"></div>
-        <div class="studio-board" id="studio-board"></div>
+        <div class="studio-board" id="studio-board" data-studio-board></div>
       </section>
     </div>
   </main>
@@ -170,7 +170,7 @@ export function bootStudioPage(api) {
   const loadMoreButton = document.querySelector("#studio-load-more");
   let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
-  const tabsEl = document.querySelector("#studio-group-tabs");
+  const playgroundEl = document.querySelector(".studio-playground");
   const inspectorEl = document.querySelector("#studio-inspector");
   const boardCountEl = document.querySelector("#studio-board-count");
   const toggleFiltersButton = document.querySelector("#toggle-search-filters");
@@ -281,22 +281,13 @@ export function bootStudioPage(api) {
       scrollCarousel(-1);
     }
   });
-  window.addEventListener("resize", () => updateCarouselUi());
+  window.addEventListener("resize", () => {
+    updateCarouselUi();
+    layoutStudioBoard();
+  });
 
   document.querySelector("#studio-try-it")?.addEventListener("click", () => {
     openStudioTryIt();
-  });
-
-  document.querySelector("#studio-add-group")?.addEventListener("click", () => {
-    const name = window.prompt("Group name", "New group");
-    if (!name?.trim()) {
-      return;
-    }
-    const id = `group-${Date.now()}`;
-    studio.groups.push({ id, name: name.trim(), cardKeys: [] });
-    studio.activeGroupId = id;
-    persist();
-    renderBoard();
   });
 
   document.querySelector("#studio-copy-decklist")?.addEventListener("click", (event) => {
@@ -307,39 +298,46 @@ export function bootStudioPage(api) {
   });
 
   document.querySelector("#studio-clear-board")?.addEventListener("click", () => {
-    if (!window.confirm("Clear every pile on the playground?")) {
+    if (!window.confirm("Clear every card on the playground?")) {
       return;
     }
-    studio.groups = DEFAULT_GROUPS.map((group) => ({ ...group, cardKeys: [] }));
+    studio.cardKeys = [];
+    studio.positions = {};
+    studio.nextZ = 1;
     studio.cards = {};
     studio.quantities = {};
     studio.selectedKey = "";
-    studio.activeGroupId = studio.groups[0].id;
     persist();
     renderBoard();
     renderInspector();
   });
 
   boardEl?.addEventListener("dragover", (event) => {
-    const pile = event.target.closest("[data-studio-pile]");
-    if (!pile) {
+    if (!event.dataTransfer?.types?.includes("text/plain")) {
       return;
     }
     event.preventDefault();
-    pile.classList.add("is-drop-target");
+    boardEl.classList.add("is-drop-target");
   });
   boardEl?.addEventListener("dragleave", (event) => {
-    event.target.closest("[data-studio-pile]")?.classList.remove("is-drop-target");
+    if (!boardEl.contains(event.relatedTarget)) {
+      boardEl.classList.remove("is-drop-target");
+    }
   });
   boardEl?.addEventListener("drop", (event) => {
-    const pile = event.target.closest("[data-studio-pile]");
-    pile?.classList.remove("is-drop-target");
+    boardEl.classList.remove("is-drop-target");
     const key = event.dataTransfer?.getData("text/plain");
-    if (!pile || !key) {
+    if (!key) {
       return;
     }
     event.preventDefault();
-    addCardToGroup(key, pile.dataset.studioPile);
+    const rect = boardEl.getBoundingClientRect();
+    addCardToPlayground(key, null, {
+      position: {
+        x: event.clientX - rect.left - STUDIO_CARD_WIDTH / 2,
+        y: event.clientY - rect.top - STUDIO_CARD_HEIGHT / 2,
+      },
+    });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -522,144 +520,271 @@ export function bootStudioPage(api) {
     }
   }
 
-  function groupQuantity(group) {
-    return group.cardKeys.reduce((total, key) => total + getQuantity(key), 0);
-  }
-
   function renderBoard() {
     boardEl.replaceChildren();
-    tabsEl?.replaceChildren();
-    let total = 0;
-    const tabsHost = tabsEl || boardEl;
+    const total = boardCardCount();
+    boardCountEl.textContent = total === 1 ? "1 card" : `${total} cards`;
 
-    let active = studio.groups.find((group) => group.id === studio.activeGroupId) || studio.groups[0];
-    for (const group of studio.groups) {
-      const pileCount = groupQuantity(group);
-      total += pileCount;
-      const tab = document.createElement("button");
-      tab.type = "button";
-      tab.className = "studio-group-tab";
-      tab.classList.toggle("is-active", group.id === studio.activeGroupId);
-      tab.setAttribute("role", "tab");
-      tab.setAttribute("aria-selected", group.id === studio.activeGroupId ? "true" : "false");
-      tab.textContent = `${group.name} ${pileCount}`;
-      tab.addEventListener("click", () => selectGroup(group.id));
-      tabsHost.append(tab);
-    }
-
-    if (!active) {
-      boardCountEl.textContent = "0 cards";
+    if (studio.cardKeys.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "hint studio-board-empty";
+      empty.textContent = "Empty · tap + to search, then drag cards on the playground";
+      boardEl.append(empty);
+      boardEl.style.minHeight = "";
       return;
     }
 
-    const tools = document.createElement("div");
-    tools.className = "studio-group-tools";
-    const title = document.createElement("button");
-    title.type = "button";
-    title.className = "studio-pile-title";
-    title.textContent = active.name;
-    title.title = "Double-click to rename";
-    title.addEventListener("dblclick", (event) => {
-      event.preventDefault();
-      startRenameGroup(active);
-    });
-    const rename = document.createElement("button");
-    rename.type = "button";
-    rename.className = "ghost compact";
-    rename.textContent = "Rename";
-    rename.setAttribute("aria-label", `Rename ${active.name}`);
-    rename.addEventListener("click", () => startRenameGroup(active));
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "ghost compact";
-    remove.textContent = "Remove";
-    remove.hidden = studio.groups.length <= 1;
-    remove.addEventListener("click", () => {
-      if (!window.confirm(`Remove group “${active.name}”?`)) {
-        return;
-      }
-      studio.groups = studio.groups.filter((item) => item.id !== active.id);
-      studio.activeGroupId = studio.groups[0]?.id || "";
-      persist();
-      renderBoard();
-      renderInspector();
-    });
-    tools.append(title, rename, remove);
-    tabsHost.append(tools);
-
-    const pile = document.createElement("section");
-    pile.className = "studio-pile is-active";
-    pile.dataset.studioPile = active.id;
-    const cards = document.createElement("div");
-    cards.className = "studio-pile-cards";
-    for (const key of active.cardKeys) {
+    studio.cardKeys.forEach((key, index) => {
       const card = studio.cards[key];
       if (card) {
-        cards.append(createMiniCard(card, { groupId: active.id }));
+        boardEl.append(createMiniCard(card, { onBoard: true, layoutIndex: index }));
       }
-    }
-    if (active.cardKeys.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "hint studio-pile-empty";
-      empty.textContent = "Empty · tap + to search";
-      cards.append(empty);
-    }
-    pile.append(cards);
-    boardEl.append(pile);
-    boardCountEl.textContent = total === 1 ? "1 card" : `${total} cards`;
+    });
+    window.requestAnimationFrame(() => layoutStudioBoard());
   }
 
-  function selectGroup(groupId) {
-    if (studio.activeGroupId === groupId) {
+  function selectStudioCard(key) {
+    if (studio.selectedKey === key) {
+      renderInspector();
       return;
     }
-    studio.activeGroupId = groupId;
+    studio.selectedKey = key;
     persist();
-    renderBoard();
+    boardEl.querySelectorAll("[data-studio-card]").forEach((el) => {
+      el.classList.toggle("is-selected", el.dataset.studioCard === key);
+    });
+    trayEl?.querySelectorAll(".studio-card").forEach((el) => {
+      el.classList.toggle("is-selected", el.dataset.studioCard === key);
+    });
     renderInspector();
   }
 
-  function startRenameGroup(group) {
-    const title =
-      tabsEl?.querySelector(".studio-pile-title") ||
-      boardEl.querySelector(".studio-pile-title");
-    if (!title || title.tagName === "INPUT") {
+  function snapStudioCoord(value) {
+    return Math.round(value / STUDIO_SNAP) * STUDIO_SNAP;
+  }
+
+  function snapStudioPosition({ x, y, z }) {
+    return {
+      x: snapStudioCoord(x),
+      y: snapStudioCoord(y),
+      z,
+    };
+  }
+
+  function estimateStudioSlot(index, cols = 5) {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    return snapStudioPosition({
+      x: STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
+      y: STUDIO_HINT_SPACE + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      z: index + 1,
+    });
+  }
+
+  function layoutStudioBoard({ force = false } = {}) {
+    if (!boardEl) {
       return;
     }
-    const input = document.createElement("input");
-    input.className = "studio-pile-name-input";
-    input.type = "text";
-    input.value = group.name;
-    input.maxLength = 32;
-    input.setAttribute("aria-label", "Group name");
-    let finished = false;
-    const finish = (save) => {
-      if (finished) {
+    const cards = [...boardEl.querySelectorAll("[data-studio-card]")];
+    if (cards.length === 0) {
+      boardEl.style.minHeight = "";
+      return;
+    }
+
+    const boardWidth = Math.max(boardEl.clientWidth || playgroundEl?.clientWidth || 640, 240);
+    const cols = Math.max(
+      1,
+      Math.floor((boardWidth - STUDIO_PADDING * 2 + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)),
+    );
+    const rows = Math.ceil(cards.length / cols);
+    const contentHeight =
+      STUDIO_HINT_SPACE +
+      STUDIO_PADDING +
+      rows * STUDIO_CARD_HEIGHT +
+      Math.max(0, rows - 1) * STUDIO_GAP_Y +
+      STUDIO_PADDING;
+
+    const occupied = new Set();
+    if (!force) {
+      cards.forEach((cardEl) => {
+        const saved = studio.positions[cardEl.dataset.studioCard];
+        if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+          occupied.add(`${Math.round(saved.x)}:${Math.round(saved.y)}`);
+        }
+      });
+    }
+
+    let nextSlot = 0;
+    cards.forEach((cardEl, index) => {
+      const key = cardEl.dataset.studioCard;
+      const saved = studio.positions[key];
+      let x;
+      let y;
+      let z;
+
+      if (!force && saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        x = saved.x;
+        y = saved.y;
+        z = Number.isFinite(saved.z) ? saved.z : index + 1;
+      } else {
+        let slotKey;
+        do {
+          const col = nextSlot % cols;
+          const row = Math.floor(nextSlot / cols);
+          const snappedSlot = snapStudioPosition({
+            x: STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
+            y: STUDIO_HINT_SPACE + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+            z: 0,
+          });
+          x = snappedSlot.x;
+          y = snappedSlot.y;
+          slotKey = `${Math.round(x)}:${Math.round(y)}`;
+          nextSlot += 1;
+        } while (occupied.has(slotKey));
+        occupied.add(slotKey);
+        z = index + 1;
+      }
+
+      const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH - 4);
+      const snapped = snapStudioPosition({ x, y, z });
+      x = Math.min(maxX, Math.max(0, snapped.x));
+      y = Math.max(0, snapped.y);
+      z = snapped.z;
+
+      cardEl.style.left = `${x}px`;
+      cardEl.style.top = `${y}px`;
+      cardEl.style.zIndex = String(z);
+      studio.positions[key] = { x, y, z };
+      studio.nextZ = Math.max(studio.nextZ, z + 1);
+    });
+
+    let lowest = contentHeight;
+    cards.forEach((cardEl) => {
+      const top = Number.parseFloat(cardEl.style.top) || 0;
+      lowest = Math.max(lowest, top + STUDIO_CARD_HEIGHT + STUDIO_PADDING);
+    });
+    boardEl.style.minHeight = `${Math.max(320, lowest)}px`;
+    persist();
+  }
+
+  function enableStudioDrag(cardEl, key) {
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let originPointerX = 0;
+    let originPointerY = 0;
+    let dragMoved = false;
+
+    const onPointerMove = (event) => {
+      if (pointerId !== event.pointerId) {
         return;
       }
-      finished = true;
-      const next = input.value.trim();
-      if (save && next) {
-        group.name = next;
-        persist();
+      const dx = event.clientX - originPointerX;
+      const dy = event.clientY - originPointerY;
+      if (Math.hypot(dx, dy) > 8) {
+        dragMoved = true;
       }
-      renderBoard();
-      renderInspector();
+      let nextX = startX + dx;
+      let nextY = startY + dy;
+
+      const boardWidth = boardEl.clientWidth;
+      let boardHeight = boardEl.clientHeight;
+      const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
+      nextX = Math.min(maxX, Math.max(0, nextX));
+      nextY = Math.max(0, nextY);
+
+      const neededHeight = nextY + STUDIO_CARD_HEIGHT + STUDIO_PADDING;
+      if (neededHeight > boardHeight) {
+        boardEl.style.minHeight = `${neededHeight}px`;
+        boardHeight = neededHeight;
+      }
+      if (playgroundEl && neededHeight > playgroundEl.scrollTop + playgroundEl.clientHeight) {
+        playgroundEl.scrollTop = neededHeight - playgroundEl.clientHeight;
+      }
+      const maxY = Math.max(0, boardHeight - STUDIO_CARD_HEIGHT);
+      nextY = Math.min(maxY, nextY);
+
+      const snapped = snapStudioPosition({ x: nextX, y: nextY, z: 0 });
+      nextX = Math.min(maxX, Math.max(0, snapped.x));
+      nextY = Math.min(maxY, Math.max(0, snapped.y));
+
+      cardEl.style.left = `${nextX}px`;
+      cardEl.style.top = `${nextY}px`;
+      studio.positions[key] = {
+        x: nextX,
+        y: nextY,
+        z: Number.parseInt(cardEl.style.zIndex, 10) || studio.nextZ,
+      };
     };
-    input.addEventListener("click", (event) => event.stopPropagation());
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        finish(true);
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        finish(false);
+
+    const onPointerUp = (event) => {
+      if (pointerId !== event.pointerId) {
+        return;
       }
+      pointerId = null;
+      cardEl.classList.remove("dragging");
+      try {
+        cardEl.releasePointerCapture(event.pointerId);
+      } catch {
+        // Ignore if capture was already released.
+      }
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+
+      const boardWidth = boardEl.clientWidth || 0;
+      const boardHeight = boardEl.clientHeight || 0;
+      const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
+      const maxY = Math.max(0, boardHeight - STUDIO_CARD_HEIGHT);
+      const snapped = snapStudioPosition({
+        x: Number.parseFloat(cardEl.style.left) || 0,
+        y: Number.parseFloat(cardEl.style.top) || 0,
+        z: Number.parseInt(cardEl.style.zIndex, 10) || studio.nextZ,
+      });
+      const x = Math.min(maxX, Math.max(0, snapped.x));
+      const y = Math.min(maxY, Math.max(0, snapped.y));
+      const z = snapped.z;
+      cardEl.style.left = `${x}px`;
+      cardEl.style.top = `${y}px`;
+      studio.positions[key] = { x, y, z };
+      persist();
+
+      if (!dragMoved) {
+        selectStudioCard(key);
+      }
+    };
+
+    cardEl.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) {
+        return;
+      }
+      if (event.target.closest(".studio-card-qty, .studio-card-remove, select, button.studio-card-remove")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      pointerId = event.pointerId;
+      dragMoved = false;
+      startX = Number.parseFloat(cardEl.style.left) || 0;
+      startY = Number.parseFloat(cardEl.style.top) || 0;
+      originPointerX = event.clientX;
+      originPointerY = event.clientY;
+
+      studio.nextZ += 1;
+      cardEl.style.zIndex = String(studio.nextZ);
+      cardEl.classList.add("dragging");
+
+      try {
+        cardEl.setPointerCapture(event.pointerId);
+      } catch {
+        // Window listeners still handle move/up if capture is rejected.
+      }
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
     });
-    input.addEventListener("blur", () => finish(true));
-    title.replaceWith(input);
-    input.focus();
-    input.select();
   }
 
   function renderInspector() {
@@ -715,7 +840,7 @@ export function bootStudioPage(api) {
 
     const actions = document.createElement("div");
     actions.className = "studio-inspector-actions";
-    const onBoard = studio.groups.some((group) => group.cardKeys.includes(api.getCardKey(card)));
+    const onBoard = studio.cardKeys.includes(api.getCardKey(card));
     const qtyLabel = document.createElement("label");
     qtyLabel.className = "studio-inspector-qty";
     qtyLabel.append("Qty");
@@ -730,14 +855,14 @@ export function bootStudioPage(api) {
     if (!onBoard) {
       const add = document.createElement("button");
       add.type = "button";
-      add.textContent = `Add to ${activeGroup()?.name || "lane"}`;
+      add.textContent = "Add to playground";
       add.addEventListener("click", () => {
-        addCardToGroup(api.getCardKey(card), studio.activeGroupId, Number(qtySelect.value) || 1);
+        addCardToPlayground(api.getCardKey(card), Number(qtySelect.value) || 1);
       });
       actions.append(add);
     } else {
       qtySelect.addEventListener("change", () => {
-        addCardToGroup(api.getCardKey(card), findGroupIdForCard(api.getCardKey(card)), Number(qtySelect.value), {
+        addCardToPlayground(api.getCardKey(card), Number(qtySelect.value), {
           notify: true,
           updated: true,
         });
@@ -753,18 +878,32 @@ export function bootStudioPage(api) {
     inspectorEl.append(figure, copy);
   }
 
-  function createMiniCard(card, { inTray = false, groupId = "" } = {}) {
+  function createMiniCard(card, { inTray = false, onBoard = false, layoutIndex = 0 } = {}) {
     const key = api.getCardKey(card);
     const item = document.createElement("article");
     item.className = "studio-card";
+    item.dataset.studioCard = key;
     item.classList.toggle("studio-card-in-tray", inTray);
+    item.classList.toggle("studio-freehand-card", onBoard);
     item.classList.toggle("is-selected", key === studio.selectedKey);
-    item.draggable = true;
-    item.title = card.name;
-    item.addEventListener("dragstart", (event) => {
-      event.dataTransfer.setData("text/plain", key);
-      event.dataTransfer.effectAllowed = "copyMove";
-    });
+    item.title = onBoard ? `${card.name} — drag to move` : card.name;
+    if (inTray) {
+      item.draggable = true;
+      item.addEventListener("dragstart", (event) => {
+        event.dataTransfer.setData("text/plain", key);
+        event.dataTransfer.effectAllowed = "copyMove";
+      });
+    }
+    if (onBoard) {
+      const provisional = studio.positions[key] && Number.isFinite(studio.positions[key].x)
+        ? studio.positions[key]
+        : estimateStudioSlot(layoutIndex);
+      item.style.left = `${provisional.x}px`;
+      item.style.top = `${provisional.y}px`;
+      item.style.zIndex = String(provisional.z || layoutIndex + 1);
+      item.style.width = `${STUDIO_CARD_WIDTH}px`;
+      item.style.height = `${STUDIO_CARD_HEIGHT}px`;
+    }
 
     const frame = document.createElement("div");
     frame.className = "studio-card-frame";
@@ -774,18 +913,17 @@ export function bootStudioPage(api) {
     imageButton.className = "studio-card-image";
     imageButton.setAttribute("aria-label", `Inspect ${card.name}`);
     imageButton.addEventListener("click", () => {
-      studio.selectedKey = key;
+      if (onBoard) {
+        return;
+      }
       rememberCard(card);
-      persist();
-      renderBoard();
-      renderTray();
-      renderInspector();
+      selectStudioCard(key);
     });
     if (inTray) {
       imageButton.addEventListener("dblclick", (event) => {
         event.preventDefault();
         rememberCard(card);
-        addCardToGroup(key, studio.activeGroupId, 1);
+        addCardToPlayground(key, 1);
       });
     }
 
@@ -805,10 +943,11 @@ export function bootStudioPage(api) {
       const qtySelect = createQuantitySelect({
         includePlaceholder: true,
         value: "",
-        ariaLabel: `Add ${card.name} to ${activeGroup()?.name || "pile"}`,
+        ariaLabel: `Add ${card.name} to the playground`,
       });
       qtySelect.addEventListener("click", (event) => event.stopPropagation());
       qtySelect.addEventListener("mousedown", (event) => event.stopPropagation());
+      qtySelect.addEventListener("pointerdown", (event) => event.stopPropagation());
       qtySelect.addEventListener("change", (event) => {
         event.stopPropagation();
         const amount = Number(qtySelect.value);
@@ -816,10 +955,10 @@ export function bootStudioPage(api) {
           return;
         }
         rememberCard(card);
-        addCardToGroup(key, studio.activeGroupId, amount);
+        addCardToPlayground(key, amount);
       });
       frame.append(qtySelect);
-    } else if (groupId) {
+    } else if (onBoard) {
       const qtySelect = createQuantitySelect({
         includePlaceholder: false,
         value: getQuantity(key),
@@ -827,18 +966,20 @@ export function bootStudioPage(api) {
       });
       qtySelect.addEventListener("click", (event) => event.stopPropagation());
       qtySelect.addEventListener("mousedown", (event) => event.stopPropagation());
+      qtySelect.addEventListener("pointerdown", (event) => event.stopPropagation());
       qtySelect.addEventListener("change", (event) => {
         event.stopPropagation();
-        addCardToGroup(key, groupId, Number(qtySelect.value), { notify: true, updated: true });
+        addCardToPlayground(key, Number(qtySelect.value), { notify: true, updated: true });
       });
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "studio-card-remove";
       remove.setAttribute("aria-label", `Remove ${card.name}`);
       remove.textContent = "×";
+      remove.addEventListener("pointerdown", (event) => event.stopPropagation());
       remove.addEventListener("click", (event) => {
         event.stopPropagation();
-        removeCardFromGroup(key, groupId);
+        removeCardFromBoard(key);
       });
       frame.append(qtySelect, remove);
     }
@@ -856,6 +997,9 @@ export function bootStudioPage(api) {
       caption.className = "studio-card-name";
       caption.textContent = card.name;
       item.append(caption);
+    }
+    if (onBoard) {
+      enableStudioDrag(item, key);
     }
 
     return item;
@@ -885,29 +1029,32 @@ export function bootStudioPage(api) {
     return select;
   }
 
-  function addCardToGroup(key, groupId, quantity = null, { notify = true, updated = false } = {}) {
+  function addCardToPlayground(key, quantity = null, { notify = true, updated = false, position = null } = {}) {
     const card = studio.cards[key] || tray.cards.find((item) => api.getCardKey(item) === key);
     if (!card) {
       return;
     }
     rememberCard(card);
-    const group = studio.groups.find((item) => item.id === groupId) || activeGroup();
-    if (!group) {
-      return;
+    const alreadyHere = studio.cardKeys.includes(key);
+    if (!alreadyHere) {
+      studio.cardKeys.push(key);
     }
-    const alreadyHere = group.cardKeys.includes(key);
-    studio.groups.forEach((item) => {
-      item.cardKeys = item.cardKeys.filter((cardKey) => cardKey !== key);
-    });
-    group.cardKeys.push(key);
     const nextQty = clampStudioQty(quantity ?? getQuantity(key));
     studio.quantities[key] = nextQty;
-    studio.activeGroupId = group.id;
     studio.selectedKey = key;
+    if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
+      studio.nextZ += 1;
+      const maxX = Math.max(0, (boardEl?.clientWidth || 640) - STUDIO_CARD_WIDTH);
+      studio.positions[key] = snapStudioPosition({
+        x: Math.min(maxX, Math.max(0, position.x)),
+        y: Math.max(0, position.y),
+        z: studio.nextZ,
+      });
+    }
     persist();
     if (notify) {
-      const verb = updated || alreadyHere ? "updated to" : "added to";
-      showStudioToast(`${nextQty} ${card.name} ${verb} ${group.name}`);
+      const verb = updated || alreadyHere ? "updated on" : "added to";
+      showStudioToast(`${nextQty} ${card.name} ${verb} the playground`);
       markAdded(key, `${nextQty} added`);
     }
     renderBoard();
@@ -915,22 +1062,9 @@ export function bootStudioPage(api) {
     renderInspector();
   }
 
-  function removeCardFromGroup(key, groupId) {
-    const group = studio.groups.find((item) => item.id === groupId);
-    if (!group) {
-      return;
-    }
-    group.cardKeys = group.cardKeys.filter((cardKey) => cardKey !== key);
-    persist();
-    renderBoard();
-    renderTray();
-    renderInspector();
-  }
-
   function removeCardFromBoard(key) {
-    studio.groups.forEach((group) => {
-      group.cardKeys = group.cardKeys.filter((cardKey) => cardKey !== key);
-    });
+    studio.cardKeys = studio.cardKeys.filter((cardKey) => cardKey !== key);
+    delete studio.positions[key];
     persist();
     renderBoard();
     renderTray();
@@ -939,10 +1073,6 @@ export function bootStudioPage(api) {
 
   function getQuantity(key) {
     return clampStudioQty(studio.quantities?.[key] ?? STUDIO_MIN_QTY);
-  }
-
-  function findGroupIdForCard(key) {
-    return studio.groups.find((group) => group.cardKeys.includes(key))?.id || "";
   }
 
   function markAdded(key, text) {
@@ -978,28 +1108,39 @@ export function bootStudioPage(api) {
     studio.cards[api.getCardKey(card)] = card;
   }
 
-  function activeGroup() {
-    return studio.groups.find((group) => group.id === studio.activeGroupId) || studio.groups[0];
-  }
-
   function persist() {
-    const liveKeys = new Set(studio.groups.flatMap((group) => group.cardKeys));
+    const liveKeys = new Set(studio.cardKeys);
     for (const key of Object.keys(studio.quantities || {})) {
       if (!liveKeys.has(key)) {
         delete studio.quantities[key];
       }
     }
+    for (const key of Object.keys(studio.positions || {})) {
+      if (!liveKeys.has(key)) {
+        delete studio.positions[key];
+      }
+    }
+    const liveCards = {};
+    for (const key of liveKeys) {
+      if (studio.cards[key]) {
+        liveCards[key] = studio.cards[key];
+      }
+    }
+    if (studio.selectedKey && studio.cards[studio.selectedKey]) {
+      liveCards[studio.selectedKey] = studio.cards[studio.selectedKey];
+    }
     api.saveStoredJson(STUDIO_STORAGE_KEY, {
-      groups: studio.groups,
+      cardKeys: studio.cardKeys,
+      positions: studio.positions,
+      nextZ: studio.nextZ,
       selectedKey: studio.selectedKey,
-      activeGroupId: studio.activeGroupId,
-      cards: studio.cards,
+      cards: liveCards,
       quantities: studio.quantities,
     });
   }
 
   function boardCardCount() {
-    return studio.groups.reduce((total, group) => total + groupQuantity(group), 0);
+    return studio.cardKeys.reduce((total, key) => total + getQuantity(key), 0);
   }
 
   function formatStudioDecklist() {
@@ -1008,27 +1149,23 @@ export function bootStudioPage(api) {
       main: [],
       sideboard: [],
     };
-    for (const group of studio.groups) {
-      const counts = new Map();
-      for (const key of group.cardKeys) {
-        const card = studio.cards[key];
-        const name = String(card?.name || "").trim();
-        if (!name) {
-          continue;
-        }
-        const copies = getQuantity(key);
-        const current = counts.get(name);
-        if (current) {
-          current.qty += copies;
-        } else {
-          counts.set(name, { qty: copies, card });
-        }
+    const counts = new Map();
+    for (const key of studio.cardKeys) {
+      const card = studio.cards[key];
+      const name = String(card?.name || "").trim();
+      if (!name) {
+        continue;
       }
-      const sidePile = /maybe|cut|side/i.test(`${group.id} ${group.name}`);
-      for (const entry of counts.values()) {
-        const section = sidePile ? "sideboard" : api.defaultDeckSection(entry.card);
-        buckets[section].push(entry);
+      const copies = getQuantity(key);
+      const current = counts.get(name);
+      if (current) {
+        current.qty += copies;
+      } else {
+        counts.set(name, { qty: copies, card });
       }
+    }
+    for (const entry of counts.values()) {
+      buckets[api.defaultDeckSection(entry.card)].push(entry);
     }
 
     const header = [`// Studio brew`, `// Built with AdvGA Studio v${api.appVersion}`, ""].join("\n");
@@ -1044,7 +1181,7 @@ export function bootStudioPage(api) {
 
   async function copyStudioDecklist(button) {
     if (boardCardCount() === 0) {
-      window.alert("Add cards to a pile before exporting a decklist.");
+      window.alert("Add cards to the playground before exporting a decklist.");
       return;
     }
     const text = formatStudioDecklist();
@@ -1070,36 +1207,30 @@ export function bootStudioPage(api) {
 
   function studioBoardToDeckCards() {
     const merged = new Map();
-    for (const group of studio.groups) {
-      const sidePile = /maybe|cut|side/i.test(`${group.id} ${group.name}`);
-      for (const key of group.cardKeys) {
-        const card = studio.cards[key];
-        if (!card) {
-          continue;
-        }
-        const section = sidePile ? "sideboard" : api.defaultDeckSection(card);
-        const copies = getQuantity(key);
-        const existing = merged.get(key);
-        if (existing) {
-          if (existing.section === "sideboard" && section !== "sideboard") {
-            existing.section = section;
-          }
-          existing.quantity += copies;
-          continue;
-        }
-        merged.set(key, {
-          key,
-          name: card.name,
-          image: api.resolveCardImage(card) || "",
-          line: api.formatCardLine(card),
-          quantity: copies,
-          section,
-          types: Array.isArray(card.types) ? card.types : [],
-          subtypes: Array.isArray(card.subtypes) ? card.subtypes : [],
-          level: card.level ?? null,
-          costType: card.cost?.type || card.costType || "",
-        });
+    for (const key of studio.cardKeys) {
+      const card = studio.cards[key];
+      if (!card) {
+        continue;
       }
+      const section = api.defaultDeckSection(card);
+      const copies = getQuantity(key);
+      const existing = merged.get(key);
+      if (existing) {
+        existing.quantity += copies;
+        continue;
+      }
+      merged.set(key, {
+        key,
+        name: card.name,
+        image: api.resolveCardImage(card) || "",
+        line: api.formatCardLine(card),
+        quantity: copies,
+        section,
+        types: Array.isArray(card.types) ? card.types : [],
+        subtypes: Array.isArray(card.subtypes) ? card.subtypes : [],
+        level: card.level ?? null,
+        costType: card.cost?.type || card.costType || "",
+      });
     }
     return [...merged.values()].map((card) => ({
       ...card,
@@ -1109,7 +1240,7 @@ export function bootStudioPage(api) {
 
   function openStudioTryIt() {
     if (boardCardCount() === 0) {
-      window.alert("Add cards to a pile before opening Try it.");
+      window.alert("Add cards to the playground before opening Try it.");
       return;
     }
     const cards = studioBoardToDeckCards();
@@ -1117,7 +1248,7 @@ export function bootStudioPage(api) {
       .filter((card) => card.section === "main")
       .reduce((total, card) => total + card.quantity, 0);
     if (mainCount === 0) {
-      window.alert("Add cards to a main pile (not only Maybe / Cuts) so Try it has a Main Deck.");
+      window.alert("Add a Main Deck card to the playground so Try it has something to draw.");
       return;
     }
     if (typeof api.writeDeckForTryIt === "function") {
@@ -1129,7 +1260,7 @@ export function bootStudioPage(api) {
 
   function downloadStudioDecklist() {
     if (boardCardCount() === 0) {
-      window.alert("Add cards to a pile before exporting a decklist.");
+      window.alert("Add cards to the playground before exporting a decklist.");
       return;
     }
     const text = formatStudioDecklist();
@@ -1151,47 +1282,55 @@ function loadStudioState() {
       return {};
     }
   })();
-  const groups = Array.isArray(stored.groups) && stored.groups.length
-    ? stored.groups.map((group) => migrateStudioGroup(group))
-    : DEFAULT_GROUPS.map((group) => ({ ...group, cardKeys: [] }));
-  const liveKeys = new Set(groups.flatMap((group) => group.cardKeys));
+  const cardKeys = flattenStudioCardKeys(stored);
+  const liveKeys = new Set(cardKeys);
   const quantities = {};
   const storedQuantities = stored.quantities && typeof stored.quantities === "object" ? stored.quantities : {};
   for (const key of liveKeys) {
     quantities[key] = clampStudioQty(storedQuantities[key] ?? STUDIO_MIN_QTY);
   }
+  const positions = {};
+  const storedPositions = stored.positions && typeof stored.positions === "object" ? stored.positions : {};
+  let nextZ = Number.isFinite(stored.nextZ) ? stored.nextZ : 1;
+  for (const key of liveKeys) {
+    const pos = storedPositions[key];
+    if (pos && Number.isFinite(Number(pos.x)) && Number.isFinite(Number(pos.y))) {
+      const z = Number.isFinite(Number(pos.z)) ? Number(pos.z) : nextZ;
+      positions[key] = { x: Number(pos.x), y: Number(pos.y), z };
+      nextZ = Math.max(nextZ, z + 1);
+    }
+  }
   return {
-    groups,
+    cardKeys,
+    positions,
+    nextZ,
     cards: stored.cards && typeof stored.cards === "object" ? stored.cards : {},
     selectedKey: String(stored.selectedKey || ""),
-    activeGroupId: migrateActiveGroupId(stored.activeGroupId, groups),
     quantities,
   };
 }
 
-function migrateStudioGroup(group) {
-  let id = String(group.id || `group-${Math.random().toString(36).slice(2)}`);
-  let name = String(group.name || "Group");
-  if (id === "payoff" && /^payoff$/i.test(name.trim())) {
-    id = "wincon";
-    name = "Wincon";
-  }
-  return {
-    id,
-    name,
-    cardKeys: Array.isArray(group.cardKeys) ? group.cardKeys.map(String) : [],
+function flattenStudioCardKeys(stored) {
+  const seen = new Set();
+  const keys = [];
+  const addKey = (value) => {
+    const key = String(value || "");
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    keys.push(key);
   };
-}
-
-function migrateActiveGroupId(storedId, groups) {
-  let activeGroupId = String(storedId || groups[0]?.id || "");
-  if (activeGroupId === "payoff" && groups.some((group) => group.id === "wincon") && !groups.some((group) => group.id === "payoff")) {
-    activeGroupId = "wincon";
+  if (Array.isArray(stored.cardKeys)) {
+    stored.cardKeys.forEach(addKey);
   }
-  if (!groups.some((group) => group.id === activeGroupId)) {
-    activeGroupId = groups[0]?.id || "";
+  if (keys.length === 0 && Array.isArray(stored.groups)) {
+    for (const group of stored.groups) {
+      const groupKeys = Array.isArray(group?.cardKeys) ? group.cardKeys : [];
+      groupKeys.forEach(addKey);
+    }
   }
-  return activeGroupId;
+  return keys;
 }
 
 function formatStudioStat(value) {

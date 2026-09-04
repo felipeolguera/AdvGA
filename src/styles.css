@@ -4285,15 +4285,13 @@ body[data-page="studio"] #app {
 }
 
 .studio-playground {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 8px;
   min-width: 0;
   min-height: 0;
-  padding: 8px 10px 10px;
+  overflow: auto;
   border: 1px solid rgba(255, 204, 115, 0.16);
   border-radius: 16px;
   background: rgba(16, 14, 24, 0.55);
+  scrollbar-width: thin;
 }
 
 .studio-search-dialog {
@@ -4666,139 +4664,59 @@ body[data-page="studio"] #app {
 }
 
 .studio-board {
-  display: grid;
-  gap: 6px;
-  min-height: 0;
-  height: 100%;
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  overflow: visible;
+  border-radius: 16px;
+  background-color: rgba(255, 255, 255, 0.02);
+  background-image:
+    radial-gradient(circle at top left, rgba(244, 184, 93, 0.08), transparent 40%),
+    linear-gradient(to right, rgba(255, 204, 115, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 204, 115, 0.14) 1px, transparent 1px);
+  background-size: auto, 16px 16px, 16px 16px;
+  background-position: 0 0, 0 0, 0 0;
 }
 
-.studio-group-tabs {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+.studio-board.is-drop-target {
+  background-color: rgba(255, 204, 115, 0.08);
 }
 
-.studio-group-tab {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 999px;
-  min-height: 40px;
-  padding: 8px 14px;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.studio-group-tab.is-active {
-  color: #170f0b;
-  background: var(--gold-strong);
-}
-
-.studio-group-tools {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.studio-group-tools .studio-pile-title:not(input) {
+.studio-board-empty {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 0;
+  margin: 0;
+  pointer-events: none;
 }
 
-.studio-pile {
-  display: grid;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.studio-pile.is-drop-target {
-  background: rgba(255, 204, 115, 0.1);
-  border-radius: 12px;
-}
-
-.studio-pile-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.studio-pile-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-}
-
-.studio-pile-title {
-  border: 0;
-  padding: 0;
-  color: var(--gold-strong);
-  background: transparent;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-align: left;
-}
-
-.studio-pile-name-input {
-  min-width: 0;
-  width: min(100%, 180px);
-  border: 1px solid rgba(255, 204, 115, 0.7);
-  border-radius: 8px;
-  padding: 3px 8px;
-  color: var(--gold-strong);
-  background: rgba(10, 8, 16, 0.55);
-  color-scheme: dark;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.studio-pile-cards {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 12px;
-  min-height: 0;
-  height: 100%;
-  padding: 4px 4px 8px;
-  overflow: auto;
-  scrollbar-width: thin;
-}
-
-.studio-pile-empty {
-  margin: 18px 6px;
-}
-
-.studio-playground .studio-pile {
-  height: 100%;
-  min-height: 0;
-}
-
-.studio-playground .studio-card {
-  flex: 0 0 auto;
+.studio-card.studio-freehand-card {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 108px;
+  height: 151px;
+  aspect-ratio: auto;
+  margin: 0;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  will-change: left, top;
+}
+
+.studio-card.studio-freehand-card.dragging {
+  cursor: grabbing;
+  z-index: 9999 !important;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45);
+}
+
+.studio-card.studio-freehand-card img,
+.studio-card.studio-freehand-card .placeholder-card {
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 
 .studio-card {
@@ -5283,10 +5201,6 @@ body[data-page="studio"] #app {
     max-height: none;
   }
 
-  .studio-pile-cards {
-    min-height: 84px;
-  }
-
   .studio-board-panel .studio-card {
     width: 74px;
   }
@@ -5437,16 +5351,6 @@ body[data-page="studio"] #app {
     gap: 8px 16px;
   }
 
-  .studio-group-tab {
-    min-height: 40px;
-    padding: 8px 14px;
-    font-size: 0.82rem;
-  }
-
-  .studio-group-tools .compact {
-    min-height: 36px !important;
-  }
-
   .studio-page .search-filters {
     position: absolute;
     top: calc(100% + 8px);
@@ -5475,11 +5379,6 @@ body[data-page="studio"] #app {
 
   .studio-search-status {
     margin: 2px 0 0;
-  }
-
-  .studio-pile-cards {
-    min-height: 0;
-    gap: 10px;
   }
 
   .studio-board-panel .studio-card {
