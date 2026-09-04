@@ -1,4 +1,6 @@
 const STUDIO_STORAGE_KEY = "advga.studio";
+const STUDIO_TOUR_KEY = "advga.studio.tour";
+const STUDIO_TOUR_VERSION = 1;
 const STUDIO_MIN_QTY = 1;
 const STUDIO_MAX_QTY = 4;
 const STUDIO_TOAST_MS = 2400;
@@ -98,6 +100,19 @@ function countStudioBoard(board, tab) {
   return keys.reduce((total, key) => total + clampStudioQty(quantities[key] ?? STUDIO_MIN_QTY, tab), 0);
 }
 
+function hasSeenStudioTour() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STUDIO_TOUR_KEY) || "null");
+    return Boolean(stored?.seen) && Number(stored.version) === STUDIO_TOUR_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+function markStudioTourSeen() {
+  localStorage.setItem(STUDIO_TOUR_KEY, JSON.stringify({ seen: true, version: STUDIO_TOUR_VERSION }));
+}
+
 function clampStudioZoneSplit(value) {
   const split = Number(value);
   if (!Number.isFinite(split)) {
@@ -122,6 +137,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <button class="ghost compact" type="button" id="studio-copy-decklist">Copy list</button>
         <button class="ghost compact" type="button" id="studio-download-decklist">Download</button>
         <button class="ghost compact" type="button" id="studio-clear-board">Clear</button>
+        <button class="ghost compact studio-guide-button" type="button" id="studio-guide" aria-label="Studio guide">Guide</button>
         <a class="ghost compact" href="${builderUrl}">Builder</a>
       </nav>
     </header>
@@ -284,6 +300,21 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
     </div>
   </dialog>
   <div class="studio-toast" id="studio-toast" role="status" aria-live="polite" hidden></div>
+  <div class="studio-tour" id="studio-tour" hidden>
+    <div class="studio-tour-dim" id="studio-tour-dim"></div>
+    <div class="studio-tour-spot" id="studio-tour-spot" hidden></div>
+    <section class="studio-tour-card" id="studio-tour-card" role="dialog" aria-modal="true" aria-labelledby="studio-tour-title">
+      <p class="eyebrow studio-tour-kicker">On camera</p>
+      <h2 id="studio-tour-title"></h2>
+      <p class="studio-tour-copy" id="studio-tour-copy"></p>
+      <div class="studio-tour-actions">
+        <button class="ghost compact" type="button" id="studio-tour-skip">Skip</button>
+        <p class="studio-tour-progress" id="studio-tour-progress"></p>
+        <button class="ghost compact" type="button" id="studio-tour-back">Back</button>
+        <button type="button" id="studio-tour-next">Next</button>
+      </div>
+    </section>
+  </div>
   `;
 }
 
@@ -657,6 +688,198 @@ export function bootStudioPage(api) {
     enableZoneSplitter();
     updatePlaygroundTabUi();
     void loadSharedStudioBrew();
+    enableStudioTour();
+
+  function studioTourSteps() {
+    return [
+      {
+        id: "welcome",
+        title: "Welcome to Studio",
+        copy: "A camera-ready table for brewing Grand Archive decks. This short tour covers Add Card, the playground tabs, and sharing.",
+      },
+      {
+        id: "add",
+        title: "Add cards",
+        copy: "Search here, then place cards on the playground. Each card shows copies as a gold ×N badge. Change quantity in the inspector.",
+        selector: "#studio-open-search",
+      },
+      {
+        id: "tabs",
+        title: "Main, Material, and Side",
+        copy: "Each tab is its own board. Main keeps areas A and B. Material and Side are separate playgrounds for those decks.",
+        selector: ".studio-playground-tabs",
+        tab: "main",
+      },
+      {
+        id: "board",
+        title: "Arrange the board",
+        copy: "Drag cards freely. On Main, the dashed line splits Area A and B. Double-tap empty space to tidy cards in each area.",
+        selector: ".studio-playground-stage",
+        tab: "main",
+      },
+      {
+        id: "spotlight",
+        title: "Put a card on camera",
+        copy: "Click a card to inspect it here. Triple-click a playground card to open the lightbox and read the art.",
+        selector: "#studio-inspector-panel",
+      },
+      {
+        id: "share",
+        title: "Share or Try it",
+        copy: "Share copies a paste-ready link to this brew. Try it! opens Playtest with Material, Main, and Side.",
+        selector: ".studio-header-nav",
+      },
+    ];
+  }
+
+  function enableStudioTour() {
+    const root = document.querySelector("#studio-tour");
+    const dimEl = document.querySelector("#studio-tour-dim");
+    const spotEl = document.querySelector("#studio-tour-spot");
+    const cardEl = document.querySelector("#studio-tour-card");
+    const titleEl = document.querySelector("#studio-tour-title");
+    const copyEl = document.querySelector("#studio-tour-copy");
+    const progressEl = document.querySelector("#studio-tour-progress");
+    const skipButton = document.querySelector("#studio-tour-skip");
+    const backButton = document.querySelector("#studio-tour-back");
+    const nextButton = document.querySelector("#studio-tour-next");
+    const guideButton = document.querySelector("#studio-guide");
+    if (!root || !cardEl || !titleEl || !copyEl || !nextButton) {
+      return;
+    }
+
+    let stepIndex = 0;
+    let open = false;
+    const steps = studioTourSteps();
+
+    const closeTour = ({ remember } = { remember: true }) => {
+      open = false;
+      root.hidden = true;
+      document.body.classList.remove("studio-tour-open");
+      spotEl.hidden = true;
+      if (remember) {
+        markStudioTourSeen();
+      }
+      guideButton?.focus();
+    };
+
+    const placeTour = () => {
+      if (!open) {
+        return;
+      }
+      const step = steps[stepIndex];
+      const target = step.selector ? document.querySelector(step.selector) : null;
+      const pad = 8;
+      const margin = 16;
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        dimEl.hidden = true;
+        spotEl.hidden = false;
+        spotEl.style.left = `${Math.max(6, rect.left - pad)}px`;
+        spotEl.style.top = `${Math.max(6, rect.top - pad)}px`;
+        spotEl.style.width = `${Math.min(window.innerWidth - 12, rect.width + pad * 2)}px`;
+        spotEl.style.height = `${Math.min(window.innerHeight - 12, rect.height + pad * 2)}px`;
+        cardEl.classList.remove("is-centered");
+
+        const cardWidth = Math.min(380, window.innerWidth - margin * 2);
+        cardEl.style.width = `${cardWidth}px`;
+        const cardHeight = cardEl.offsetHeight || 200;
+        let left = rect.left + rect.width / 2 - cardWidth / 2;
+        left = Math.min(window.innerWidth - cardWidth - margin, Math.max(margin, left));
+        let top;
+        if (rect.height > window.innerHeight * 0.48) {
+          left = margin;
+          top = window.innerHeight - cardHeight - margin;
+        } else {
+          const below = rect.bottom + 14 + cardHeight + margin <= window.innerHeight;
+          const above = rect.top - 14 - cardHeight >= margin;
+          top = below ? rect.bottom + 14 : above ? rect.top - cardHeight - 14 : Math.max(margin, (window.innerHeight - cardHeight) / 2);
+        }
+        top = Math.min(window.innerHeight - cardHeight - margin, Math.max(margin, top));
+        cardEl.style.left = `${left}px`;
+        cardEl.style.top = `${top}px`;
+      } else {
+        dimEl.hidden = false;
+        spotEl.hidden = true;
+        cardEl.classList.add("is-centered");
+        cardEl.style.left = "";
+        cardEl.style.top = "";
+        cardEl.style.width = "";
+      }
+    };
+
+    const renderStep = () => {
+      const step = steps[stepIndex];
+      if (step.tab) {
+        setStudioTab(step.tab);
+      }
+      titleEl.textContent = step.title;
+      copyEl.textContent = step.copy;
+      progressEl.textContent = `${stepIndex + 1} / ${steps.length}`;
+      backButton.hidden = stepIndex === 0;
+      nextButton.textContent = stepIndex === steps.length - 1 ? "Got it" : "Next";
+      skipButton.hidden = stepIndex === steps.length - 1;
+      window.requestAnimationFrame(() => {
+        placeTour();
+        nextButton.focus();
+      });
+    };
+
+    const startStudioTour = () => {
+      closeSearchDialog();
+      open = true;
+      stepIndex = 0;
+      root.hidden = false;
+      document.body.classList.add("studio-tour-open");
+      renderStep();
+    };
+
+    skipButton?.addEventListener("click", () => closeTour({ remember: true }));
+    backButton?.addEventListener("click", () => {
+      if (stepIndex === 0) {
+        return;
+      }
+      stepIndex -= 1;
+      renderStep();
+    });
+    nextButton.addEventListener("click", () => {
+      if (stepIndex >= steps.length - 1) {
+        closeTour({ remember: true });
+        return;
+      }
+      stepIndex += 1;
+      renderStep();
+    });
+    guideButton?.addEventListener("click", () => startStudioTour());
+    window.addEventListener("resize", () => placeTour());
+    document.addEventListener("keydown", (event) => {
+      if (!open) {
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTour({ remember: true });
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        nextButton.click();
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        backButton?.click();
+      }
+    });
+
+    if (!hasSeenStudioTour() && !api.readDeckSharePayload?.()) {
+      window.setTimeout(() => {
+        if (!open && !hasSeenStudioTour()) {
+          startStudioTour();
+        }
+      }, 560);
+    }
+  }
 
   function resetStudioAutocomplete({ keepStatus = false } = {}) {
     window.clearTimeout(autocomplete.timer);
