@@ -26,6 +26,8 @@ const STUDIO_GRAVITY = 0.0045;
 const STUDIO_BOUNCE_KEEP = 0;
 const STUDIO_SQUASH_SPRING = 0.0007;
 const STUDIO_SQUASH_DAMP = 0.028;
+const STUDIO_DOUBLE_TAP_MS = 500;
+const STUDIO_DOUBLE_TAP_PX = 36;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -96,7 +98,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
           aria-label="Resize areas A and B"
           aria-orientation="vertical"
         ></button>
-        <div class="studio-board" id="studio-board" data-studio-board></div>
+        <div class="studio-board" id="studio-board" data-studio-board title="Double-tap empty space to organize cards"></div>
       </section>
     </div>
   </main>
@@ -460,6 +462,8 @@ export function bootStudioPage(api) {
       },
     });
   });
+
+  enablePlaygroundOrganize();
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
@@ -1097,6 +1101,150 @@ export function bootStudioPage(api) {
     boardEl.style.minHeight = "";
     cards.forEach((cardEl) => applyStudioPose(cardEl, getStudioPhysics(cardEl.dataset.studioCard)));
     persist();
+  }
+
+  function studioCardPoint(cardEl) {
+    const saved = studio.positions[cardEl.dataset.studioCard];
+    return {
+      x: Number.parseFloat(cardEl.style.left) || saved?.x || 0,
+      y: Number.parseFloat(cardEl.style.top) || saved?.y || 0,
+    };
+  }
+
+  function restStudioPhysics(key) {
+    const body = getStudioPhysics(key);
+    body.vx = 0;
+    body.vy = 0;
+    body.lift = 0;
+    body.spin = 0;
+    body.held = false;
+    body.hop = 0;
+    body.hopV = 0;
+    body.squash = 0;
+    body.squashV = 0;
+  }
+
+  function layoutCardsInZone(cardEls, zone) {
+    const boardWidth = boardEl?.clientWidth || 0;
+    const boardHeight = boardEl?.clientHeight || 0;
+    const splitX = studioZoneSplitX();
+    const left = zone === "b" ? splitX : 0;
+    const right = zone === "b" ? boardWidth : splitX;
+    const width = Math.max(STUDIO_CARD_WIDTH, right - left);
+    const inner = Math.max(STUDIO_CARD_WIDTH, width - STUDIO_PADDING * 2);
+    const cols = Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
+    const stepX = STUDIO_CARD_WIDTH + STUDIO_GAP_X;
+    const stepY = STUDIO_CARD_HEIGHT + STUDIO_GAP_Y + STUDIO_QTY_HANG;
+    const usableHeight = Math.max(stepY, boardHeight - STUDIO_ZONE_HEAD - STUDIO_PADDING);
+    const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / stepY));
+    const minX = left + STUDIO_PADDING;
+    const maxX = Math.max(minX, right - STUDIO_CARD_WIDTH - STUDIO_PADDING);
+
+    cardEls.forEach((cardEl, index) => {
+      const key = cardEl.dataset.studioCard;
+      const col = index % cols;
+      const row = Math.min(rows - 1, Math.floor(index / cols));
+      const next = clampStudioBoardPoint(
+        Math.min(maxX, minX + col * stepX),
+        STUDIO_ZONE_HEAD + STUDIO_PADDING + row * stepY,
+      );
+      restStudioPhysics(key);
+      writeStudioCardPosition(cardEl, key, next.x, next.y);
+      applyStudioPose(cardEl, getStudioPhysics(key));
+    });
+  }
+
+  function organizeStudioBoard() {
+    if (!boardEl || studioPhysicsHeld()) {
+      return;
+    }
+    const cards = [...boardEl.querySelectorAll("[data-studio-card]")];
+    if (cards.length === 0) {
+      return;
+    }
+
+    const groups = { a: [], b: [] };
+    for (const cardEl of cards) {
+      groups[studioZoneForX(studioCardPoint(cardEl).x)].push(cardEl);
+    }
+    const byReadingOrder = (left, right) => {
+      const a = studioCardPoint(left);
+      const b = studioCardPoint(right);
+      if (a.y !== b.y) {
+        return a.y - b.y;
+      }
+      return a.x - b.x;
+    };
+    groups.a.sort(byReadingOrder);
+    groups.b.sort(byReadingOrder);
+    cards.forEach((cardEl) => cardEl.classList.add("is-organizing"));
+    void boardEl.offsetWidth;
+    layoutCardsInZone(groups.a, "a");
+    layoutCardsInZone(groups.b, "b");
+    persist();
+    window.setTimeout(() => {
+      boardEl.querySelectorAll(".is-organizing").forEach((cardEl) => {
+        cardEl.classList.remove("is-organizing");
+      });
+    }, 420);
+  }
+
+  function isEmptyPlaygroundTarget(target) {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+    if (target.closest(".studio-card, .studio-zone-splitter, button, select, a, input, textarea")) {
+      return false;
+    }
+    return Boolean(target.closest(".studio-board, .studio-playground, .studio-zones"));
+  }
+
+  function enablePlaygroundOrganize() {
+    if (!playgroundEl) {
+      return;
+    }
+    let lastTapAt = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    let lastOrganizeAt = 0;
+
+    const onEmptyDoubleTap = () => {
+      const now = performance.now();
+      if (now - lastOrganizeAt < 400) {
+        return;
+      }
+      lastOrganizeAt = now;
+      lastTapAt = 0;
+      organizeStudioBoard();
+    };
+
+    playgroundEl.addEventListener("pointerup", (event) => {
+      if (event.button != null && event.button !== 0) {
+        return;
+      }
+      if (!isEmptyPlaygroundTarget(event.target)) {
+        lastTapAt = 0;
+        return;
+      }
+      const now = performance.now();
+      const near = Math.hypot(event.clientX - lastTapX, event.clientY - lastTapY) <= STUDIO_DOUBLE_TAP_PX;
+      if (lastTapAt && now - lastTapAt <= STUDIO_DOUBLE_TAP_MS && near) {
+        event.preventDefault();
+        onEmptyDoubleTap();
+        return;
+      }
+      lastTapAt = now;
+      lastTapX = event.clientX;
+      lastTapY = event.clientY;
+    });
+
+    playgroundEl.addEventListener("dblclick", (event) => {
+      if (!isEmptyPlaygroundTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      onEmptyDoubleTap();
+    });
   }
 
   function getStudioPhysics(key) {
