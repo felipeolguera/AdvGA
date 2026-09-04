@@ -120,12 +120,15 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
               autocomplete="off"
               spellcheck="true"
               placeholder="normal ally that cost 2 in PRD"
+              aria-autocomplete="list"
+              aria-controls="studio-autocomplete-list"
+              aria-expanded="false"
             />
           </div>
           <button type="button" class="secondary" id="toggle-search-filters" aria-expanded="false" aria-controls="search-filters">
             Filters
           </button>
-          <button type="submit">Search</button>
+          <button type="submit" id="studio-search-submit">Search</button>
         </div>
         <div class="studio-examples quick-searches" aria-label="Example searches">
           <button type="button" data-studio-example="harmony in PRD">harmony in PRD</button>
@@ -133,6 +136,12 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
           <button type="button" data-studio-example="unique allies in PRD">unique allies</button>
         </div>
       </div>
+      <ul
+        class="deck-autocomplete-list deck-autocomplete-grid studio-autocomplete-list"
+        id="studio-autocomplete-list"
+        role="listbox"
+        hidden
+      ></ul>
       <div class="search-filters" id="search-filters" hidden>
         <div class="search-filters-grid">
           <label class="search-filter-effect">
@@ -234,6 +243,15 @@ export function bootStudioPage(api) {
   const searchDialog = document.querySelector("#studio-search-dialog");
   const openSearchButton = document.querySelector("#studio-open-search");
   const closeSearchButton = document.querySelector("#studio-close-search");
+  const autocompleteListEl = document.querySelector("#studio-autocomplete-list");
+  const autocomplete = {
+    query: "",
+    results: [],
+    loading: false,
+    activeIndex: -1,
+    requestId: 0,
+    timer: null,
+  };
 
   function openSearchDialog() {
     if (!searchDialog) {
@@ -250,6 +268,7 @@ export function bootStudioPage(api) {
       searchDialog.close();
     }
     api.closeAllMultiSelects();
+    resetStudioAutocomplete();
     openSearchButton?.focus();
   }
 
@@ -262,6 +281,7 @@ export function bootStudioPage(api) {
   });
   searchDialog?.addEventListener("close", () => {
     api.closeAllMultiSelects();
+    resetStudioAutocomplete();
   });
 
   api.bindQuickFilterMultiSelects();
@@ -270,7 +290,49 @@ export function bootStudioPage(api) {
   searchForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     api.closeAllMultiSelects();
+    resetStudioAutocomplete({ keepStatus: true });
     void runSearch(searchInput.value.trim(), { reset: true });
+  });
+
+  searchInput?.addEventListener("input", () => {
+    scheduleStudioAutocomplete(searchInput.value);
+  });
+
+  searchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      if (!autocomplete.results.length) {
+        return;
+      }
+      event.preventDefault();
+      autocomplete.activeIndex = (autocomplete.activeIndex + 1) % autocomplete.results.length;
+      renderStudioAutocompleteList();
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      if (!autocomplete.results.length) {
+        return;
+      }
+      event.preventDefault();
+      autocomplete.activeIndex = autocomplete.activeIndex <= 0
+        ? autocomplete.results.length - 1
+        : autocomplete.activeIndex - 1;
+      renderStudioAutocompleteList();
+      return;
+    }
+    if (event.key === "Enter" && autocomplete.results.length && autocomplete.activeIndex >= 0) {
+      event.preventDefault();
+      void addStudioAutocompleteSelection();
+    }
+  });
+
+  autocompleteListEl?.addEventListener("click", (event) => {
+    const suggestion = event.target.closest("[data-studio-autocomplete-index]");
+    if (!suggestion) {
+      return;
+    }
+    event.preventDefault();
+    autocomplete.activeIndex = Number(suggestion.dataset.studioAutocompleteIndex);
+    void addStudioAutocompleteSelection({ sourceButton: suggestion });
   });
 
   toggleFiltersButton?.addEventListener("click", () => {
@@ -284,6 +346,7 @@ export function bootStudioPage(api) {
 
   applyFiltersButton?.addEventListener("click", () => {
     api.closeAllMultiSelects();
+    resetStudioAutocomplete({ keepStatus: true });
     void runSearch(searchInput.value.trim(), { reset: true });
   });
 
@@ -296,12 +359,14 @@ export function bootStudioPage(api) {
     api.clearMultiSelect(document.querySelector("#quick-filter-element"));
     api.clearMultiSelect(document.querySelector("#quick-filter-type"));
     api.clearMultiSelect(document.querySelector("#quick-filter-subtype"));
+    resetStudioAutocomplete({ keepStatus: true });
     void runSearch(searchInput.value.trim(), { reset: true });
   });
 
   document.querySelectorAll("[data-studio-example]").forEach((button) => {
     button.addEventListener("click", () => {
       searchInput.value = button.dataset.studioExample || "";
+      resetStudioAutocomplete({ keepStatus: true });
       void runSearch(searchInput.value.trim(), { reset: true });
     });
   });
@@ -419,6 +484,207 @@ export function bootStudioPage(api) {
   renderBoard();
   renderInspector();
   enableZoneSplitter();
+
+  function resetStudioAutocomplete({ keepStatus = false } = {}) {
+    window.clearTimeout(autocomplete.timer);
+    autocomplete.query = "";
+    autocomplete.results = [];
+    autocomplete.loading = false;
+    autocomplete.activeIndex = -1;
+    autocomplete.requestId += 1;
+    autocomplete.timer = null;
+    renderStudioAutocompleteList();
+    if (!keepStatus && statusEl && !tray.loading && tray.cards.length === 0) {
+      statusEl.textContent = "Search, then pick 1–4 to add a card to the playground.";
+    }
+  }
+
+  function scheduleStudioAutocomplete(rawQuery) {
+    const query = rawQuery.trim();
+    autocomplete.query = query;
+    window.clearTimeout(autocomplete.timer);
+
+    if (query.length < 2) {
+      autocomplete.results = [];
+      autocomplete.activeIndex = -1;
+      autocomplete.loading = false;
+      renderStudioAutocompleteList();
+      if (statusEl && !tray.loading) {
+        statusEl.textContent = query.length === 0
+          ? "Search, then pick 1–4 to add a card to the playground."
+          : "Keep typing — enter at least 2 characters.";
+      }
+      return;
+    }
+
+    autocomplete.loading = true;
+    if (statusEl) {
+      statusEl.textContent = "Searching cards…";
+    }
+    autocomplete.timer = window.setTimeout(() => {
+      void runStudioAutocomplete(query);
+    }, 220);
+  }
+
+  async function runStudioAutocomplete(query) {
+    if (typeof api.searchCardsByName !== "function") {
+      return;
+    }
+    const requestId = autocomplete.requestId + 1;
+    autocomplete.requestId = requestId;
+    try {
+      const results = await api.searchCardsByName(query, 10);
+      if (requestId !== autocomplete.requestId || autocomplete.query !== query) {
+        return;
+      }
+      autocomplete.results = results;
+      autocomplete.activeIndex = results.length ? 0 : -1;
+      autocomplete.loading = false;
+      renderStudioAutocompleteList();
+      if (statusEl) {
+        statusEl.textContent = results.length
+          ? `${results.length} match${results.length === 1 ? "" : "es"}. Tap a card image to add.`
+          : `No name matched “${query}”. Press Search for a broader query.`;
+      }
+    } catch {
+      if (requestId !== autocomplete.requestId) {
+        return;
+      }
+      autocomplete.results = [];
+      autocomplete.activeIndex = -1;
+      autocomplete.loading = false;
+      renderStudioAutocompleteList();
+      if (statusEl) {
+        statusEl.textContent = "Could not load card suggestions. Try Search, or try again.";
+      }
+    }
+  }
+
+  function renderStudioAutocompleteList() {
+    if (!autocompleteListEl || !searchInput) {
+      return;
+    }
+
+    const { results, activeIndex } = autocomplete;
+    autocompleteListEl.replaceChildren();
+
+    if (!results.length) {
+      autocompleteListEl.hidden = true;
+      searchInput.setAttribute("aria-expanded", "false");
+      searchInput.removeAttribute("aria-activedescendant");
+      carouselEl?.classList.remove("is-suggesting");
+      return;
+    }
+
+    results.forEach((card, index) => {
+      const item = document.createElement("li");
+      item.setAttribute("role", "option");
+      item.id = `studio-autocomplete-option-${index}`;
+      item.className = "deck-autocomplete-option deck-autocomplete-card";
+      if (index === activeIndex) {
+        item.classList.add("active");
+        item.setAttribute("aria-selected", "true");
+      } else {
+        item.setAttribute("aria-selected", "false");
+      }
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "deck-autocomplete-card-button";
+      button.dataset.studioAutocompleteIndex = String(index);
+      button.title = card.name;
+      button.setAttribute("aria-label", `Add ${card.name}`);
+
+      const imageUrl = api.getImageUrl(api.resolveCardImage(card) || api.getPrimaryEdition(card)?.image);
+      if (imageUrl) {
+        const image = document.createElement("img");
+        image.loading = "lazy";
+        image.src = imageUrl;
+        image.alt = card.name;
+        image.onerror = () => {
+          image.remove();
+          button.textContent = card.name;
+        };
+        button.append(image);
+      } else {
+        button.textContent = card.name;
+      }
+
+      item.append(button);
+      autocompleteListEl.append(item);
+    });
+
+    autocompleteListEl.hidden = false;
+    searchInput.setAttribute("aria-expanded", "true");
+    if (activeIndex >= 0) {
+      searchInput.setAttribute("aria-activedescendant", `studio-autocomplete-option-${activeIndex}`);
+    } else {
+      searchInput.removeAttribute("aria-activedescendant");
+    }
+    carouselEl?.classList.add("is-suggesting");
+  }
+
+  function playStudioAddedAnimation(button) {
+    return new Promise((resolve) => {
+      const card = button.closest(".deck-autocomplete-card") || button;
+      const host = button.classList?.contains("deck-autocomplete-card-button")
+        ? button
+        : card.querySelector(".deck-autocomplete-card-button") || button;
+
+      card.classList.remove("card-added-pop");
+      host.querySelector(".card-added-overlay")?.remove();
+
+      const overlay = document.createElement("span");
+      overlay.className = "card-added-overlay";
+      overlay.innerHTML = `<span class="card-added-check" aria-hidden="true">✓</span><span>Added</span>`;
+      host.append(overlay);
+
+      void card.offsetWidth;
+      card.classList.add("card-added-pop");
+
+      let finished = false;
+      const done = () => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        card.removeEventListener("animationend", onEnd);
+        resolve();
+      };
+      const onEnd = (event) => {
+        if (event.target === card || event.target === overlay) {
+          done();
+        }
+      };
+      card.addEventListener("animationend", onEnd);
+      window.setTimeout(done, 520);
+    });
+  }
+
+  async function addStudioAutocompleteSelection({ sourceButton = null } = {}) {
+    const { results, activeIndex } = autocomplete;
+    const card = activeIndex >= 0 ? results[activeIndex] : null;
+    if (!card) {
+      return;
+    }
+
+    const animatedButton =
+      sourceButton ||
+      autocompleteListEl?.querySelector(`[data-studio-autocomplete-index="${activeIndex}"]`);
+    if (animatedButton) {
+      await playStudioAddedAnimation(animatedButton);
+    }
+
+    rememberCard(card);
+    const key = api.getCardKey(card);
+    const alreadyHere = studio.cardKeys.includes(key);
+    const nextQty = alreadyHere ? clampStudioQty(getQuantity(key) + 1) : STUDIO_MIN_QTY;
+    addCardToPlayground(key, nextQty, { updated: alreadyHere });
+    if (statusEl) {
+      statusEl.textContent = `Added ${card.name}. Tap another suggestion to keep adding.`;
+    }
+    searchInput?.focus();
+  }
 
   async function runSearch(query, { reset }) {
     const hasFilters = Boolean(
@@ -585,7 +851,7 @@ export function bootStudioPage(api) {
     if (studio.cardKeys.length === 0) {
       const empty = document.createElement("p");
       empty.className = "hint studio-board-empty";
-      empty.textContent = "Empty · tap + to search, then drag cards on the playground";
+      empty.textContent = "Empty · Add Card to search, then drag cards on the playground";
       boardEl.append(empty);
       boardEl.style.minHeight = "";
       updateZoneCounts();
