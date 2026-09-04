@@ -2082,24 +2082,6 @@ export function bootStudioPage(api) {
     }
 
     const original = button?.textContent || "Share";
-    const shareData = {
-      title: "Studio brew",
-      text: "Open this Grand Archive brew in Studio.",
-      url,
-    };
-
-    try {
-      if (typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare(shareData))) {
-        await navigator.share(shareData);
-        showStudioToast("Shared");
-        return;
-      }
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return;
-      }
-    }
-
     try {
       await navigator.clipboard.writeText(url);
       if (button) {
