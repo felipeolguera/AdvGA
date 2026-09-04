@@ -4312,6 +4312,7 @@ body[data-page="studio"] #app {
   border: 1px solid rgba(255, 204, 115, 0.16);
   border-radius: 16px;
   background: rgba(16, 14, 24, 0.55);
+  touch-action: manipulation;
 }
 
 .studio-zones {
@@ -4854,6 +4855,10 @@ body[data-page="studio"] #app {
   left: 50%;
   margin-top: 6px;
   transform: translate(-50%, 0);
+}
+
+.studio-card.studio-freehand-card.is-organizing {
+  transition: left 280ms cubic-bezier(0.2, 0.9, 0.2, 1), top 280ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
 .studio-card.studio-freehand-card.dragging,
