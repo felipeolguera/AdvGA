@@ -13,6 +13,7 @@ import {
   buildDeckShareUrl,
   decodeDeckSharePayload,
   encodeDeckSharePayload,
+  getStudioPageAbsoluteUrl,
   getTryItPageAbsoluteUrl,
   readDeckSharePayload,
 } from "./tryitShare.js";
@@ -28,7 +29,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.47";
+const APP_VERSION = "1.48";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -1138,6 +1139,13 @@ if (IS_TRYIT_PAGE) {
     updateSearchFiltersVisibility,
     defaultDeckSection,
     writeDeckForTryIt,
+    encodeDeckSharePayload,
+    decodeDeckSharePayload,
+    buildDeckShareUrl,
+    readDeckSharePayload,
+    lookupCardByName,
+    parseDeckImport,
+    studioPageUrl: getStudioPageAbsoluteUrl(),
     tryItUrl: TRYIT_PAGE_URL,
     appVersion: APP_VERSION,
   });

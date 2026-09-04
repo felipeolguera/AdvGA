@@ -80,6 +80,10 @@ export function getTryItPageAbsoluteUrl(locationLike = window.location, baseUrl 
   return new URL("tryit.html", new URL(baseUrl || "./", locationLike.href)).href;
 }
 
+export function getStudioPageAbsoluteUrl(locationLike = window.location, baseUrl = import.meta.env.BASE_URL) {
+  return new URL("studio.html", new URL(baseUrl || "./", locationLike.href)).href;
+}
+
 export function buildDeckShareUrl(pageUrl, payload) {
   const url = new URL(pageUrl);
   url.search = "";

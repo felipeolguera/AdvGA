@@ -4265,6 +4265,11 @@ body[data-page="studio"] #app {
   text-decoration: none;
 }
 
+.studio-share-button {
+  border-color: rgba(255, 204, 115, 0.55) !important;
+  color: var(--gold-strong) !important;
+}
+
 .studio-add-card {
   position: relative;
   z-index: 2;

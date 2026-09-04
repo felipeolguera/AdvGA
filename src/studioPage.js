@@ -56,6 +56,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
       <p class="studio-board-count" id="studio-board-count">0 cards</p>
       <nav class="studio-header-nav">
         <button class="try-it-button compact" type="button" id="studio-try-it">Try it!</button>
+        <button class="ghost compact studio-share-button" type="button" id="studio-share">Share</button>
         <button class="ghost compact" type="button" id="studio-copy-decklist">Copy list</button>
         <button class="ghost compact" type="button" id="studio-download-decklist">Download</button>
         <button class="ghost compact" type="button" id="studio-clear-board">Clear</button>
@@ -410,6 +411,9 @@ export function bootStudioPage(api) {
   document.querySelector("#studio-try-it")?.addEventListener("click", () => {
     openStudioTryIt();
   });
+  document.querySelector("#studio-share")?.addEventListener("click", (event) => {
+    void shareStudioBrew(event.currentTarget);
+  });
 
   document.querySelector("#studio-copy-decklist")?.addEventListener("click", (event) => {
     void copyStudioDecklist(event.currentTarget);
@@ -487,6 +491,7 @@ export function bootStudioPage(api) {
   renderBoard();
   renderInspector();
   enableZoneSplitter();
+  void loadSharedStudioBrew();
 
   function resetStudioAutocomplete({ keepStatus = false } = {}) {
     window.clearTimeout(autocomplete.timer);
@@ -2028,6 +2033,198 @@ export function bootStudioPage(api) {
       .filter(([, cards]) => cards.length > 0)
       .map(([title, cards]) => [`# ${title}`, "", ...cards.map((entry) => `${entry.qty} ${entry.card.name}`)].join("\n"));
     return `${header}${sections.join("\n\n")}`.trim() + "\n";
+  }
+
+  function serializeStudioShare() {
+    return {
+      v: 1,
+      split: studio.zoneSplit,
+      cards: studio.cardKeys.map((key) => {
+        const card = studio.cards[key];
+        const pos = studio.positions[key] || {};
+        return {
+          n: card?.name || "",
+          q: getQuantity(key),
+          x: pos.x,
+          y: pos.y,
+          z: pos.z,
+        };
+      }).filter((entry) => entry.n),
+    };
+  }
+
+  function clearStudioShareHash() {
+    const next = new URL(window.location.href);
+    next.hash = "";
+    next.searchParams.delete("d");
+    next.searchParams.delete("deck");
+    history.replaceState(null, "", next);
+  }
+
+  async function shareStudioBrew(button) {
+    if (boardCardCount() === 0) {
+      window.alert("Add cards to the playground before sharing.");
+      return;
+    }
+    if (typeof api.encodeDeckSharePayload !== "function" || typeof api.buildDeckShareUrl !== "function") {
+      window.alert("Sharing is not available.");
+      return;
+    }
+
+    let url = "";
+    try {
+      const payload = await api.encodeDeckSharePayload(JSON.stringify(serializeStudioShare()));
+      url = api.buildDeckShareUrl(api.studioPageUrl, payload);
+    } catch (error) {
+      console.error(error);
+      window.alert("Could not build a share link.");
+      return;
+    }
+
+    const original = button?.textContent || "Share";
+    const shareData = {
+      title: "Studio brew",
+      text: "Open this Grand Archive brew in Studio.",
+      url,
+    };
+
+    try {
+      if (typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        showStudioToast("Shared");
+        return;
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      if (button) {
+        button.textContent = "Link copied";
+      }
+      showStudioToast("Share link copied");
+    } catch {
+      window.prompt("Copy this Studio link", url);
+      if (button) {
+        button.textContent = "Link copied";
+      }
+      showStudioToast("Share link ready to copy");
+    } finally {
+      window.setTimeout(() => {
+        if (button) {
+          button.textContent = original;
+        }
+      }, 1800);
+    }
+  }
+
+  async function applyStudioShareEntries(entries) {
+    const nextKeys = [];
+    const nextCards = {};
+    const nextQuantities = {};
+    const nextPositions = {};
+    let nextZ = 1;
+    let loaded = 0;
+
+    for (const entry of entries) {
+      const name = String(entry.n || entry.name || "").trim();
+      if (!name) {
+        continue;
+      }
+      const card = await api.lookupCardByName(name);
+      if (!card) {
+        continue;
+      }
+      const key = api.getCardKey(card);
+      rememberCard(card);
+      nextCards[key] = card;
+      if (!nextKeys.includes(key)) {
+        nextKeys.push(key);
+      }
+      nextQuantities[key] = clampStudioQty((nextQuantities[key] || 0) + (entry.q || entry.quantity || STUDIO_MIN_QTY));
+      const x = Number(entry.x);
+      const y = Number(entry.y);
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        const z = Number.isFinite(Number(entry.z)) ? Number(entry.z) : nextZ;
+        nextPositions[key] = { x, y, z };
+        nextZ = Math.max(nextZ, z + 1);
+      }
+      loaded += 1;
+    }
+
+    if (loaded === 0) {
+      return false;
+    }
+
+    studio.cardKeys = nextKeys;
+    studio.cards = nextCards;
+    studio.quantities = nextQuantities;
+    studio.positions = nextPositions;
+    studio.nextZ = nextZ;
+    studio.selectedKey = nextKeys[0] || "";
+    physics.clear();
+    persist();
+    renderBoard();
+    renderInspector();
+    if (Object.keys(nextPositions).length === 0) {
+      window.requestAnimationFrame(() => organizeStudioBoard());
+    }
+    return true;
+  }
+
+  async function applyStudioShareText(text) {
+    const raw = String(text || "").trim();
+    if (!raw) {
+      return false;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.v === 1 && Array.isArray(parsed.cards)) {
+        if (Number.isFinite(Number(parsed.split))) {
+          studio.zoneSplit = clampStudioZoneSplit(parsed.split);
+          applyZoneSplit();
+        }
+        return applyStudioShareEntries(parsed.cards);
+      }
+    } catch {
+      // Decklist text from Try it / Copy list.
+    }
+
+    if (typeof api.parseDeckImport !== "function") {
+      return false;
+    }
+    const parsed = api.parseDeckImport(raw);
+    return applyStudioShareEntries(
+      (parsed.entries || []).map((entry) => ({
+        n: entry.name,
+        q: entry.quantity,
+      })),
+    );
+  }
+
+  async function loadSharedStudioBrew() {
+    const raw = api.readDeckSharePayload?.();
+    if (!raw || typeof api.decodeDeckSharePayload !== "function" || typeof api.lookupCardByName !== "function") {
+      return;
+    }
+    showStudioToast("Loading shared brew…");
+    try {
+      const text = await api.decodeDeckSharePayload(raw);
+      const loaded = await applyStudioShareText(text);
+      if (!loaded) {
+        window.alert("Could not load the shared brew from this link.");
+        return;
+      }
+      clearStudioShareHash();
+      showStudioToast("Shared brew loaded");
+    } catch (error) {
+      console.error(error);
+      window.alert("Could not load the shared brew from this link.");
+    }
   }
 
   async function copyStudioDecklist(button) {
