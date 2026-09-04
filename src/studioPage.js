@@ -75,13 +75,6 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
               <span class="studio-zone-count" id="studio-zone-a-count" aria-live="polite">0</span>
             </div>
           </div>
-          <button
-            class="studio-zone-splitter"
-            type="button"
-            id="studio-zone-splitter"
-            aria-label="Resize areas A and B"
-            aria-orientation="vertical"
-          ></button>
           <div class="studio-zone" data-zone="b">
             <div class="studio-zone-label">
               <span class="studio-zone-name">B</span>
@@ -89,6 +82,13 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
             </div>
           </div>
         </div>
+        <button
+          class="studio-zone-splitter"
+          type="button"
+          id="studio-zone-splitter"
+          aria-label="Resize areas A and B"
+          aria-orientation="vertical"
+        ></button>
         <div class="studio-board" id="studio-board" data-studio-board></div>
       </section>
     </div>

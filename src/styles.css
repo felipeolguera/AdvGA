@@ -4309,7 +4309,7 @@ body[data-page="studio"] #app {
   inset: 0;
   z-index: 3;
   display: grid;
-  grid-template-columns: minmax(108px, var(--studio-split, 50%)) 12px minmax(108px, 1fr);
+  grid-template-columns: minmax(108px, var(--studio-split, 50%)) minmax(108px, 1fr);
   pointer-events: none;
 }
 
@@ -4322,12 +4322,16 @@ body[data-page="studio"] #app {
 
 .studio-zone-splitter {
   pointer-events: auto;
-  position: relative;
-  z-index: 4;
-  width: 12px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--studio-split, 50%);
+  z-index: 6;
+  width: 22px;
   margin: 0;
   border: 0;
   padding: 0;
+  transform: translateX(-50%);
   cursor: col-resize;
   background: transparent;
   touch-action: none;
@@ -4340,14 +4344,14 @@ body[data-page="studio"] #app {
   bottom: 8px;
   left: 50%;
   width: 0;
-  border-left: 1px dashed rgba(255, 204, 115, 0.55);
+  border-left: 2px dashed rgba(255, 204, 115, 0.7);
   transform: translateX(-50%);
 }
 
 .studio-zone-splitter:hover::before,
 .studio-zone-splitter:focus-visible::before,
 .studio-zone-splitter.is-dragging::before {
-  border-left-width: 2px;
+  border-left-width: 3px;
   border-left-color: var(--gold-strong);
 }
 
