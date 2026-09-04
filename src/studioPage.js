@@ -9,6 +9,8 @@ const STUDIO_GAP_X = 16;
 const STUDIO_GAP_Y = 16;
 const STUDIO_PADDING = 16;
 const STUDIO_ZONE_HEAD = 48;
+const STUDIO_ZONE_SPLIT_MIN = 0.22;
+const STUDIO_ZONE_SPLIT_MAX = 0.78;
 const STUDIO_SNAP = 16;
 const STUDIO_LIFT_SCALE = 0.14;
 const STUDIO_LIFT_Z = 52;
@@ -26,6 +28,14 @@ function clampStudioQty(value) {
     return STUDIO_MIN_QTY;
   }
   return Math.min(STUDIO_MAX_QTY, quantity);
+}
+
+function clampStudioZoneSplit(value) {
+  const split = Number(value);
+  if (!Number.isFinite(split)) {
+    return 0.5;
+  }
+  return Math.min(STUDIO_ZONE_SPLIT_MAX, Math.max(STUDIO_ZONE_SPLIT_MIN, split));
 }
 
 export function getStudioShellHtml({ appVersion, builderUrl }) {
@@ -65,6 +75,13 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
               <span class="studio-zone-count" id="studio-zone-a-count" aria-live="polite">0</span>
             </div>
           </div>
+          <button
+            class="studio-zone-splitter"
+            type="button"
+            id="studio-zone-splitter"
+            aria-label="Resize areas A and B"
+            aria-orientation="vertical"
+          ></button>
           <div class="studio-zone" data-zone="b">
             <div class="studio-zone-label">
               <span class="studio-zone-name">B</span>
@@ -194,6 +211,7 @@ export function bootStudioPage(api) {
   let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
   const playgroundEl = document.querySelector(".studio-playground");
+  const zoneSplitterEl = document.querySelector("#studio-zone-splitter");
   const zoneACountEl = document.querySelector("#studio-zone-a-count");
   const zoneBCountEl = document.querySelector("#studio-zone-b-count");
   const physics = new Map();
@@ -311,6 +329,7 @@ export function bootStudioPage(api) {
   });
   window.addEventListener("resize", () => {
     updateCarouselUi();
+    applyZoneSplit();
     layoutStudioBoard();
   });
 
@@ -391,6 +410,7 @@ export function bootStudioPage(api) {
 
   renderBoard();
   renderInspector();
+  enableZoneSplitter();
 
   async function runSearch(query, { reset }) {
     const hasFilters = Boolean(
@@ -612,26 +632,109 @@ export function bootStudioPage(api) {
   }
 
   function studioZoneSlot(index, boardWidth, boardHeight) {
-    const half = Math.max(boardWidth / 2, STUDIO_CARD_WIDTH + STUDIO_PADDING * 2);
-    const inner = Math.max(STUDIO_CARD_WIDTH, half - STUDIO_PADDING * 2);
-    const cols = Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
+    const splitX = Math.max(STUDIO_CARD_WIDTH + STUDIO_PADDING * 2, boardWidth * (studio.zoneSplit || 0.5));
     const usableHeight = Math.max(STUDIO_CARD_HEIGHT, boardHeight - STUDIO_ZONE_HEAD - STUDIO_PADDING);
     const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y)));
-    const zoneCapacity = cols * rows;
+    const colsFor = (width) => {
+      const inner = Math.max(STUDIO_CARD_WIDTH, width - STUDIO_PADDING * 2);
+      return Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
+    };
+    const colsA = colsFor(splitX);
+    const zoneCapacity = colsA * rows;
     const zone = index < zoneCapacity ? 0 : 1;
     const local = zone === 0 ? index : index - zoneCapacity;
+    const cols = zone === 0 ? colsA : colsFor(boardWidth - splitX);
     const col = local % cols;
     const row = Math.min(rows - 1, Math.floor(local / cols));
     return snapStudioPosition({
-      x: (zone === 0 ? 0 : half) + STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
+      x: (zone === 0 ? 0 : splitX) + STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
       y: STUDIO_ZONE_HEAD + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
       z: index + 1,
     });
   }
 
+  function studioZoneSplitX() {
+    return (boardEl?.clientWidth || 0) * (studio.zoneSplit || 0.5);
+  }
+
   function studioZoneForX(x) {
-    const width = boardEl?.clientWidth || 0;
-    return x + STUDIO_CARD_WIDTH / 2 < width / 2 ? "a" : "b";
+    return x + STUDIO_CARD_WIDTH / 2 < studioZoneSplitX() ? "a" : "b";
+  }
+
+  function applyZoneSplit() {
+    const split = clampStudioZoneSplit(studio.zoneSplit);
+    studio.zoneSplit = split;
+    playgroundEl?.style.setProperty("--studio-split", `${split * 100}%`);
+    zoneSplitterEl?.setAttribute("aria-valuenow", String(Math.round(split * 100)));
+  }
+
+  function enableZoneSplitter() {
+    if (!zoneSplitterEl || !playgroundEl) {
+      return;
+    }
+    zoneSplitterEl.setAttribute("role", "separator");
+    zoneSplitterEl.setAttribute("aria-valuemin", String(Math.round(STUDIO_ZONE_SPLIT_MIN * 100)));
+    zoneSplitterEl.setAttribute("aria-valuemax", String(Math.round(STUDIO_ZONE_SPLIT_MAX * 100)));
+    applyZoneSplit();
+
+    let pointerId = null;
+
+    const onPointerMove = (event) => {
+      if (pointerId !== event.pointerId) {
+        return;
+      }
+      const rect = playgroundEl.getBoundingClientRect();
+      const width = rect.width || 1;
+      studio.zoneSplit = clampStudioZoneSplit((event.clientX - rect.left) / width);
+      applyZoneSplit();
+      updateZoneCounts();
+    };
+
+    const onPointerUp = (event) => {
+      if (pointerId !== event.pointerId) {
+        return;
+      }
+      pointerId = null;
+      zoneSplitterEl.classList.remove("is-dragging");
+      try {
+        zoneSplitterEl.releasePointerCapture(event.pointerId);
+      } catch {
+        // Ignore if capture was already released.
+      }
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      persist();
+    };
+
+    zoneSplitterEl.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      pointerId = event.pointerId;
+      zoneSplitterEl.classList.add("is-dragging");
+      try {
+        zoneSplitterEl.setPointerCapture(event.pointerId);
+      } catch {
+        // Window listeners still handle move/up if capture is rejected.
+      }
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+    });
+
+    zoneSplitterEl.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+      event.preventDefault();
+      const delta = event.key === "ArrowLeft" ? -0.02 : 0.02;
+      studio.zoneSplit = clampStudioZoneSplit(studio.zoneSplit + delta);
+      applyZoneSplit();
+      persist();
+    });
   }
 
   function updateZoneCounts() {
@@ -1340,6 +1443,7 @@ export function bootStudioPage(api) {
       selectedKey: studio.selectedKey,
       cards: liveCards,
       quantities: studio.quantities,
+      zoneSplit: studio.zoneSplit,
     });
     updateZoneCounts();
   }
@@ -1512,6 +1616,7 @@ function loadStudioState() {
     cards: stored.cards && typeof stored.cards === "object" ? stored.cards : {},
     selectedKey: String(stored.selectedKey || ""),
     quantities,
+    zoneSplit: clampStudioZoneSplit(stored.zoneSplit ?? 0.5),
   };
 }
 
