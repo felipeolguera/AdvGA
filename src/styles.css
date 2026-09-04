@@ -4265,22 +4265,32 @@ body[data-page="studio"] #app {
   text-decoration: none;
 }
 
-.studio-open-search {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
+.studio-add-card {
+  position: relative;
+  z-index: 2;
+  justify-self: stretch;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
   border: 0;
-  border-radius: 50%;
-  padding: 0;
+  border-radius: 12px;
+  padding: 0 14px;
   color: #170f0b;
   background: linear-gradient(135deg, var(--gold-strong), var(--gold));
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
-  font-size: 1.7rem;
+  font-size: 0.82rem;
   font-weight: 800;
+  letter-spacing: 0.08em;
   line-height: 1;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 140ms ease, box-shadow 140ms ease;
+}
+
+.studio-add-card:hover,
+.studio-add-card:focus-visible {
+  filter: brightness(1.06);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.38);
 }
 
 .studio-stage {
@@ -4511,23 +4521,43 @@ body[data-page="studio"] #app {
   position: relative;
   isolation: isolate;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
   align-content: stretch;
-  gap: 0;
+  gap: 10px;
   height: 100%;
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(255, 204, 115, 0.16);
   border-radius: 16px;
-  padding: 16px 18px;
+  padding: 12px 14px 16px;
   background: rgba(16, 14, 24, 0.88);
   box-shadow: none;
 }
 
 .studio-page .studio-inspector.is-empty {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: stretch;
+  align-items: stretch;
+  align-content: stretch;
+  text-align: initial;
+}
+
+.studio-page .studio-inspector-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.studio-page .studio-inspector-body.is-empty {
   justify-items: center;
   align-items: center;
   align-content: center;
@@ -5168,9 +5198,10 @@ body[data-page="studio"] #app {
 @media (max-width: 1180px) {
   .studio-page .studio-inspector {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
-    gap: 0;
-    padding: 12px 14px;
+    gap: 10px;
+    padding: 10px 12px 12px;
   }
 
   .studio-card-in-tray,
@@ -5223,6 +5254,7 @@ body[data-page="studio"] #app {
 
   .studio-page .studio-inspector:not(.is-empty) {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
     overflow: hidden;
   }
@@ -5272,9 +5304,10 @@ body[data-page="studio"] #app {
 
   .studio-page .studio-inspector {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
-    gap: 0;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 8px 10px 10px;
   }
 
   .studio-page .studio-inspector-name {
@@ -5371,9 +5404,10 @@ body[data-page="studio"] #app {
 
   .studio-page .studio-inspector {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
-    gap: 0;
-    padding: 16px 18px;
+    gap: 10px;
+    padding: 12px 14px 16px;
     overflow: hidden;
   }
 
@@ -5514,11 +5548,12 @@ body[data-page="studio"] #app {
 
   .studio-page .studio-inspector {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
     align-content: stretch;
-    gap: 0;
+    gap: 10px;
     overflow: hidden;
-    padding: 16px 18px;
+    padding: 12px 14px 16px;
   }
 
   .studio-page .studio-inspector-copy {

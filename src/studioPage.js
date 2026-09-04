@@ -19,13 +19,13 @@ const STUDIO_LIFT_DROP = 0.028;
 const STUDIO_FRICTION = 0.0042;
 const STUDIO_MIN_SPEED = 0.02;
 const STUDIO_MAX_TILT = 15;
-const STUDIO_RESTITUTION = 0.58;
+const STUDIO_RESTITUTION = 0.08;
 const STUDIO_PUSH = 0.5;
 const STUDIO_QTY_HANG = 22;
-const STUDIO_GRAVITY = 0.0024;
-const STUDIO_BOUNCE_KEEP = 0.62;
-const STUDIO_SQUASH_SPRING = 0.00038;
-const STUDIO_SQUASH_DAMP = 0.011;
+const STUDIO_GRAVITY = 0.0045;
+const STUDIO_BOUNCE_KEEP = 0;
+const STUDIO_SQUASH_SPRING = 0.0007;
+const STUDIO_SQUASH_DAMP = 0.028;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -47,14 +47,6 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
   return `
   <main class="page-shell studio-page">
     <header class="studio-header">
-      <button
-        class="studio-open-search"
-        type="button"
-        id="studio-open-search"
-        aria-label="Search cards"
-        aria-haspopup="dialog"
-        aria-controls="studio-search-dialog"
-      >+</button>
       <div class="studio-header-brand">
         <p class="studio-live"><span class="studio-live-dot" aria-hidden="true"></span>On camera</p>
         <h1>Studio</h1>
@@ -71,7 +63,17 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
     </header>
 
     <div class="studio-stage">
-      <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
+      <aside class="studio-inspector is-empty" id="studio-inspector-panel" aria-label="Spotlight">
+        <button
+          class="studio-add-card"
+          type="button"
+          id="studio-open-search"
+          aria-label="Add card"
+          aria-haspopup="dialog"
+          aria-controls="studio-search-dialog"
+        >Add Card</button>
+        <div class="studio-inspector-body" id="studio-inspector"></div>
+      </aside>
       <section class="studio-playground" aria-label="Playground">
         <div class="studio-zones">
           <div class="studio-zone" data-zone="a">
@@ -223,6 +225,7 @@ export function bootStudioPage(api) {
   let physicsRaf = 0;
   let physicsLastTs = 0;
   const inspectorEl = document.querySelector("#studio-inspector");
+  const inspectorPanel = document.querySelector("#studio-inspector-panel");
   const boardCountEl = document.querySelector("#studio-board-count");
   const toggleFiltersButton = document.querySelector("#toggle-search-filters");
   const searchFiltersEl = document.querySelector("#search-filters");
@@ -971,11 +974,11 @@ export function bootStudioPage(api) {
         body.hop += body.hopV * dt;
         if (body.hop >= 0) {
           body.hop = 0;
-          if (body.hopV > 0.05) {
+          if (body.hopV > 0.12) {
             const impact = body.hopV;
             body.hopV *= -STUDIO_BOUNCE_KEEP;
-            body.squash = Math.min(0.24, 0.05 + impact * 0.35);
-            body.squashV = -impact * 0.05;
+            body.squash = Math.min(0.05, 0.01 + impact * 0.06);
+            body.squashV = -impact * 0.006;
           } else {
             body.hopV = 0;
           }
@@ -1087,17 +1090,14 @@ export function bootStudioPage(api) {
         body.spin = 0;
         body.hop = 0;
         body.hopV = 0;
-        body.squash = 0.05;
-        body.squashV = -0.008;
+        body.squash = 0;
+        body.squashV = 0;
         selectStudioCard(key);
       } else {
-        const speed = Math.hypot(body.vx, body.vy);
-        body.vx *= 1.12;
-        body.vy *= 1.12;
-        body.hop = -Math.min(22, 7 + speed * 55 + body.lift * 10);
-        body.hopV = -0.18 - speed * 1.1;
-        body.squash = 0.14;
-        body.squashV = -0.01 - speed * 0.02;
+        body.hop = 0;
+        body.hopV = 0;
+        body.squash = 0.028;
+        body.squashV = -0.002;
       }
       kickStudioPhysics();
     };
@@ -1146,6 +1146,7 @@ export function bootStudioPage(api) {
   function renderInspector() {
     const card = studio.cards[studio.selectedKey];
     inspectorEl.replaceChildren();
+    inspectorPanel?.classList.toggle("is-empty", !card);
     inspectorEl.classList.toggle("is-empty", !card);
 
     if (!card) {
