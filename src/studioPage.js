@@ -8,7 +8,7 @@ const STUDIO_CARD_HEIGHT = 151;
 const STUDIO_GAP_X = 16;
 const STUDIO_GAP_Y = 16;
 const STUDIO_PADDING = 16;
-const STUDIO_HINT_SPACE = 36;
+const STUDIO_ZONE_HEAD = 48;
 const STUDIO_SNAP = 16;
 const STUDIO_LIFT_SCALE = 0.14;
 const STUDIO_LIFT_Z = 52;
@@ -58,6 +58,20 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
     <div class="studio-stage">
       <aside class="studio-inspector is-empty" id="studio-inspector" aria-label="Spotlight"></aside>
       <section class="studio-playground" aria-label="Playground">
+        <div class="studio-zones">
+          <div class="studio-zone" data-zone="a">
+            <div class="studio-zone-label">
+              <span class="studio-zone-name">A</span>
+              <span class="studio-zone-count" id="studio-zone-a-count" aria-live="polite">0</span>
+            </div>
+          </div>
+          <div class="studio-zone" data-zone="b">
+            <div class="studio-zone-label">
+              <span class="studio-zone-name">B</span>
+              <span class="studio-zone-count" id="studio-zone-b-count" aria-live="polite">0</span>
+            </div>
+          </div>
+        </div>
         <div class="studio-board" id="studio-board" data-studio-board></div>
       </section>
     </div>
@@ -180,6 +194,8 @@ export function bootStudioPage(api) {
   let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
   const playgroundEl = document.querySelector(".studio-playground");
+  const zoneACountEl = document.querySelector("#studio-zone-a-count");
+  const zoneBCountEl = document.querySelector("#studio-zone-b-count");
   const physics = new Map();
   let physicsRaf = 0;
   let physicsLastTs = 0;
@@ -544,6 +560,7 @@ export function bootStudioPage(api) {
       empty.textContent = "Empty · tap + to search, then drag cards on the playground";
       boardEl.append(empty);
       boardEl.style.minHeight = "";
+      updateZoneCounts();
       return;
     }
 
@@ -584,14 +601,59 @@ export function bootStudioPage(api) {
     };
   }
 
-  function estimateStudioSlot(index, cols = 5) {
+  function estimateStudioSlot(index, cols = 4) {
     const col = index % cols;
     const row = Math.floor(index / cols);
     return snapStudioPosition({
       x: STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
-      y: STUDIO_HINT_SPACE + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      y: STUDIO_ZONE_HEAD + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
       z: index + 1,
     });
+  }
+
+  function studioZoneSlot(index, boardWidth, boardHeight) {
+    const half = Math.max(boardWidth / 2, STUDIO_CARD_WIDTH + STUDIO_PADDING * 2);
+    const inner = Math.max(STUDIO_CARD_WIDTH, half - STUDIO_PADDING * 2);
+    const cols = Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
+    const usableHeight = Math.max(STUDIO_CARD_HEIGHT, boardHeight - STUDIO_ZONE_HEAD - STUDIO_PADDING);
+    const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y)));
+    const zoneCapacity = cols * rows;
+    const zone = index < zoneCapacity ? 0 : 1;
+    const local = zone === 0 ? index : index - zoneCapacity;
+    const col = local % cols;
+    const row = Math.min(rows - 1, Math.floor(local / cols));
+    return snapStudioPosition({
+      x: (zone === 0 ? 0 : half) + STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
+      y: STUDIO_ZONE_HEAD + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      z: index + 1,
+    });
+  }
+
+  function studioZoneForX(x) {
+    const width = boardEl?.clientWidth || 0;
+    return x + STUDIO_CARD_WIDTH / 2 < width / 2 ? "a" : "b";
+  }
+
+  function updateZoneCounts() {
+    let a = 0;
+    let b = 0;
+    for (const key of studio.cardKeys) {
+      const x = Number(studio.positions[key]?.x);
+      const qty = getQuantity(key);
+      if (Number.isFinite(x) && studioZoneForX(x) === "b") {
+        b += qty;
+      } else {
+        a += qty;
+      }
+    }
+    if (zoneACountEl) {
+      zoneACountEl.textContent = String(a);
+    }
+    if (zoneBCountEl) {
+      zoneBCountEl.textContent = String(b);
+    }
+    zoneACountEl?.closest(".studio-zone")?.setAttribute("aria-label", `Area A, ${a} cards`);
+    zoneBCountEl?.closest(".studio-zone")?.setAttribute("aria-label", `Area B, ${b} cards`);
   }
 
   function layoutStudioBoard({ force = false } = {}) {
@@ -601,21 +663,12 @@ export function bootStudioPage(api) {
     const cards = [...boardEl.querySelectorAll("[data-studio-card]")];
     if (cards.length === 0) {
       boardEl.style.minHeight = "";
+      updateZoneCounts();
       return;
     }
 
     const boardWidth = Math.max(boardEl.clientWidth || playgroundEl?.clientWidth || 640, 240);
-    const cols = Math.max(
-      1,
-      Math.floor((boardWidth - STUDIO_PADDING * 2 + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)),
-    );
-    const rows = Math.ceil(cards.length / cols);
-    const contentHeight =
-      STUDIO_HINT_SPACE +
-      STUDIO_PADDING +
-      rows * STUDIO_CARD_HEIGHT +
-      Math.max(0, rows - 1) * STUDIO_GAP_Y +
-      STUDIO_PADDING;
+    const boardHeight = Math.max(boardEl.clientHeight || playgroundEl?.clientHeight || 320, 240);
 
     const occupied = new Set();
     if (!force) {
@@ -642,15 +695,9 @@ export function bootStudioPage(api) {
       } else {
         let slotKey;
         do {
-          const col = nextSlot % cols;
-          const row = Math.floor(nextSlot / cols);
-          const snappedSlot = snapStudioPosition({
-            x: STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
-            y: STUDIO_HINT_SPACE + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
-            z: 0,
-          });
-          x = snappedSlot.x;
-          y = snappedSlot.y;
+          const slot = studioZoneSlot(nextSlot, boardWidth, boardHeight);
+          x = slot.x;
+          y = slot.y;
           slotKey = `${Math.round(x)}:${Math.round(y)}`;
           nextSlot += 1;
         } while (occupied.has(slotKey));
@@ -658,11 +705,10 @@ export function bootStudioPage(api) {
         z = index + 1;
       }
 
-      const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH - 4);
-      const snapped = snapStudioPosition({ x, y, z });
-      x = Math.min(maxX, Math.max(0, snapped.x));
-      y = Math.max(0, snapped.y);
-      z = snapped.z;
+      const clamped = clampStudioBoardPoint(x, y);
+      x = clamped.x;
+      y = clamped.y;
+      z = Number.isFinite(z) ? z : index + 1;
 
       cardEl.style.left = `${x}px`;
       cardEl.style.top = `${y}px`;
@@ -671,12 +717,7 @@ export function bootStudioPage(api) {
       studio.nextZ = Math.max(studio.nextZ, z + 1);
     });
 
-    let lowest = contentHeight;
-    cards.forEach((cardEl) => {
-      const top = Number.parseFloat(cardEl.style.top) || 0;
-      lowest = Math.max(lowest, top + STUDIO_CARD_HEIGHT + STUDIO_PADDING);
-    });
-    boardEl.style.minHeight = `${Math.max(320, lowest)}px`;
+    boardEl.style.minHeight = "";
     cards.forEach((cardEl) => applyStudioPose(cardEl, getStudioPhysics(cardEl.dataset.studioCard)));
     persist();
   }
@@ -710,21 +751,12 @@ export function bootStudioPage(api) {
 
   function clampStudioBoardPoint(x, y) {
     const boardWidth = boardEl?.clientWidth || 0;
-    let boardHeight = boardEl?.clientHeight || 0;
+    const boardHeight = boardEl?.clientHeight || 0;
     const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
-    y = Math.max(0, y);
-    const neededHeight = y + STUDIO_CARD_HEIGHT + STUDIO_PADDING;
-    if (neededHeight > boardHeight) {
-      boardEl.style.minHeight = `${neededHeight}px`;
-      boardHeight = neededHeight;
-    }
-    if (playgroundEl && neededHeight > playgroundEl.scrollTop + playgroundEl.clientHeight) {
-      playgroundEl.scrollTop = neededHeight - playgroundEl.clientHeight;
-    }
-    const maxY = Math.max(0, boardHeight - STUDIO_CARD_HEIGHT);
+    const maxY = Math.max(STUDIO_ZONE_HEAD, boardHeight - STUDIO_CARD_HEIGHT);
     return {
       x: Math.min(maxX, Math.max(0, x)),
-      y: Math.min(maxY, y),
+      y: Math.min(maxY, Math.max(STUDIO_ZONE_HEAD, y)),
     };
   }
 
@@ -745,6 +777,7 @@ export function bootStudioPage(api) {
     cardEl.style.left = `${x}px`;
     cardEl.style.top = `${y}px`;
     studio.positions[key] = { x, y, z };
+    updateZoneCounts();
   }
 
   function resolveStudioCollisions(bodies) {
@@ -1308,6 +1341,7 @@ export function bootStudioPage(api) {
       cards: liveCards,
       quantities: studio.quantities,
     });
+    updateZoneCounts();
   }
 
   function boardCardCount() {
