@@ -4789,13 +4789,26 @@ body[data-page="studio"] #app {
   height: 151px;
   aspect-ratio: auto;
   margin: 0;
+  overflow: visible;
   cursor: grab;
   user-select: none;
   touch-action: none;
   transform-origin: 50% 50%;
   transform-style: preserve-3d;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
   will-change: left, top, transform, box-shadow;
+}
+
+.studio-card.studio-freehand-card .studio-card-frame {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.studio-card.studio-freehand-card .studio-card-qty {
+  top: 100%;
+  bottom: auto;
+  left: 50%;
+  margin-top: 6px;
+  transform: translate(-50%, 0);
 }
 
 .studio-card.studio-freehand-card.dragging,

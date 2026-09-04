@@ -16,11 +16,16 @@ const STUDIO_LIFT_SCALE = 0.14;
 const STUDIO_LIFT_Z = 52;
 const STUDIO_LIFT_RISE = 0.02;
 const STUDIO_LIFT_DROP = 0.028;
-const STUDIO_FRICTION = 0.0048;
-const STUDIO_MIN_SPEED = 0.025;
+const STUDIO_FRICTION = 0.0042;
+const STUDIO_MIN_SPEED = 0.02;
 const STUDIO_MAX_TILT = 15;
-const STUDIO_RESTITUTION = 0.28;
+const STUDIO_RESTITUTION = 0.58;
 const STUDIO_PUSH = 0.5;
+const STUDIO_QTY_HANG = 22;
+const STUDIO_GRAVITY = 0.0024;
+const STUDIO_BOUNCE_KEEP = 0.62;
+const STUDIO_SQUASH_SPRING = 0.00038;
+const STUDIO_SQUASH_DAMP = 0.011;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -828,7 +833,7 @@ export function bootStudioPage(api) {
   function getStudioPhysics(key) {
     let body = physics.get(key);
     if (!body) {
-      body = { vx: 0, vy: 0, lift: 0, spin: 0, held: false };
+      body = { vx: 0, vy: 0, lift: 0, spin: 0, held: false, hop: 0, hopV: 0, squash: 0, squashV: 0 };
       physics.set(key, body);
     }
     return body;
@@ -845,7 +850,15 @@ export function bootStudioPage(api) {
 
   function studioPhysicsBusy() {
     for (const body of physics.values()) {
-      if (body.held || body.lift > 0.02 || Math.hypot(body.vx, body.vy) > STUDIO_MIN_SPEED) {
+      if (
+        body.held
+        || body.lift > 0.02
+        || Math.hypot(body.vx, body.vy) > STUDIO_MIN_SPEED
+        || Math.abs(body.hop) > 0.4
+        || Math.abs(body.hopV) > 0.03
+        || Math.abs(body.squash) > 0.006
+        || Math.abs(body.squashV) > 0.0003
+      ) {
         return true;
       }
     }
@@ -856,7 +869,7 @@ export function bootStudioPage(api) {
     const boardWidth = boardEl?.clientWidth || 0;
     const boardHeight = boardEl?.clientHeight || 0;
     const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
-    const maxY = Math.max(STUDIO_ZONE_HEAD, boardHeight - STUDIO_CARD_HEIGHT);
+    const maxY = Math.max(STUDIO_ZONE_HEAD, boardHeight - STUDIO_CARD_HEIGHT - STUDIO_QTY_HANG);
     return {
       x: Math.min(maxX, Math.max(0, x)),
       y: Math.min(maxY, Math.max(STUDIO_ZONE_HEAD, y)),
@@ -866,12 +879,19 @@ export function bootStudioPage(api) {
   function applyStudioPose(cardEl, body) {
     const lift = body.lift;
     const scale = 1 + STUDIO_LIFT_SCALE * lift;
+    const squash = body.squash || 0;
+    const hop = body.hop || 0;
+    const scaleX = scale * (1 + squash * 0.5);
+    const scaleY = scale * (1 - squash * 0.58);
     const tiltY = Math.max(-STUDIO_MAX_TILT, Math.min(STUDIO_MAX_TILT, body.vx * 22 * lift));
     const tiltX = Math.max(-STUDIO_MAX_TILT, Math.min(STUDIO_MAX_TILT, -body.vy * 18 * lift));
     const spin = Math.max(-10, Math.min(10, body.spin));
-    cardEl.style.transform = `translateZ(${STUDIO_LIFT_Z * lift}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotateZ(${spin}deg) scale(${scale})`;
-    cardEl.style.boxShadow = `0 ${10 + 36 * lift}px ${20 + 42 * lift}px rgba(0, 0, 0, ${0.32 + 0.3 * lift})`;
-    cardEl.classList.toggle("is-lifted", lift > 0.08);
+    cardEl.style.transform = `translateY(${hop}px) translateZ(${STUDIO_LIFT_Z * lift}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotateZ(${spin}deg) scale(${scaleX}, ${scaleY})`;
+    const frame = cardEl.querySelector(".studio-card-frame");
+    if (frame) {
+      frame.style.boxShadow = `0 ${10 + 36 * lift - hop * 0.4}px ${20 + 42 * lift}px rgba(0, 0, 0, ${0.32 + 0.3 * lift})`;
+    }
+    cardEl.classList.toggle("is-lifted", lift > 0.08 || hop < -2);
     cardEl.classList.toggle("dragging", body.held);
   }
 
@@ -947,6 +967,25 @@ export function bootStudioPage(api) {
           body.vx = 0;
           body.vy = 0;
         }
+        body.hopV += STUDIO_GRAVITY * dt;
+        body.hop += body.hopV * dt;
+        if (body.hop >= 0) {
+          body.hop = 0;
+          if (body.hopV > 0.05) {
+            const impact = body.hopV;
+            body.hopV *= -STUDIO_BOUNCE_KEEP;
+            body.squash = Math.min(0.24, 0.05 + impact * 0.35);
+            body.squashV = -impact * 0.05;
+          } else {
+            body.hopV = 0;
+          }
+        }
+        body.squashV += (-STUDIO_SQUASH_SPRING * body.squash - STUDIO_SQUASH_DAMP * body.squashV) * dt;
+        body.squash += body.squashV * dt;
+        if (Math.abs(body.squash) < 0.004 && Math.abs(body.squashV) < 0.00025) {
+          body.squash = 0;
+          body.squashV = 0;
+        }
         const clamped = clampStudioBoardPoint(item.x, item.y);
         if (clamped.x !== item.x) {
           body.vx *= -STUDIO_RESTITUTION;
@@ -958,6 +997,8 @@ export function bootStudioPage(api) {
         item.y = clamped.y;
       } else {
         body.spin += (body.vx * 9 - body.spin) * 0.18;
+        body.hop = 0;
+        body.hopV = 0;
       }
     }
 
@@ -1044,7 +1085,19 @@ export function bootStudioPage(api) {
         body.vx = 0;
         body.vy = 0;
         body.spin = 0;
+        body.hop = 0;
+        body.hopV = 0;
+        body.squash = 0.05;
+        body.squashV = -0.008;
         selectStudioCard(key);
+      } else {
+        const speed = Math.hypot(body.vx, body.vy);
+        body.vx *= 1.12;
+        body.vy *= 1.12;
+        body.hop = -Math.min(22, 7 + speed * 55 + body.lift * 10);
+        body.hopV = -0.18 - speed * 1.1;
+        body.squash = 0.14;
+        body.squashV = -0.01 - speed * 0.02;
       }
       kickStudioPhysics();
     };
