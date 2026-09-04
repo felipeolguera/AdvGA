@@ -10,6 +10,15 @@ const STUDIO_GAP_Y = 16;
 const STUDIO_PADDING = 16;
 const STUDIO_HINT_SPACE = 36;
 const STUDIO_SNAP = 16;
+const STUDIO_LIFT_SCALE = 0.14;
+const STUDIO_LIFT_Z = 52;
+const STUDIO_LIFT_RISE = 0.02;
+const STUDIO_LIFT_DROP = 0.028;
+const STUDIO_FRICTION = 0.0048;
+const STUDIO_MIN_SPEED = 0.025;
+const STUDIO_MAX_TILT = 15;
+const STUDIO_RESTITUTION = 0.28;
+const STUDIO_PUSH = 0.5;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -171,6 +180,9 @@ export function bootStudioPage(api) {
   let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
   const playgroundEl = document.querySelector(".studio-playground");
+  const physics = new Map();
+  let physicsRaf = 0;
+  let physicsLastTs = 0;
   const inspectorEl = document.querySelector("#studio-inspector");
   const boardCountEl = document.querySelector("#studio-board-count");
   const toggleFiltersButton = document.querySelector("#toggle-search-filters");
@@ -307,6 +319,7 @@ export function bootStudioPage(api) {
     studio.cards = {};
     studio.quantities = {};
     studio.selectedKey = "";
+    physics.clear();
     persist();
     renderBoard();
     renderInspector();
@@ -582,7 +595,7 @@ export function bootStudioPage(api) {
   }
 
   function layoutStudioBoard({ force = false } = {}) {
-    if (!boardEl) {
+    if (!boardEl || studioPhysicsHeld()) {
       return;
     }
     const cards = [...boardEl.querySelectorAll("[data-studio-card]")];
@@ -664,7 +677,180 @@ export function bootStudioPage(api) {
       lowest = Math.max(lowest, top + STUDIO_CARD_HEIGHT + STUDIO_PADDING);
     });
     boardEl.style.minHeight = `${Math.max(320, lowest)}px`;
+    cards.forEach((cardEl) => applyStudioPose(cardEl, getStudioPhysics(cardEl.dataset.studioCard)));
     persist();
+  }
+
+  function getStudioPhysics(key) {
+    let body = physics.get(key);
+    if (!body) {
+      body = { vx: 0, vy: 0, lift: 0, spin: 0, held: false };
+      physics.set(key, body);
+    }
+    return body;
+  }
+
+  function studioPhysicsHeld() {
+    for (const body of physics.values()) {
+      if (body.held) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function studioPhysicsBusy() {
+    for (const body of physics.values()) {
+      if (body.held || body.lift > 0.02 || Math.hypot(body.vx, body.vy) > STUDIO_MIN_SPEED) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function clampStudioBoardPoint(x, y) {
+    const boardWidth = boardEl?.clientWidth || 0;
+    let boardHeight = boardEl?.clientHeight || 0;
+    const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
+    y = Math.max(0, y);
+    const neededHeight = y + STUDIO_CARD_HEIGHT + STUDIO_PADDING;
+    if (neededHeight > boardHeight) {
+      boardEl.style.minHeight = `${neededHeight}px`;
+      boardHeight = neededHeight;
+    }
+    if (playgroundEl && neededHeight > playgroundEl.scrollTop + playgroundEl.clientHeight) {
+      playgroundEl.scrollTop = neededHeight - playgroundEl.clientHeight;
+    }
+    const maxY = Math.max(0, boardHeight - STUDIO_CARD_HEIGHT);
+    return {
+      x: Math.min(maxX, Math.max(0, x)),
+      y: Math.min(maxY, y),
+    };
+  }
+
+  function applyStudioPose(cardEl, body) {
+    const lift = body.lift;
+    const scale = 1 + STUDIO_LIFT_SCALE * lift;
+    const tiltY = Math.max(-STUDIO_MAX_TILT, Math.min(STUDIO_MAX_TILT, body.vx * 22 * lift));
+    const tiltX = Math.max(-STUDIO_MAX_TILT, Math.min(STUDIO_MAX_TILT, -body.vy * 18 * lift));
+    const spin = Math.max(-10, Math.min(10, body.spin));
+    cardEl.style.transform = `translateZ(${STUDIO_LIFT_Z * lift}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotateZ(${spin}deg) scale(${scale})`;
+    cardEl.style.boxShadow = `0 ${10 + 36 * lift}px ${20 + 42 * lift}px rgba(0, 0, 0, ${0.32 + 0.3 * lift})`;
+    cardEl.classList.toggle("is-lifted", lift > 0.08);
+    cardEl.classList.toggle("dragging", body.held);
+  }
+
+  function writeStudioCardPosition(cardEl, key, x, y) {
+    const z = Number.parseInt(cardEl.style.zIndex, 10) || studio.nextZ;
+    cardEl.style.left = `${x}px`;
+    cardEl.style.top = `${y}px`;
+    studio.positions[key] = { x, y, z };
+  }
+
+  function resolveStudioCollisions(bodies) {
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (let i = 0; i < bodies.length; i += 1) {
+        for (let j = i + 1; j < bodies.length; j += 1) {
+          const a = bodies[i];
+          const b = bodies[j];
+          if (a.body.held || b.body.held) {
+            continue;
+          }
+          const dx = (a.x + STUDIO_CARD_WIDTH / 2) - (b.x + STUDIO_CARD_WIDTH / 2);
+          const dy = (a.y + STUDIO_CARD_HEIGHT / 2) - (b.y + STUDIO_CARD_HEIGHT / 2);
+          const overlapX = STUDIO_CARD_WIDTH - Math.abs(dx);
+          const overlapY = STUDIO_CARD_HEIGHT - Math.abs(dy);
+          if (overlapX <= 0 || overlapY <= 0) {
+            continue;
+          }
+          if (overlapX < overlapY) {
+            const push = overlapX * STUDIO_PUSH * (dx < 0 ? -1 : 1);
+            a.x += push;
+            b.x -= push;
+            const rel = a.body.vx - b.body.vx;
+            a.body.vx = a.body.vx - rel * (1 + STUDIO_RESTITUTION) * 0.5;
+            b.body.vx = b.body.vx + rel * (1 + STUDIO_RESTITUTION) * 0.5;
+          } else {
+            const push = overlapY * STUDIO_PUSH * (dy < 0 ? -1 : 1);
+            a.y += push;
+            b.y -= push;
+            const rel = a.body.vy - b.body.vy;
+            a.body.vy = a.body.vy - rel * (1 + STUDIO_RESTITUTION) * 0.5;
+            b.body.vy = b.body.vy + rel * (1 + STUDIO_RESTITUTION) * 0.5;
+          }
+        }
+      }
+    }
+  }
+
+  function stepStudioPhysics(now) {
+    const dt = Math.max(8, Math.min(32, now - physicsLastTs));
+    physicsLastTs = now;
+    const cards = [...boardEl.querySelectorAll("[data-studio-card]")];
+    const bodies = cards.map((el) => ({
+      el,
+      key: el.dataset.studioCard,
+      x: Number.parseFloat(el.style.left) || 0,
+      y: Number.parseFloat(el.style.top) || 0,
+      body: getStudioPhysics(el.dataset.studioCard),
+    }));
+
+    for (const item of bodies) {
+      const body = item.body;
+      const liftTarget = body.held ? 1 : 0;
+      const liftRate = body.held ? STUDIO_LIFT_RISE : STUDIO_LIFT_DROP;
+      body.lift += (liftTarget - body.lift) * (1 - Math.exp(-liftRate * dt));
+      if (!body.held) {
+        item.x += body.vx * dt;
+        item.y += body.vy * dt;
+        const damp = Math.exp(-STUDIO_FRICTION * dt);
+        body.vx *= damp;
+        body.vy *= damp;
+        body.spin *= Math.exp(-0.008 * dt);
+        if (Math.hypot(body.vx, body.vy) < STUDIO_MIN_SPEED) {
+          body.vx = 0;
+          body.vy = 0;
+        }
+        const clamped = clampStudioBoardPoint(item.x, item.y);
+        if (clamped.x !== item.x) {
+          body.vx *= -STUDIO_RESTITUTION;
+        }
+        if (clamped.y !== item.y) {
+          body.vy *= -STUDIO_RESTITUTION;
+        }
+        item.x = clamped.x;
+        item.y = clamped.y;
+      } else {
+        body.spin += (body.vx * 9 - body.spin) * 0.18;
+      }
+    }
+
+    resolveStudioCollisions(bodies);
+
+    for (const item of bodies) {
+      if (!item.body.held) {
+        const clamped = clampStudioBoardPoint(item.x, item.y);
+        item.x = clamped.x;
+        item.y = clamped.y;
+      }
+      writeStudioCardPosition(item.el, item.key, item.x, item.y);
+      applyStudioPose(item.el, item.body);
+    }
+
+    if (studioPhysicsBusy()) {
+      physicsRaf = window.requestAnimationFrame(stepStudioPhysics);
+      return;
+    }
+    physicsRaf = 0;
+    persist();
+  }
+
+  function kickStudioPhysics() {
+    if (physicsRaf) {
+      return;
+    }
+    physicsLastTs = performance.now();
+    physicsRaf = window.requestAnimationFrame(stepStudioPhysics);
   }
 
   function enableStudioDrag(cardEl, key) {
@@ -673,48 +859,33 @@ export function bootStudioPage(api) {
     let startY = 0;
     let originPointerX = 0;
     let originPointerY = 0;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+    let lastPointerT = 0;
     let dragMoved = false;
 
     const onPointerMove = (event) => {
       if (pointerId !== event.pointerId) {
         return;
       }
+      const now = performance.now();
       const dx = event.clientX - originPointerX;
       const dy = event.clientY - originPointerY;
-      if (Math.hypot(dx, dy) > 8) {
+      if (Math.hypot(dx, dy) > 4) {
         dragMoved = true;
       }
-      let nextX = startX + dx;
-      let nextY = startY + dy;
+      const frameDt = Math.max(8, now - lastPointerT);
+      const body = getStudioPhysics(key);
+      body.vx = (event.clientX - lastPointerX) / frameDt;
+      body.vy = (event.clientY - lastPointerY) / frameDt;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      lastPointerT = now;
 
-      const boardWidth = boardEl.clientWidth;
-      let boardHeight = boardEl.clientHeight;
-      const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
-      nextX = Math.min(maxX, Math.max(0, nextX));
-      nextY = Math.max(0, nextY);
-
-      const neededHeight = nextY + STUDIO_CARD_HEIGHT + STUDIO_PADDING;
-      if (neededHeight > boardHeight) {
-        boardEl.style.minHeight = `${neededHeight}px`;
-        boardHeight = neededHeight;
-      }
-      if (playgroundEl && neededHeight > playgroundEl.scrollTop + playgroundEl.clientHeight) {
-        playgroundEl.scrollTop = neededHeight - playgroundEl.clientHeight;
-      }
-      const maxY = Math.max(0, boardHeight - STUDIO_CARD_HEIGHT);
-      nextY = Math.min(maxY, nextY);
-
-      const snapped = snapStudioPosition({ x: nextX, y: nextY, z: 0 });
-      nextX = Math.min(maxX, Math.max(0, snapped.x));
-      nextY = Math.min(maxY, Math.max(0, snapped.y));
-
-      cardEl.style.left = `${nextX}px`;
-      cardEl.style.top = `${nextY}px`;
-      studio.positions[key] = {
-        x: nextX,
-        y: nextY,
-        z: Number.parseInt(cardEl.style.zIndex, 10) || studio.nextZ,
-      };
+      const next = clampStudioBoardPoint(startX + dx, startY + dy);
+      writeStudioCardPosition(cardEl, key, next.x, next.y);
+      applyStudioPose(cardEl, body);
+      kickStudioPhysics();
     };
 
     const onPointerUp = (event) => {
@@ -722,7 +893,8 @@ export function bootStudioPage(api) {
         return;
       }
       pointerId = null;
-      cardEl.classList.remove("dragging");
+      const body = getStudioPhysics(key);
+      body.held = false;
       try {
         cardEl.releasePointerCapture(event.pointerId);
       } catch {
@@ -732,26 +904,13 @@ export function bootStudioPage(api) {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
 
-      const boardWidth = boardEl.clientWidth || 0;
-      const boardHeight = boardEl.clientHeight || 0;
-      const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
-      const maxY = Math.max(0, boardHeight - STUDIO_CARD_HEIGHT);
-      const snapped = snapStudioPosition({
-        x: Number.parseFloat(cardEl.style.left) || 0,
-        y: Number.parseFloat(cardEl.style.top) || 0,
-        z: Number.parseInt(cardEl.style.zIndex, 10) || studio.nextZ,
-      });
-      const x = Math.min(maxX, Math.max(0, snapped.x));
-      const y = Math.min(maxY, Math.max(0, snapped.y));
-      const z = snapped.z;
-      cardEl.style.left = `${x}px`;
-      cardEl.style.top = `${y}px`;
-      studio.positions[key] = { x, y, z };
-      persist();
-
       if (!dragMoved) {
+        body.vx = 0;
+        body.vy = 0;
+        body.spin = 0;
         selectStudioCard(key);
       }
+      kickStudioPhysics();
     };
 
     cardEl.addEventListener("pointerdown", (event) => {
@@ -770,10 +929,18 @@ export function bootStudioPage(api) {
       startY = Number.parseFloat(cardEl.style.top) || 0;
       originPointerX = event.clientX;
       originPointerY = event.clientY;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      lastPointerT = performance.now();
 
       studio.nextZ += 1;
       cardEl.style.zIndex = String(studio.nextZ);
-      cardEl.classList.add("dragging");
+      const body = getStudioPhysics(key);
+      body.held = true;
+      body.vx = 0;
+      body.vy = 0;
+      applyStudioPose(cardEl, body);
+      kickStudioPhysics();
 
       try {
         cardEl.setPointerCapture(event.pointerId);
@@ -903,6 +1070,7 @@ export function bootStudioPage(api) {
       item.style.zIndex = String(provisional.z || layoutIndex + 1);
       item.style.width = `${STUDIO_CARD_WIDTH}px`;
       item.style.height = `${STUDIO_CARD_HEIGHT}px`;
+      applyStudioPose(item, getStudioPhysics(key));
     }
 
     const frame = document.createElement("div");
@@ -1065,6 +1233,7 @@ export function bootStudioPage(api) {
   function removeCardFromBoard(key) {
     studio.cardKeys = studio.cardKeys.filter((cardKey) => cardKey !== key);
     delete studio.positions[key];
+    physics.delete(key);
     persist();
     renderBoard();
     renderTray();
@@ -1081,7 +1250,9 @@ export function bootStudioPage(api) {
     addedFeedbackTimers[key] = window.setTimeout(() => {
       delete addedFeedback[key];
       renderTray();
-      renderBoard();
+      if (!studioPhysicsHeld()) {
+        renderBoard();
+      }
     }, STUDIO_ADDED_MS);
   }
 

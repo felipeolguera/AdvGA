@@ -4669,6 +4669,8 @@ body[data-page="studio"] #app {
   min-height: 100%;
   overflow: visible;
   border-radius: 16px;
+  perspective: 1200px;
+  perspective-origin: 50% 35%;
   background-color: rgba(255, 255, 255, 0.02);
   background-image:
     radial-gradient(circle at top left, rgba(244, 184, 93, 0.08), transparent 40%),
@@ -4703,14 +4705,16 @@ body[data-page="studio"] #app {
   cursor: grab;
   user-select: none;
   touch-action: none;
+  transform-origin: 50% 50%;
+  transform-style: preserve-3d;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-  will-change: left, top;
+  will-change: left, top, transform, box-shadow;
 }
 
-.studio-card.studio-freehand-card.dragging {
+.studio-card.studio-freehand-card.dragging,
+.studio-card.studio-freehand-card.is-lifted {
   cursor: grabbing;
   z-index: 9999 !important;
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45);
 }
 
 .studio-card.studio-freehand-card img,
