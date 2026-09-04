@@ -4141,8 +4141,15 @@ dialog .tryit-toast,
   animation: deck-toast-in 420ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
 }
 
+html:has(body[data-page="studio"]) {
+  height: 100%;
+  overflow: hidden;
+}
+
 body[data-page="studio"] {
   height: 100dvh;
+  min-height: 0;
+  max-height: 100dvh;
   overflow: hidden;
   background:
     radial-gradient(ellipse at 16% 42%, rgba(244, 184, 93, 0.2), transparent 34%),
@@ -4163,6 +4170,7 @@ body[data-page="studio"] #app {
   max-width: none;
   height: 100%;
   min-height: 0;
+  max-height: 100%;
   margin: 0;
   overflow: hidden;
   padding:
@@ -4282,16 +4290,63 @@ body[data-page="studio"] #app {
   gap: 10px;
   min-width: 0;
   min-height: 0;
+  height: 100%;
 }
 
 .studio-playground {
+  position: relative;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  height: 100%;
+  overflow: hidden;
   border: 1px solid rgba(255, 204, 115, 0.16);
   border-radius: 16px;
   background: rgba(16, 14, 24, 0.55);
-  scrollbar-width: thin;
+}
+
+.studio-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  pointer-events: none;
+}
+
+.studio-zone {
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  border-right: 1px dashed rgba(255, 204, 115, 0.34);
+  background: linear-gradient(180deg, rgba(255, 204, 115, 0.07), transparent 92px);
+}
+
+.studio-zone:last-child {
+  border-right: 0;
+}
+
+.studio-zone-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 5px 12px;
+  color: var(--text);
+  background: rgba(10, 8, 16, 0.82);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.studio-zone-name {
+  color: var(--gold-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.studio-zone-count {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .studio-search-dialog {
@@ -4428,6 +4483,7 @@ body[data-page="studio"] #app {
   align-content: start;
   gap: 12px;
   height: 100%;
+  max-height: 100%;
   min-height: 0;
   overflow: auto;
   border: 1px solid rgba(255, 204, 115, 0.16);
@@ -4665,7 +4721,9 @@ body[data-page="studio"] #app {
 
 .studio-board {
   position: relative;
+  z-index: 2;
   width: 100%;
+  height: 100%;
   min-height: 100%;
   overflow: visible;
   border-radius: 16px;
@@ -4686,7 +4744,7 @@ body[data-page="studio"] #app {
 
 .studio-board-empty {
   position: absolute;
-  top: 16px;
+  top: 56px;
   left: 16px;
   right: 16px;
   z-index: 0;
@@ -5110,14 +5168,17 @@ body[data-page="studio"] #app {
 
 @media (max-width: 700px) and (orientation: portrait) {
   body[data-page="studio"] {
-    height: auto;
-    overflow: auto;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 
   .page-shell.studio-page {
-    height: auto;
-    min-height: 100dvh;
-    grid-template-rows: auto auto auto;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .studio-dock-row {
@@ -5429,6 +5490,8 @@ body[data-page="studio"] #app {
   .studio-stage {
     grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
     grid-template-rows: minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
   }
 
   .studio-page .studio-inspector {
