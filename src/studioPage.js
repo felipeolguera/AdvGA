@@ -27,6 +27,7 @@ const STUDIO_SQUASH_SPRING = 0.0007;
 const STUDIO_SQUASH_DAMP = 0.028;
 const STUDIO_DOUBLE_TAP_MS = 500;
 const STUDIO_DOUBLE_TAP_PX = 36;
+const STUDIO_TRIPLE_TAP_MS = 650;
 
 function clampStudioQty(value) {
   const quantity = Math.round(Number(value));
@@ -98,10 +99,19 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
           aria-label="Resize areas A and B"
           aria-orientation="vertical"
         ></button>
-        <div class="studio-board" id="studio-board" data-studio-board title="Double-tap empty space to organize cards"></div>
+        <div class="studio-board" id="studio-board" data-studio-board title="Double-tap empty space to organize cards. Triple-click a card to enlarge."></div>
       </section>
     </div>
   </main>
+
+  <dialog class="lightbox" id="lightbox" aria-label="Card image">
+    <button class="icon-button lightbox-close" type="button" id="close-lightbox" aria-label="Close">×</button>
+    <button class="lightbox-nav lightbox-nav-prev" type="button" id="lightbox-prev" aria-label="Previous card">‹</button>
+    <button class="lightbox-nav lightbox-nav-next" type="button" id="lightbox-next" aria-label="Next card">›</button>
+    <figure class="lightbox-card">
+      <img id="lightbox-image" alt="" />
+    </figure>
+  </dialog>
 
   <dialog class="studio-search-dialog" id="studio-search-dialog" aria-labelledby="studio-search-title">
     <div class="studio-search-dialog-head">
@@ -1474,6 +1484,15 @@ export function bootStudioPage(api) {
     physicsRaf = window.requestAnimationFrame(stepStudioPhysics);
   }
 
+  function openStudioCardLightbox(key) {
+    const card = studio.cards[key];
+    if (!card || typeof api.openLightbox !== "function") {
+      return;
+    }
+    const cards = studio.cardKeys.map((cardKey) => studio.cards[cardKey]).filter(Boolean);
+    api.openLightbox(card, { source: "studio", cards });
+  }
+
   function enableStudioDrag(cardEl, key) {
     let pointerId = null;
     let startX = 0;
@@ -1484,6 +1503,8 @@ export function bootStudioPage(api) {
     let lastPointerY = 0;
     let lastPointerT = 0;
     let dragMoved = false;
+    let tapCount = 0;
+    let lastTapAt = 0;
 
     const onPointerMove = (event) => {
       if (pointerId !== event.pointerId) {
@@ -1534,7 +1555,20 @@ export function bootStudioPage(api) {
         body.squash = 0;
         body.squashV = 0;
         selectStudioCard(key);
+        const now = Date.now();
+        if (now - lastTapAt > STUDIO_TRIPLE_TAP_MS) {
+          tapCount = 0;
+        }
+        tapCount += 1;
+        lastTapAt = now;
+        if (tapCount >= 3) {
+          tapCount = 0;
+          lastTapAt = 0;
+          openStudioCardLightbox(key);
+        }
       } else {
+        tapCount = 0;
+        lastTapAt = 0;
         body.hop = 0;
         body.hopV = 0;
         body.squash = 0.028;
@@ -1686,7 +1720,9 @@ export function bootStudioPage(api) {
     item.classList.toggle("studio-card-in-tray", inTray);
     item.classList.toggle("studio-freehand-card", onBoard);
     item.classList.toggle("is-selected", key === studio.selectedKey);
-    item.title = onBoard ? `${card.name} ×${getQuantity(key)} — drag to move` : card.name;
+    item.title = onBoard
+      ? `${card.name} ×${getQuantity(key)} — triple-click to enlarge, drag to move`
+      : card.name;
     if (inTray) {
       item.draggable = true;
       item.addEventListener("dragstart", (event) => {

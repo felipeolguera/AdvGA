@@ -29,7 +29,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.52";
+const APP_VERSION = "1.53";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -1145,10 +1145,12 @@ if (IS_TRYIT_PAGE) {
     readDeckSharePayload,
     lookupCardByName,
     parseDeckImport,
+    openLightbox,
     studioPageUrl: getStudioPageAbsoluteUrl(),
     tryItUrl: TRYIT_PAGE_URL,
     appVersion: APP_VERSION,
   });
+  bindLightboxUi();
 } else {
   bootBuilderPage();
 }
@@ -10863,12 +10865,14 @@ function getLightboxCardList(source = "search") {
   return getSortedLibraryCards(state.cards);
 }
 
-function openLightbox(card, { source = "search" } = {}) {
+function openLightbox(card, { source = "search", cards: cardList } = {}) {
   if (!card || !lightbox || !lightboxImage) {
     return;
   }
 
-  const cards = getLightboxCardList(source);
+  const cards = Array.isArray(cardList) && cardList.length
+    ? cardList.slice()
+    : getLightboxCardList(source);
   const key = getCardKey(card);
   let index = cards.findIndex((item) => getCardKey(item) === key);
   if (index < 0) {
@@ -10943,6 +10947,35 @@ function lightboxCloseFocus() {
 function closeLightbox() {
   lightbox?.close();
   state.activeLightboxCard = null;
+}
+
+function bindLightboxUi() {
+  closeLightboxButton?.addEventListener("click", closeLightbox);
+  lightboxPrevButton?.addEventListener("click", () => stepLightbox(-1));
+  lightboxNextButton?.addEventListener("click", () => stepLightbox(1));
+  lightbox?.addEventListener("click", (event) => {
+    if (event.target === lightbox) {
+      closeLightbox();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!lightbox?.open) {
+      return;
+    }
+    if (event.key === "Escape") {
+      closeLightbox();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      stepLightbox(-1);
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      stepLightbox(1);
+    }
+  });
 }
 
 function buildStatus(count, parsed, usedFallback) {
