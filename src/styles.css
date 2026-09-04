@@ -4744,17 +4744,69 @@ body[data-page="studio"] #app {
 .studio-inspector-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   margin-top: 8px;
 }
 
 .studio-inspector-qty {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: 800;
+}
+
+.studio-qty-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(255, 204, 115, 0.45);
+  border-radius: 999px;
+  background: rgba(12, 10, 18, 0.92);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  touch-action: manipulation;
+}
+
+.studio-qty-btn {
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: #170f0b;
+  background: linear-gradient(135deg, var(--gold-strong), var(--gold));
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.studio-qty-btn:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.studio-qty-value {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  padding: 0 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.studio-inspector-qty-stepper .studio-qty-btn {
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.studio-inspector-qty-stepper .studio-qty-value {
+  min-width: 36px;
+  font-size: 1.05rem;
 }
 
 .studio-inspector-qty-select {
@@ -4849,12 +4901,26 @@ body[data-page="studio"] #app {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
-.studio-card.studio-freehand-card .studio-card-qty {
-  top: 100%;
-  bottom: auto;
+.studio-card.studio-freehand-card .studio-card-qty,
+.studio-card.studio-freehand-card .studio-qty-stepper {
+  top: auto;
+  bottom: 6px;
   left: 50%;
-  margin-top: 6px;
+  z-index: 4;
+  margin-top: 0;
   transform: translate(-50%, 0);
+}
+
+.studio-card-qty-stepper .studio-qty-btn {
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 1rem;
+}
+
+.studio-card-qty-stepper .studio-qty-value {
+  min-width: 22px;
+  font-size: 0.8rem;
 }
 
 .studio-card.studio-freehand-card.is-organizing {
@@ -5395,7 +5461,7 @@ body[data-page="studio"] #app {
 }
 
 /* iPad Pro (and similar tablets) landscape: keep the full stage inside the frame. */
-@media (orientation: landscape) and (min-width: 1024px) and (min-height: 561px) {
+@media (orientation: landscape) and (min-width: 1440px) and (min-height: 561px) {
   .page-shell.studio-page {
     gap: 8px;
     padding:
@@ -5599,5 +5665,67 @@ body[data-page="studio"] #app {
 
   .studio-search-dialog .studio-examples {
     display: flex;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 900px) and (max-width: 1366px) {
+  .studio-stage {
+    grid-template-columns: minmax(188px, 0.2fr) minmax(0, 1fr);
+  }
+
+  .studio-header {
+    min-height: 40px;
+    gap: 6px 8px;
+    padding: 4px 8px 4px 10px;
+    flex-wrap: nowrap;
+  }
+
+  .studio-header h1 {
+    font-size: 1.12rem;
+  }
+
+  .studio-header-version,
+  .studio-board-count {
+    font-size: 0.7rem;
+  }
+
+  .studio-header .compact {
+    min-height: 32px !important;
+    padding: 0 9px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .studio-add-card {
+    min-height: 34px;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+  }
+
+  .studio-page .studio-inspector {
+    padding: 8px 10px 10px;
+    gap: 8px;
+  }
+
+  .studio-page .studio-inspector-copy {
+    gap: 8px;
+  }
+
+  .studio-page .studio-inspector-name {
+    font-size: clamp(1rem, 1.5vw, 1.28rem);
+  }
+
+  .studio-stat-value {
+    font-size: clamp(1.05rem, 1.7vw, 1.4rem);
+  }
+
+  .studio-page .studio-inspector-effect {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .studio-inspector-qty-stepper .studio-qty-btn {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
   }
 }
