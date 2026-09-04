@@ -1004,16 +1004,16 @@ export function bootStudioPage(api) {
       return;
     }
 
-    const figure = document.createElement("figure");
-    figure.className = "studio-inspector-art";
     const imageUrl = api.getImageUrl(api.resolveCardImage(card) || api.getPrimaryEdition(card)?.image);
     if (imageUrl) {
+      const backdrop = document.createElement("div");
+      backdrop.className = "studio-inspector-backdrop";
+      backdrop.setAttribute("aria-hidden", "true");
       const image = document.createElement("img");
       image.src = imageUrl;
-      image.alt = card.name;
-      figure.append(image);
-    } else {
-      figure.append(api.createPlaceholder(card.name));
+      image.alt = "";
+      backdrop.append(image);
+      inspectorEl.append(backdrop);
     }
 
     const name = document.createElement("h2");
@@ -1075,7 +1075,7 @@ export function bootStudioPage(api) {
       actions.append(remove);
     }
     copy.append(actions);
-    inspectorEl.append(figure, copy);
+    inspectorEl.append(copy);
   }
 
   function createMiniCard(card, { inTray = false, onBoard = false, layoutIndex = 0 } = {}) {
