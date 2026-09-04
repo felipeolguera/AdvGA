@@ -28,13 +28,74 @@ const STUDIO_SQUASH_DAMP = 0.028;
 const STUDIO_DOUBLE_TAP_MS = 500;
 const STUDIO_DOUBLE_TAP_PX = 36;
 const STUDIO_TRIPLE_TAP_MS = 650;
+const STUDIO_TABS = [
+  { key: "main", label: "Main", section: "main" },
+  { key: "material", label: "Material", section: "material" },
+  { key: "side", label: "Side", section: "sideboard" },
+];
 
-function clampStudioQty(value) {
+function normalizeStudioTab(value) {
+  return STUDIO_TABS.some((tab) => tab.key === value) ? value : "main";
+}
+
+function studioTabMeta(tab) {
+  return STUDIO_TABS.find((item) => item.key === tab) || STUDIO_TABS[0];
+}
+
+function studioQtyMax(tab) {
+  return tab === "material" ? 1 : STUDIO_MAX_QTY;
+}
+
+function clampStudioQty(value, tab = "main") {
   const quantity = Math.round(Number(value));
   if (!Number.isFinite(quantity) || quantity < STUDIO_MIN_QTY) {
     return STUDIO_MIN_QTY;
   }
-  return Math.min(STUDIO_MAX_QTY, quantity);
+  return Math.min(studioQtyMax(tab), quantity);
+}
+
+function emptyStudioBoard(tab = "main") {
+  return {
+    cardKeys: [],
+    positions: {},
+    quantities: {},
+    nextZ: 1,
+    zoneSplit: tab === "main" ? 0.5 : 0.5,
+  };
+}
+
+function cloneStudioBoard(board, tab = "main") {
+  const source = board && typeof board === "object" ? board : emptyStudioBoard(tab);
+  const cardKeys = Array.isArray(source.cardKeys) ? source.cardKeys.map(String).filter(Boolean) : [];
+  const quantities = {};
+  const storedQuantities = source.quantities && typeof source.quantities === "object" ? source.quantities : {};
+  for (const key of cardKeys) {
+    quantities[key] = clampStudioQty(storedQuantities[key] ?? STUDIO_MIN_QTY, tab);
+  }
+  const positions = {};
+  const storedPositions = source.positions && typeof source.positions === "object" ? source.positions : {};
+  let nextZ = Number.isFinite(source.nextZ) ? source.nextZ : 1;
+  for (const key of cardKeys) {
+    const pos = storedPositions[key];
+    if (pos && Number.isFinite(Number(pos.x)) && Number.isFinite(Number(pos.y))) {
+      const z = Number.isFinite(Number(pos.z)) ? Number(pos.z) : nextZ;
+      positions[key] = { x: Number(pos.x), y: Number(pos.y), z };
+      nextZ = Math.max(nextZ, z + 1);
+    }
+  }
+  return {
+    cardKeys,
+    positions,
+    quantities,
+    nextZ,
+    zoneSplit: clampStudioZoneSplit(source.zoneSplit ?? 0.5),
+  };
+}
+
+function countStudioBoard(board, tab) {
+  const keys = Array.isArray(board?.cardKeys) ? board.cardKeys : [];
+  const quantities = board?.quantities && typeof board.quantities === "object" ? board.quantities : {};
+  return keys.reduce((total, key) => total + clampStudioQty(quantities[key] ?? STUDIO_MIN_QTY, tab), 0);
 }
 
 function clampStudioZoneSplit(value) {
@@ -78,28 +139,41 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <div class="studio-inspector-body" id="studio-inspector"></div>
       </aside>
       <section class="studio-playground" aria-label="Playground">
-        <div class="studio-zones">
-          <div class="studio-zone" data-zone="a">
-            <div class="studio-zone-label">
-              <span class="studio-zone-name">A</span>
-              <span class="studio-zone-count" id="studio-zone-a-count" aria-live="polite">0</span>
-            </div>
-          </div>
-          <div class="studio-zone" data-zone="b">
-            <div class="studio-zone-label">
-              <span class="studio-zone-name">B</span>
-              <span class="studio-zone-count" id="studio-zone-b-count" aria-live="polite">0</span>
-            </div>
-          </div>
+        <div class="studio-playground-tabs" role="tablist" aria-label="Playground decks">
+          <button type="button" class="studio-playground-tab is-active" role="tab" id="studio-tab-main" data-studio-tab="main" aria-selected="true" aria-controls="studio-board">
+            Main <span class="studio-playground-tab-count" data-studio-tab-count="main">0</span>
+          </button>
+          <button type="button" class="studio-playground-tab" role="tab" id="studio-tab-material" data-studio-tab="material" aria-selected="false" aria-controls="studio-board">
+            Material <span class="studio-playground-tab-count" data-studio-tab-count="material">0</span>
+          </button>
+          <button type="button" class="studio-playground-tab" role="tab" id="studio-tab-side" data-studio-tab="side" aria-selected="false" aria-controls="studio-board">
+            Side <span class="studio-playground-tab-count" data-studio-tab-count="side">0</span>
+          </button>
         </div>
-        <button
-          class="studio-zone-splitter"
-          type="button"
-          id="studio-zone-splitter"
-          aria-label="Resize areas A and B"
-          aria-orientation="vertical"
-        ></button>
-        <div class="studio-board" id="studio-board" data-studio-board title="Double-tap empty space to organize cards. Triple-click a card to enlarge."></div>
+        <div class="studio-playground-stage">
+          <div class="studio-zones">
+            <div class="studio-zone" data-zone="a">
+              <div class="studio-zone-label">
+                <span class="studio-zone-name">A</span>
+                <span class="studio-zone-count" id="studio-zone-a-count" aria-live="polite">0</span>
+              </div>
+            </div>
+            <div class="studio-zone" data-zone="b">
+              <div class="studio-zone-label">
+                <span class="studio-zone-name">B</span>
+                <span class="studio-zone-count" id="studio-zone-b-count" aria-live="polite">0</span>
+              </div>
+            </div>
+          </div>
+          <button
+            class="studio-zone-splitter"
+            type="button"
+            id="studio-zone-splitter"
+            aria-label="Resize areas A and B"
+            aria-orientation="vertical"
+          ></button>
+          <div class="studio-board" id="studio-board" data-studio-board title="Double-tap empty space to organize cards. Triple-click a card to enlarge."></div>
+        </div>
       </section>
     </div>
   </main>
@@ -264,6 +338,81 @@ export function bootStudioPage(api) {
     requestId: 0,
     timer: null,
   };
+
+  function usesSplitZones() {
+    return studio.activeTab === "main";
+  }
+
+  function studioBoardHead() {
+    return usesSplitZones() ? STUDIO_ZONE_HEAD : STUDIO_PADDING;
+  }
+
+  function activeTabLabel() {
+    return studioTabMeta(studio.activeTab).label;
+  }
+
+  function snapshotActiveBoard() {
+    studio.boards[studio.activeTab] = {
+      cardKeys: [...studio.cardKeys],
+      positions: { ...studio.positions },
+      quantities: { ...studio.quantities },
+      nextZ: studio.nextZ,
+      zoneSplit: studio.zoneSplit,
+    };
+  }
+
+  function restoreActiveBoard() {
+    const board = cloneStudioBoard(studio.boards[studio.activeTab], studio.activeTab);
+    studio.boards[studio.activeTab] = board;
+    studio.cardKeys = [...board.cardKeys];
+    studio.positions = { ...board.positions };
+    studio.quantities = { ...board.quantities };
+    studio.nextZ = board.nextZ;
+    if (studio.activeTab === "main") {
+      studio.zoneSplit = clampStudioZoneSplit(board.zoneSplit);
+    }
+  }
+
+  function totalCardCount() {
+    snapshotActiveBoard();
+    return STUDIO_TABS.reduce((total, tab) => total + countStudioBoard(studio.boards[tab.key], tab.key), 0);
+  }
+
+  function updatePlaygroundTabUi() {
+    snapshotActiveBoard();
+    playgroundEl?.classList.toggle("is-single-board", !usesSplitZones());
+    playgroundEl?.querySelectorAll("[data-studio-tab]").forEach((button) => {
+      const selected = button.dataset.studioTab === studio.activeTab;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-selected", selected ? "true" : "false");
+    });
+    STUDIO_TABS.forEach((tab) => {
+      const countEl = playgroundEl?.querySelector(`[data-studio-tab-count="${tab.key}"]`);
+      if (countEl) {
+        countEl.textContent = String(countStudioBoard(studio.boards[tab.key], tab.key));
+      }
+    });
+    if (zoneSplitterEl) {
+      zoneSplitterEl.hidden = !usesSplitZones();
+      zoneSplitterEl.tabIndex = usesSplitZones() ? 0 : -1;
+    }
+  }
+
+  function setStudioTab(tab) {
+    const next = normalizeStudioTab(tab);
+    if (next === studio.activeTab) {
+      return;
+    }
+    snapshotActiveBoard();
+    studio.activeTab = next;
+    restoreActiveBoard();
+    physics.clear();
+    persist();
+    applyZoneSplit();
+    updatePlaygroundTabUi();
+    renderBoard();
+    renderInspector();
+  }
 
   function openSearchDialog() {
     if (!searchDialog) {
@@ -433,19 +582,24 @@ export function bootStudioPage(api) {
   });
 
   document.querySelector("#studio-clear-board")?.addEventListener("click", () => {
-    if (!window.confirm("Clear every card on the playground?")) {
+    if (!window.confirm(`Clear every card on the ${activeTabLabel()} playground?`)) {
       return;
     }
     studio.cardKeys = [];
     studio.positions = {};
     studio.nextZ = 1;
-    studio.cards = {};
     studio.quantities = {};
     studio.selectedKey = "";
     physics.clear();
     persist();
     renderBoard();
     renderInspector();
+  });
+
+  playgroundEl?.querySelectorAll("[data-studio-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setStudioTab(button.dataset.studioTab);
+    });
   });
 
   boardEl?.addEventListener("dragover", (event) => {
@@ -498,10 +652,11 @@ export function bootStudioPage(api) {
     }
   });
 
-  renderBoard();
-  renderInspector();
-  enableZoneSplitter();
-  void loadSharedStudioBrew();
+    renderBoard();
+    renderInspector();
+    enableZoneSplitter();
+    updatePlaygroundTabUi();
+    void loadSharedStudioBrew();
 
   function resetStudioAutocomplete({ keepStatus = false } = {}) {
     window.clearTimeout(autocomplete.timer);
@@ -696,7 +851,7 @@ export function bootStudioPage(api) {
     rememberCard(card);
     const key = api.getCardKey(card);
     const alreadyHere = studio.cardKeys.includes(key);
-    const nextQty = alreadyHere ? clampStudioQty(getQuantity(key) + 1) : STUDIO_MIN_QTY;
+    const nextQty = alreadyHere ? clampStudioQty(getQuantity(key) + 1, studio.activeTab) : STUDIO_MIN_QTY;
     addCardToPlayground(key, nextQty, { updated: alreadyHere });
     if (statusEl) {
       statusEl.textContent = `Added ${card.name}. Tap another suggestion to keep adding.`;
@@ -863,16 +1018,17 @@ export function bootStudioPage(api) {
 
   function renderBoard() {
     boardEl.replaceChildren();
-    const total = boardCardCount();
+    const total = totalCardCount();
     boardCountEl.textContent = total === 1 ? "1 card" : `${total} cards`;
 
     if (studio.cardKeys.length === 0) {
       const empty = document.createElement("p");
       empty.className = "hint studio-board-empty";
-      empty.textContent = "Empty · Add Card to search, then drag cards on the playground";
+      empty.textContent = `Empty ${activeTabLabel()} · Add Card, then drag cards on this playground`;
       boardEl.append(empty);
       boardEl.style.minHeight = "";
       updateZoneCounts();
+      updatePlaygroundTabUi();
       return;
     }
 
@@ -918,14 +1074,16 @@ export function bootStudioPage(api) {
     const row = Math.floor(index / cols);
     return snapStudioPosition({
       x: STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
-      y: STUDIO_ZONE_HEAD + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      y: studioBoardHead() + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
       z: index + 1,
     });
   }
 
   function studioZoneSlot(index, boardWidth, boardHeight) {
-    const splitX = Math.max(STUDIO_CARD_WIDTH + STUDIO_PADDING * 2, boardWidth * (studio.zoneSplit || 0.5));
-    const usableHeight = Math.max(STUDIO_CARD_HEIGHT, boardHeight - STUDIO_ZONE_HEAD - STUDIO_PADDING);
+    const splitX = usesSplitZones()
+      ? Math.max(STUDIO_CARD_WIDTH + STUDIO_PADDING * 2, boardWidth * (studio.zoneSplit || 0.5))
+      : boardWidth;
+    const usableHeight = Math.max(STUDIO_CARD_HEIGHT, boardHeight - studioBoardHead() - STUDIO_PADDING);
     const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y)));
     const colsFor = (width) => {
       const inner = Math.max(STUDIO_CARD_WIDTH, width - STUDIO_PADDING * 2);
@@ -933,14 +1091,14 @@ export function bootStudioPage(api) {
     };
     const colsA = colsFor(splitX);
     const zoneCapacity = colsA * rows;
-    const zone = index < zoneCapacity ? 0 : 1;
+    const zone = usesSplitZones() && index >= zoneCapacity ? 1 : 0;
     const local = zone === 0 ? index : index - zoneCapacity;
     const cols = zone === 0 ? colsA : colsFor(boardWidth - splitX);
     const col = local % cols;
     const row = Math.min(rows - 1, Math.floor(local / cols));
     return snapStudioPosition({
       x: (zone === 0 ? 0 : splitX) + STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
-      y: STUDIO_ZONE_HEAD + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      y: studioBoardHead() + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
       z: index + 1,
     });
   }
@@ -1141,7 +1299,7 @@ export function bootStudioPage(api) {
   function layoutCardsInZone(cardEls, zone) {
     const boardWidth = boardEl?.clientWidth || 0;
     const boardHeight = boardEl?.clientHeight || 0;
-    const splitX = studioZoneSplitX();
+    const splitX = usesSplitZones() ? studioZoneSplitX() : boardWidth;
     const left = zone === "b" ? splitX : 0;
     const right = zone === "b" ? boardWidth : splitX;
     const width = Math.max(STUDIO_CARD_WIDTH, right - left);
@@ -1149,7 +1307,7 @@ export function bootStudioPage(api) {
     const cols = Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
     const stepX = STUDIO_CARD_WIDTH + STUDIO_GAP_X;
     const stepY = STUDIO_CARD_HEIGHT + STUDIO_GAP_Y + STUDIO_QTY_HANG;
-    const usableHeight = Math.max(stepY, boardHeight - STUDIO_ZONE_HEAD - STUDIO_PADDING);
+    const usableHeight = Math.max(stepY, boardHeight - studioBoardHead() - STUDIO_PADDING);
     const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / stepY));
     const minX = left + STUDIO_PADDING;
     const maxX = Math.max(minX, right - STUDIO_CARD_WIDTH - STUDIO_PADDING);
@@ -1160,7 +1318,7 @@ export function bootStudioPage(api) {
       const row = Math.min(rows - 1, Math.floor(index / cols));
       const next = clampStudioBoardPoint(
         Math.min(maxX, minX + col * stepX),
-        STUDIO_ZONE_HEAD + STUDIO_PADDING + row * stepY,
+        studioBoardHead() + STUDIO_PADDING + row * stepY,
       );
       restStudioPhysics(key);
       writeStudioCardPosition(cardEl, key, next.x, next.y);
@@ -1178,8 +1336,12 @@ export function bootStudioPage(api) {
     }
 
     const groups = { a: [], b: [] };
-    for (const cardEl of cards) {
-      groups[studioZoneForX(studioCardPoint(cardEl).x)].push(cardEl);
+    if (usesSplitZones()) {
+      for (const cardEl of cards) {
+        groups[studioZoneForX(studioCardPoint(cardEl).x)].push(cardEl);
+      }
+    } else {
+      groups.a = cards;
     }
     const byReadingOrder = (left, right) => {
       const a = studioCardPoint(left);
@@ -1207,7 +1369,7 @@ export function bootStudioPage(api) {
     if (!(target instanceof Element)) {
       return false;
     }
-    if (target.closest(".studio-card, .studio-zone-splitter, .studio-qty-stepper, button, select, a, input, textarea")) {
+    if (target.closest(".studio-playground-tabs, .studio-card, .studio-zone-splitter, .studio-qty-stepper, button, select, a, input, textarea")) {
       return false;
     }
     return Boolean(target.closest(".studio-board, .studio-playground, .studio-zones"));
@@ -1695,7 +1857,7 @@ export function bootStudioPage(api) {
     if (!onBoard) {
       const add = document.createElement("button");
       add.type = "button";
-      add.textContent = "Add to playground";
+      add.textContent = `Add to ${activeTabLabel()}`;
       add.addEventListener("click", () => {
         addCardToPlayground(api.getCardKey(card), Number(qtyStepper.dataset.qty) || 1);
       });
@@ -1840,7 +2002,7 @@ export function bootStudioPage(api) {
     wrap.className = `studio-qty-stepper ${className}`.trim();
     wrap.setAttribute("role", "group");
     wrap.setAttribute("aria-label", ariaLabel);
-    wrap.dataset.qty = String(clampStudioQty(value));
+    wrap.dataset.qty = String(clampStudioQty(value, studio.activeTab));
 
     const minus = document.createElement("button");
     minus.type = "button";
@@ -1859,11 +2021,11 @@ export function bootStudioPage(api) {
     plus.textContent = "+";
 
     const apply = (next, emit) => {
-      const qty = clampStudioQty(next);
+      const qty = clampStudioQty(next, studio.activeTab);
       wrap.dataset.qty = String(qty);
       display.textContent = String(qty);
       minus.disabled = qty <= STUDIO_MIN_QTY;
-      plus.disabled = qty >= STUDIO_MAX_QTY;
+      plus.disabled = qty >= studioQtyMax(studio.activeTab);
       if (emit && typeof onChange === "function") {
         onChange(qty);
       }
@@ -1899,7 +2061,7 @@ export function bootStudioPage(api) {
       placeholder.textContent = "+";
       select.append(placeholder);
     }
-    for (let quantity = STUDIO_MIN_QTY; quantity <= STUDIO_MAX_QTY; quantity += 1) {
+    for (let quantity = STUDIO_MIN_QTY; quantity <= studioQtyMax(studio.activeTab); quantity += 1) {
       const option = document.createElement("option");
       option.value = String(quantity);
       option.textContent = String(quantity);
@@ -1923,7 +2085,7 @@ export function bootStudioPage(api) {
     if (!alreadyHere) {
       studio.cardKeys.push(key);
     }
-    const nextQty = clampStudioQty(quantity ?? getQuantity(key));
+    const nextQty = clampStudioQty(quantity ?? getQuantity(key), studio.activeTab);
     studio.quantities[key] = nextQty;
     studio.selectedKey = key;
     if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
@@ -1938,7 +2100,7 @@ export function bootStudioPage(api) {
     persist();
     if (notify) {
       const verb = updated || alreadyHere ? "updated on" : "added to";
-      showStudioToast(`${nextQty} ${card.name} ${verb} the playground`);
+      showStudioToast(`${nextQty} ${card.name} ${verb} ${activeTabLabel()}`);
       markAdded(key, `${nextQty} added`);
     }
     renderBoard();
@@ -1957,7 +2119,7 @@ export function bootStudioPage(api) {
   }
 
   function getQuantity(key) {
-    return clampStudioQty(studio.quantities?.[key] ?? STUDIO_MIN_QTY);
+    return clampStudioQty(studio.quantities?.[key] ?? STUDIO_MIN_QTY, studio.activeTab);
   }
 
   function markAdded(key, text) {
@@ -1996,16 +2158,15 @@ export function bootStudioPage(api) {
   }
 
   function persist() {
-    const liveKeys = new Set(studio.cardKeys);
-    for (const key of Object.keys(studio.quantities || {})) {
-      if (!liveKeys.has(key)) {
-        delete studio.quantities[key];
+    snapshotActiveBoard();
+    const liveKeys = new Set();
+    for (const tab of STUDIO_TABS) {
+      for (const key of studio.boards[tab.key].cardKeys) {
+        liveKeys.add(key);
       }
     }
-    for (const key of Object.keys(studio.positions || {})) {
-      if (!liveKeys.has(key)) {
-        delete studio.positions[key];
-      }
+    if (studio.selectedKey) {
+      liveKeys.add(studio.selectedKey);
     }
     const liveCards = {};
     for (const key of liveKeys) {
@@ -2013,19 +2174,21 @@ export function bootStudioPage(api) {
         liveCards[key] = studio.cards[key];
       }
     }
-    if (studio.selectedKey && studio.cards[studio.selectedKey]) {
-      liveCards[studio.selectedKey] = studio.cards[studio.selectedKey];
-    }
+    studio.cards = liveCards;
+    const main = studio.boards.main;
     api.saveStoredJson(STUDIO_STORAGE_KEY, {
-      cardKeys: studio.cardKeys,
-      positions: studio.positions,
-      nextZ: studio.nextZ,
+      activeTab: studio.activeTab,
+      boards: studio.boards,
       selectedKey: studio.selectedKey,
       cards: liveCards,
-      quantities: studio.quantities,
-      zoneSplit: studio.zoneSplit,
+      cardKeys: main.cardKeys,
+      positions: main.positions,
+      quantities: main.quantities,
+      nextZ: main.nextZ,
+      zoneSplit: main.zoneSplit,
     });
     updateZoneCounts();
+    updatePlaygroundTabUi();
   }
 
   function boardCardCount() {
@@ -2033,28 +2196,30 @@ export function bootStudioPage(api) {
   }
 
   function formatStudioDecklist() {
+    snapshotActiveBoard();
     const buckets = {
       material: [],
       main: [],
       sideboard: [],
     };
-    const counts = new Map();
-    for (const key of studio.cardKeys) {
-      const card = studio.cards[key];
-      const name = String(card?.name || "").trim();
-      if (!name) {
-        continue;
+    for (const tab of STUDIO_TABS) {
+      const board = studio.boards[tab.key];
+      const counts = new Map();
+      for (const key of board.cardKeys) {
+        const card = studio.cards[key];
+        const name = String(card?.name || "").trim();
+        if (!name) {
+          continue;
+        }
+        const copies = clampStudioQty(board.quantities?.[key] ?? STUDIO_MIN_QTY, tab.key);
+        const current = counts.get(name);
+        if (current) {
+          current.qty += copies;
+        } else {
+          counts.set(name, { qty: copies, card });
+        }
       }
-      const copies = getQuantity(key);
-      const current = counts.get(name);
-      if (current) {
-        current.qty += copies;
-      } else {
-        counts.set(name, { qty: copies, card });
-      }
-    }
-    for (const entry of counts.values()) {
-      buckets[api.defaultDeckSection(entry.card)].push(entry);
+      buckets[tab.section].push(...counts.values());
     }
 
     const header = [`// Studio brew`, `// Built with AdvGA Studio v${api.appVersion}`, ""].join("\n");
@@ -2068,21 +2233,32 @@ export function bootStudioPage(api) {
     return `${header}${sections.join("\n\n")}`.trim() + "\n";
   }
 
+  function serializeBoardShare(tab) {
+    const board = studio.boards[tab] || emptyStudioBoard(tab);
+    return board.cardKeys.map((key) => {
+      const card = studio.cards[key];
+      const pos = board.positions[key] || {};
+      return {
+        n: card?.name || "",
+        q: clampStudioQty(board.quantities?.[key] ?? STUDIO_MIN_QTY, tab),
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+      };
+    }).filter((entry) => entry.n);
+  }
+
   function serializeStudioShare() {
+    snapshotActiveBoard();
     return {
-      v: 1,
-      split: studio.zoneSplit,
-      cards: studio.cardKeys.map((key) => {
-        const card = studio.cards[key];
-        const pos = studio.positions[key] || {};
-        return {
-          n: card?.name || "",
-          q: getQuantity(key),
-          x: pos.x,
-          y: pos.y,
-          z: pos.z,
-        };
-      }).filter((entry) => entry.n),
+      v: 2,
+      tab: studio.activeTab,
+      split: studio.boards.main.zoneSplit,
+      boards: {
+        main: serializeBoardShare("main"),
+        material: serializeBoardShare("material"),
+        side: serializeBoardShare("side"),
+      },
     };
   }
 
@@ -2095,7 +2271,7 @@ export function bootStudioPage(api) {
   }
 
   async function shareStudioBrew(button) {
-    if (boardCardCount() === 0) {
+    if (totalCardCount() === 0) {
       window.alert("Add cards to the playground before sharing.");
       return;
     }
@@ -2136,9 +2312,8 @@ export function bootStudioPage(api) {
     }
   }
 
-  async function applyStudioShareEntries(entries) {
+  async function applyStudioShareEntries(entries, tab = "main") {
     const nextKeys = [];
-    const nextCards = {};
     const nextQuantities = {};
     const nextPositions = {};
     let nextZ = 1;
@@ -2155,11 +2330,13 @@ export function bootStudioPage(api) {
       }
       const key = api.getCardKey(card);
       rememberCard(card);
-      nextCards[key] = card;
       if (!nextKeys.includes(key)) {
         nextKeys.push(key);
       }
-      nextQuantities[key] = clampStudioQty((nextQuantities[key] || 0) + (entry.q || entry.quantity || STUDIO_MIN_QTY));
+      nextQuantities[key] = clampStudioQty(
+        (nextQuantities[key] || 0) + (entry.q || entry.quantity || STUDIO_MIN_QTY),
+        tab,
+      );
       const x = Number(entry.x);
       const y = Number(entry.y);
       if (Number.isFinite(x) && Number.isFinite(y)) {
@@ -2174,20 +2351,29 @@ export function bootStudioPage(api) {
       return false;
     }
 
-    studio.cardKeys = nextKeys;
-    studio.cards = nextCards;
-    studio.quantities = nextQuantities;
-    studio.positions = nextPositions;
-    studio.nextZ = nextZ;
-    studio.selectedKey = nextKeys[0] || "";
+    studio.boards[tab] = {
+      cardKeys: nextKeys,
+      positions: nextPositions,
+      quantities: nextQuantities,
+      nextZ,
+      zoneSplit: tab === "main" ? studio.zoneSplit : 0.5,
+    };
+    return { loaded, hasPositions: Object.keys(nextPositions).length > 0, firstKey: nextKeys[0] || "" };
+  }
+
+  function activateSharedBoard(tab, { organize } = {}) {
+    studio.activeTab = normalizeStudioTab(tab);
+    restoreActiveBoard();
+    studio.selectedKey = studio.cardKeys[0] || "";
     physics.clear();
     persist();
+    applyZoneSplit();
+    updatePlaygroundTabUi();
     renderBoard();
     renderInspector();
-    if (Object.keys(nextPositions).length === 0) {
+    if (organize) {
       window.requestAnimationFrame(() => organizeStudioBoard());
     }
-    return true;
   }
 
   async function applyStudioShareText(text) {
@@ -2198,12 +2384,45 @@ export function bootStudioPage(api) {
 
     try {
       const parsed = JSON.parse(raw);
+      if (parsed && parsed.v === 2 && parsed.boards && typeof parsed.boards === "object") {
+        if (Number.isFinite(Number(parsed.split))) {
+          studio.zoneSplit = clampStudioZoneSplit(parsed.split);
+        }
+        let loaded = false;
+        let organize = false;
+        for (const tab of STUDIO_TABS) {
+          const entries = Array.isArray(parsed.boards[tab.key]) ? parsed.boards[tab.key] : [];
+          if (entries.length === 0) {
+            studio.boards[tab.key] = emptyStudioBoard(tab.key);
+            continue;
+          }
+          const result = await applyStudioShareEntries(entries, tab.key);
+          if (result) {
+            loaded = true;
+            if (!result.hasPositions) {
+              organize = true;
+            }
+          }
+        }
+        if (!loaded) {
+          return false;
+        }
+        activateSharedBoard(parsed.tab || "main", { organize });
+        return true;
+      }
       if (parsed && parsed.v === 1 && Array.isArray(parsed.cards)) {
         if (Number.isFinite(Number(parsed.split))) {
           studio.zoneSplit = clampStudioZoneSplit(parsed.split);
           applyZoneSplit();
         }
-        return applyStudioShareEntries(parsed.cards);
+        studio.boards.material = emptyStudioBoard("material");
+        studio.boards.side = emptyStudioBoard("side");
+        const result = await applyStudioShareEntries(parsed.cards, "main");
+        if (!result) {
+          return false;
+        }
+        activateSharedBoard("main", { organize: !result.hasPositions });
+        return true;
       }
     } catch {
       // Decklist text from Try it / Copy list.
@@ -2213,12 +2432,30 @@ export function bootStudioPage(api) {
       return false;
     }
     const parsed = api.parseDeckImport(raw);
-    return applyStudioShareEntries(
-      (parsed.entries || []).map((entry) => ({
-        n: entry.name,
-        q: entry.quantity,
-      })),
-    );
+    const grouped = { main: [], material: [], side: [] };
+    for (const entry of parsed.entries || []) {
+      const tab = entry.section === "material" ? "material" : entry.section === "sideboard" ? "side" : "main";
+      grouped[tab].push({ n: entry.name, q: entry.quantity });
+    }
+    STUDIO_TABS.forEach((tab) => {
+      studio.boards[tab.key] = emptyStudioBoard(tab.key);
+    });
+    let loaded = false;
+    for (const tab of STUDIO_TABS) {
+      if (grouped[tab.key].length === 0) {
+        continue;
+      }
+      const result = await applyStudioShareEntries(grouped[tab.key], tab.key);
+      if (result) {
+        loaded = true;
+      }
+    }
+    if (!loaded) {
+      return false;
+    }
+    const preferred = grouped.main.length ? "main" : grouped.material.length ? "material" : "side";
+    activateSharedBoard(preferred, { organize: true });
+    return true;
   }
 
   async function loadSharedStudioBrew() {
@@ -2243,7 +2480,7 @@ export function bootStudioPage(api) {
   }
 
   async function copyStudioDecklist(button) {
-    if (boardCardCount() === 0) {
+    if (totalCardCount() === 0) {
       window.alert("Add cards to the playground before exporting a decklist.");
       return;
     }
@@ -2269,31 +2506,35 @@ export function bootStudioPage(api) {
   }
 
   function studioBoardToDeckCards() {
+    snapshotActiveBoard();
     const merged = new Map();
-    for (const key of studio.cardKeys) {
-      const card = studio.cards[key];
-      if (!card) {
-        continue;
+    for (const tab of STUDIO_TABS) {
+      const board = studio.boards[tab.key];
+      for (const key of board.cardKeys) {
+        const card = studio.cards[key];
+        if (!card) {
+          continue;
+        }
+        const copies = clampStudioQty(board.quantities?.[key] ?? STUDIO_MIN_QTY, tab.key);
+        const mapKey = `${tab.section}:${key}`;
+        const existing = merged.get(mapKey);
+        if (existing) {
+          existing.quantity += copies;
+          continue;
+        }
+        merged.set(mapKey, {
+          key,
+          name: card.name,
+          image: api.resolveCardImage(card) || "",
+          line: api.formatCardLine(card),
+          quantity: copies,
+          section: tab.section,
+          types: Array.isArray(card.types) ? card.types : [],
+          subtypes: Array.isArray(card.subtypes) ? card.subtypes : [],
+          level: card.level ?? null,
+          costType: card.cost?.type || card.costType || "",
+        });
       }
-      const section = api.defaultDeckSection(card);
-      const copies = getQuantity(key);
-      const existing = merged.get(key);
-      if (existing) {
-        existing.quantity += copies;
-        continue;
-      }
-      merged.set(key, {
-        key,
-        name: card.name,
-        image: api.resolveCardImage(card) || "",
-        line: api.formatCardLine(card),
-        quantity: copies,
-        section,
-        types: Array.isArray(card.types) ? card.types : [],
-        subtypes: Array.isArray(card.subtypes) ? card.subtypes : [],
-        level: card.level ?? null,
-        costType: card.cost?.type || card.costType || "",
-      });
     }
     return [...merged.values()].map((card) => ({
       ...card,
@@ -2302,7 +2543,7 @@ export function bootStudioPage(api) {
   }
 
   function openStudioTryIt() {
-    if (boardCardCount() === 0) {
+    if (totalCardCount() === 0) {
       window.alert("Add cards to the playground before opening Try it.");
       return;
     }
@@ -2322,7 +2563,7 @@ export function bootStudioPage(api) {
   }
 
   function downloadStudioDecklist() {
-    if (boardCardCount() === 0) {
+    if (totalCardCount() === 0) {
       window.alert("Add cards to the playground before exporting a decklist.");
       return;
     }
@@ -2345,32 +2586,30 @@ function loadStudioState() {
       return {};
     }
   })();
-  const cardKeys = flattenStudioCardKeys(stored);
-  const liveKeys = new Set(cardKeys);
-  const quantities = {};
-  const storedQuantities = stored.quantities && typeof stored.quantities === "object" ? stored.quantities : {};
-  for (const key of liveKeys) {
-    quantities[key] = clampStudioQty(storedQuantities[key] ?? STUDIO_MIN_QTY);
-  }
-  const positions = {};
-  const storedPositions = stored.positions && typeof stored.positions === "object" ? stored.positions : {};
-  let nextZ = Number.isFinite(stored.nextZ) ? stored.nextZ : 1;
-  for (const key of liveKeys) {
-    const pos = storedPositions[key];
-    if (pos && Number.isFinite(Number(pos.x)) && Number.isFinite(Number(pos.y))) {
-      const z = Number.isFinite(Number(pos.z)) ? Number(pos.z) : nextZ;
-      positions[key] = { x: Number(pos.x), y: Number(pos.y), z };
-      nextZ = Math.max(nextZ, z + 1);
-    }
-  }
+  const storedBoards = stored.boards && typeof stored.boards === "object" ? stored.boards : null;
+  const boards = {
+    main: cloneStudioBoard(storedBoards?.main || {
+      cardKeys: flattenStudioCardKeys(stored),
+      positions: stored.positions,
+      quantities: stored.quantities,
+      nextZ: stored.nextZ,
+      zoneSplit: stored.zoneSplit,
+    }, "main"),
+    material: cloneStudioBoard(storedBoards?.material, "material"),
+    side: cloneStudioBoard(storedBoards?.side, "side"),
+  };
+  const activeTab = normalizeStudioTab(stored.activeTab);
+  const active = boards[activeTab];
   return {
-    cardKeys,
-    positions,
-    nextZ,
+    activeTab,
+    boards,
+    cardKeys: [...active.cardKeys],
+    positions: { ...active.positions },
+    quantities: { ...active.quantities },
+    nextZ: active.nextZ,
     cards: stored.cards && typeof stored.cards === "object" ? stored.cards : {},
     selectedKey: String(stored.selectedKey || ""),
-    quantities,
-    zoneSplit: clampStudioZoneSplit(stored.zoneSplit ?? 0.5),
+    zoneSplit: clampStudioZoneSplit(boards.main.zoneSplit ?? stored.zoneSplit ?? 0.5),
   };
 }
 
