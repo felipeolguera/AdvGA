@@ -4371,7 +4371,23 @@ body[data-page="studio"] #app {
   position: relative;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.studio-playground-stage::-webkit-scrollbar {
+  width: 8px;
+}
+
+.studio-playground-stage::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 204, 115, 0.45);
+}
+
+.studio-playground-stage::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .studio-playground.is-single-board .studio-zones,
@@ -4381,8 +4397,12 @@ body[data-page="studio"] #app {
 
 .studio-zones {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 3;
+  height: var(--studio-board-height, 100%);
+  min-height: 100%;
   display: grid;
   grid-template-columns: minmax(108px, var(--studio-split, 50%)) minmax(108px, 1fr);
   pointer-events: none;
@@ -4399,10 +4419,12 @@ body[data-page="studio"] #app {
   pointer-events: auto;
   position: absolute;
   top: 0;
-  bottom: 0;
+  bottom: auto;
   left: var(--studio-split, 50%);
   z-index: 6;
   width: 22px;
+  height: var(--studio-board-height, 100%);
+  min-height: 100%;
   margin: 0;
   border: 0;
   padding: 0;
@@ -4431,6 +4453,9 @@ body[data-page="studio"] #app {
 }
 
 .studio-zone-label {
+  position: sticky;
+  top: 8px;
+  z-index: 4;
   display: inline-flex;
   align-items: baseline;
   gap: 8px;

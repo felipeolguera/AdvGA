@@ -22,7 +22,6 @@ const STUDIO_FRICTION = 0.0042;
 const STUDIO_MIN_SPEED = 0.02;
 const STUDIO_MAX_TILT = 15;
 const STUDIO_RESTITUTION = 0.08;
-const STUDIO_QTY_HANG = 8;
 const STUDIO_GRAVITY = 0.0045;
 const STUDIO_BOUNCE_KEEP = 0;
 const STUDIO_SQUASH_SPRING = 0.0007;
@@ -344,6 +343,7 @@ export function bootStudioPage(api) {
   let carouselTarget = null;
   const boardEl = document.querySelector("#studio-board");
   const playgroundEl = document.querySelector(".studio-playground");
+  const playgroundStageEl = document.querySelector(".studio-playground-stage");
   const zoneSplitterEl = document.querySelector("#studio-zone-splitter");
   const zoneACountEl = document.querySelector("#studio-zone-a-count");
   const zoneBCountEl = document.querySelector("#studio-zone-b-count");
@@ -1249,7 +1249,7 @@ export function bootStudioPage(api) {
       empty.className = "hint studio-board-empty";
       empty.textContent = `Empty ${activeTabLabel()} · Add Card, then drag cards on this playground`;
       boardEl.append(empty);
-      boardEl.style.minHeight = "";
+      clearStudioBoardHeight();
       updateZoneCounts();
       updatePlaygroundTabUi();
       return;
@@ -1292,38 +1292,111 @@ export function bootStudioPage(api) {
     };
   }
 
+  function studioStepX() {
+    return STUDIO_CARD_WIDTH + STUDIO_GAP_X;
+  }
+
+  function studioStepY() {
+    return STUDIO_CARD_HEIGHT + STUDIO_GAP_Y;
+  }
+
+  function studioColsForWidth(width) {
+    const inner = Math.max(STUDIO_CARD_WIDTH, width - STUDIO_PADDING * 2);
+    return Math.max(1, Math.floor((inner + STUDIO_GAP_X) / studioStepX()));
+  }
+
+  function studioSplitX(boardWidth) {
+    if (!usesSplitZones()) {
+      return boardWidth;
+    }
+    return Math.max(STUDIO_CARD_WIDTH + STUDIO_PADDING * 2, boardWidth * (studio.zoneSplit || 0.5));
+  }
+
+  function studioSharedCols(boardWidth) {
+    if (!usesSplitZones()) {
+      return studioColsForWidth(boardWidth);
+    }
+    const splitX = studioSplitX(boardWidth);
+    return Math.max(1, Math.min(studioColsForWidth(splitX), studioColsForWidth(boardWidth - splitX)));
+  }
+
   function estimateStudioSlot(index, cols = 4) {
     const col = index % cols;
     const row = Math.floor(index / cols);
     return snapStudioPosition({
-      x: STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
-      y: studioBoardHead() + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      x: STUDIO_PADDING + col * studioStepX(),
+      y: studioBoardHead() + STUDIO_PADDING + row * studioStepY(),
       z: index + 1,
     });
   }
 
-  function studioZoneSlot(index, boardWidth, boardHeight) {
-    const splitX = usesSplitZones()
-      ? Math.max(STUDIO_CARD_WIDTH + STUDIO_PADDING * 2, boardWidth * (studio.zoneSplit || 0.5))
-      : boardWidth;
-    const usableHeight = Math.max(STUDIO_CARD_HEIGHT, boardHeight - studioBoardHead() - STUDIO_PADDING);
-    const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y)));
-    const colsFor = (width) => {
-      const inner = Math.max(STUDIO_CARD_WIDTH, width - STUDIO_PADDING * 2);
-      return Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
-    };
-    const colsA = colsFor(splitX);
-    const zoneCapacity = colsA * rows;
-    const zone = usesSplitZones() && index >= zoneCapacity ? 1 : 0;
-    const local = zone === 0 ? index : index - zoneCapacity;
-    const cols = zone === 0 ? colsA : colsFor(boardWidth - splitX);
-    const col = local % cols;
-    const row = Math.min(rows - 1, Math.floor(local / cols));
+  function studioZoneSlot(index, boardWidth) {
+    const cols = studioSharedCols(boardWidth);
+    const splitX = studioSplitX(boardWidth);
+    let left = 0;
+    let col;
+    let row;
+    if (usesSplitZones()) {
+      const rowWidth = cols * 2;
+      row = Math.floor(index / rowWidth);
+      const local = index % rowWidth;
+      if (local >= cols) {
+        left = splitX;
+        col = local - cols;
+      } else {
+        col = local;
+      }
+    } else {
+      col = index % cols;
+      row = Math.floor(index / cols);
+    }
     return snapStudioPosition({
-      x: (zone === 0 ? 0 : splitX) + STUDIO_PADDING + col * (STUDIO_CARD_WIDTH + STUDIO_GAP_X),
-      y: studioBoardHead() + STUDIO_PADDING + row * (STUDIO_CARD_HEIGHT + STUDIO_GAP_Y),
+      x: left + STUDIO_PADDING + col * studioStepX(),
+      y: studioBoardHead() + STUDIO_PADDING + row * studioStepY(),
       z: index + 1,
     });
+  }
+
+  function fitStudioBoardHeight() {
+    if (!boardEl) {
+      return;
+    }
+    const viewport = playgroundStageEl?.clientHeight || boardEl.clientHeight || 0;
+    let bottom = viewport;
+    for (const key of studio.cardKeys) {
+      const pos = studio.positions[key];
+      if (!pos || !Number.isFinite(pos.y)) {
+        continue;
+      }
+      bottom = Math.max(bottom, pos.y + STUDIO_CARD_HEIGHT + STUDIO_PADDING);
+    }
+    const height = Math.ceil(bottom);
+    boardEl.style.minHeight = `${height}px`;
+    playgroundStageEl?.style.setProperty("--studio-board-height", `${height}px`);
+  }
+
+  function clearStudioBoardHeight() {
+    if (boardEl) {
+      boardEl.style.minHeight = "";
+    }
+    playgroundStageEl?.style.removeProperty("--studio-board-height");
+  }
+
+  function studioCardsAreStacked() {
+    const points = studio.cardKeys
+      .map((key) => studio.positions[key])
+      .filter((pos) => pos && Number.isFinite(pos.x) && Number.isFinite(pos.y));
+    for (let i = 0; i < points.length; i += 1) {
+      for (let j = i + 1; j < points.length; j += 1) {
+        if (
+          Math.abs(points[i].x - points[j].x) < STUDIO_CARD_WIDTH * 0.5
+          && Math.abs(points[i].y - points[j].y) < STUDIO_CARD_HEIGHT * 0.5
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   function studioZoneSplitX() {
@@ -1438,13 +1511,17 @@ export function bootStudioPage(api) {
     }
     const cards = [...boardEl.querySelectorAll("[data-studio-card]")];
     if (cards.length === 0) {
-      boardEl.style.minHeight = "";
+      clearStudioBoardHeight();
       updateZoneCounts();
       return;
     }
 
+    if (!force && studioCardsAreStacked()) {
+      organizeStudioBoard();
+      return;
+    }
+
     const boardWidth = Math.max(boardEl.clientWidth || playgroundEl?.clientWidth || 640, 240);
-    const boardHeight = Math.max(boardEl.clientHeight || playgroundEl?.clientHeight || 320, 240);
 
     const occupied = new Set();
     if (!force) {
@@ -1471,7 +1548,7 @@ export function bootStudioPage(api) {
       } else {
         let slotKey;
         do {
-          const slot = studioZoneSlot(nextSlot, boardWidth, boardHeight);
+          const slot = studioZoneSlot(nextSlot, boardWidth);
           x = slot.x;
           y = slot.y;
           slotKey = `${Math.round(x)}:${Math.round(y)}`;
@@ -1481,7 +1558,7 @@ export function bootStudioPage(api) {
         z = index + 1;
       }
 
-      const clamped = clampStudioBoardPoint(x, y);
+      const clamped = clampStudioBoardPoint(x, y, { grow: true });
       x = clamped.x;
       y = clamped.y;
       z = Number.isFinite(z) ? z : index + 1;
@@ -1493,7 +1570,7 @@ export function bootStudioPage(api) {
       studio.nextZ = Math.max(studio.nextZ, z + 1);
     });
 
-    boardEl.style.minHeight = "";
+    fitStudioBoardHeight();
     cards.forEach((cardEl) => applyStudioPose(cardEl, getStudioPhysics(cardEl.dataset.studioCard)));
     persist();
   }
@@ -1521,27 +1598,23 @@ export function bootStudioPage(api) {
 
   function layoutCardsInZone(cardEls, zone) {
     const boardWidth = boardEl?.clientWidth || 0;
-    const boardHeight = boardEl?.clientHeight || 0;
-    const splitX = usesSplitZones() ? studioZoneSplitX() : boardWidth;
+    const splitX = usesSplitZones() ? studioSplitX(boardWidth) : boardWidth;
     const left = zone === "b" ? splitX : 0;
     const right = zone === "b" ? boardWidth : splitX;
-    const width = Math.max(STUDIO_CARD_WIDTH, right - left);
-    const inner = Math.max(STUDIO_CARD_WIDTH, width - STUDIO_PADDING * 2);
-    const cols = Math.max(1, Math.floor((inner + STUDIO_GAP_X) / (STUDIO_CARD_WIDTH + STUDIO_GAP_X)));
-    const stepX = STUDIO_CARD_WIDTH + STUDIO_GAP_X;
-    const stepY = STUDIO_CARD_HEIGHT + STUDIO_GAP_Y + STUDIO_QTY_HANG;
-    const usableHeight = Math.max(stepY, boardHeight - studioBoardHead() - STUDIO_PADDING);
-    const rows = Math.max(1, Math.floor((usableHeight + STUDIO_GAP_Y) / stepY));
+    const cols = studioSharedCols(boardWidth);
+    const stepX = studioStepX();
+    const stepY = studioStepY();
     const minX = left + STUDIO_PADDING;
     const maxX = Math.max(minX, right - STUDIO_CARD_WIDTH - STUDIO_PADDING);
 
     cardEls.forEach((cardEl, index) => {
       const key = cardEl.dataset.studioCard;
       const col = index % cols;
-      const row = Math.min(rows - 1, Math.floor(index / cols));
+      const row = Math.floor(index / cols);
       const next = clampStudioBoardPoint(
         Math.min(maxX, minX + col * stepX),
         studioBoardHead() + STUDIO_PADDING + row * stepY,
+        { grow: true },
       );
       restStudioPhysics(key);
       writeStudioCardPosition(cardEl, key, next.x, next.y);
@@ -1580,6 +1653,7 @@ export function bootStudioPage(api) {
     void boardEl.offsetWidth;
     layoutCardsInZone(groups.a, "a");
     layoutCardsInZone(groups.b, "b");
+    fitStudioBoardHeight();
     persist();
     window.setTimeout(() => {
       boardEl.querySelectorAll(".is-organizing").forEach((cardEl) => {
@@ -1681,14 +1755,26 @@ export function bootStudioPage(api) {
     return false;
   }
 
-  function clampStudioBoardPoint(x, y) {
+  function clampStudioBoardPoint(x, y, { grow = false } = {}) {
     const boardWidth = boardEl?.clientWidth || 0;
-    const boardHeight = boardEl?.clientHeight || 0;
+    const minY = studioBoardHead();
     const maxX = Math.max(0, boardWidth - STUDIO_CARD_WIDTH);
-    const maxY = Math.max(STUDIO_ZONE_HEAD, boardHeight - STUDIO_CARD_HEIGHT - STUDIO_QTY_HANG);
+    const nextX = Math.min(maxX, Math.max(0, x));
+    let nextY = Math.max(minY, y);
+    const needed = Math.ceil(nextY + STUDIO_CARD_HEIGHT + STUDIO_PADDING);
+    const viewport = playgroundStageEl?.clientHeight || boardEl?.clientHeight || 0;
+    if (grow && needed > (boardEl?.offsetHeight || 0)) {
+      boardEl.style.minHeight = `${Math.max(needed, viewport)}px`;
+      playgroundStageEl?.style.setProperty("--studio-board-height", boardEl.style.minHeight);
+    }
+    if (!grow) {
+      const boardHeight = boardEl?.offsetHeight || 0;
+      const maxY = Math.max(minY, boardHeight - STUDIO_CARD_HEIGHT);
+      nextY = Math.min(maxY, nextY);
+    }
     return {
-      x: Math.min(maxX, Math.max(0, x)),
-      y: Math.min(maxY, Math.max(STUDIO_ZONE_HEAD, y)),
+      x: nextX,
+      y: nextY,
     };
   }
 
@@ -1909,7 +1995,7 @@ export function bootStudioPage(api) {
       lastPointerY = event.clientY;
       lastPointerT = now;
 
-      const next = clampStudioBoardPoint(startX + dx, startY + dy);
+      const next = clampStudioBoardPoint(startX + dx, startY + dy, { grow: true });
       writeStudioCardPosition(cardEl, key, next.x, next.y);
       applyStudioPose(cardEl, body);
       kickStudioPhysics();
