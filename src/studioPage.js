@@ -1760,10 +1760,6 @@ export function bootStudioPage(api) {
       });
       frame.append(qtySelect);
     } else if (onBoard) {
-      const qtyBadge = document.createElement("span");
-      qtyBadge.className = "studio-card-qty-badge";
-      qtyBadge.textContent = `×${getQuantity(key)}`;
-      qtyBadge.setAttribute("aria-hidden", "true");
       const qtyStepper = createQuantityStepper({
         value: getQuantity(key),
         ariaLabel: `Copies of ${card.name}`,
@@ -1782,7 +1778,7 @@ export function bootStudioPage(api) {
         event.stopPropagation();
         removeCardFromBoard(key);
       });
-      frame.append(qtyBadge, qtyStepper, remove);
+      frame.append(qtyStepper, remove);
     }
 
     if (addedFeedback[key]) {
