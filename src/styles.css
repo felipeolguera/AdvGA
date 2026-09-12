@@ -36,7 +36,8 @@ body {
 }
 
 body[data-page="tryit"] #app,
-body[data-page="studio"] #app {
+body[data-page="studio"] #app,
+body[data-page="analytics"] #app {
   width: 100%;
   max-width: none;
 }
@@ -1684,11 +1685,16 @@ body:has(.tryit-page.is-mp-dual) {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .tryit-menu-item:hover,
 .tryit-menu-item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
+}
+
+a.tryit-menu-item {
+  display: block;
 }
 
 .tryit-back-link {
