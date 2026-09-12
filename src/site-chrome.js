@@ -1,6 +1,6 @@
 import { populateVisitorCount } from "./metrics.js";
 
-export const APP_VERSION = "1.57";
+export const APP_VERSION = "1.58";
 export const SITE_PAGES = [
   { id: "builder", label: "Builder", href: "" },
   { id: "studio", label: "Studio", href: "studio.html" },
