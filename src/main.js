@@ -17,6 +17,14 @@ import {
   getTryItPageAbsoluteUrl,
   readDeckSharePayload,
 } from "./tryitShare.js";
+import {
+  recordDeckAdd,
+  recordDeckFullscreen,
+  recordExport,
+  recordLightboxOpen,
+  recordSearch,
+  recordVisit,
+} from "./metrics.js";
 import "./styles.css";
 
 const API_BASE = "https://api.gatcg.com";
@@ -29,7 +37,7 @@ const RECENT_SEARCHES_KEY = "advga.recentSearches";
 const FREEHAND_STORAGE_KEY = "advga.mainDeckFreehand";
 const LOAD_ALL_RESULTS_KEY = "advga.loadAllResults";
 const MAX_RECENT_SEARCHES = 8;
-const APP_VERSION = "1.56";
+const APP_VERSION = "1.57";
 const DECK_SUGGESTIONS = [...AGGRO_DECK_SUGGESTIONS, ...PRD_DECK_SUGGESTIONS];
 const FEATURED_SET_PREFIX = "PRD";
 const PRD_QUICK_SEARCH = "cards in PRD";
@@ -49,6 +57,7 @@ const IS_STUDIO_PAGE = document.body?.dataset?.page === "studio";
 const BUILDER_PAGE_URL = import.meta.env.BASE_URL;
 const TRYIT_PAGE_URL = `${import.meta.env.BASE_URL}tryit.html`;
 const STUDIO_PAGE_URL = `${import.meta.env.BASE_URL}studio.html`;
+const ANALYTICS_PAGE_URL = `${import.meta.env.BASE_URL}analytics.html`;
 
 document.documentElement.style.setProperty("--card-back-image", `url("${CARD_BACK_URL}")`);
 const FREEHAND_CARD_WIDTH = 96;
@@ -337,6 +346,7 @@ function getBuilderShellHtml() {
           <nav class="page-switch" aria-label="App pages">
             <a class="ghost compact" href="${STUDIO_PAGE_URL}">Studio</a>
             <a class="ghost compact" href="${TRYIT_PAGE_URL}">Try it!</a>
+            <a class="ghost compact" href="${ANALYTICS_PAGE_URL}">Analytics</a>
           </nav>
           <p class="hero-copy">
             Jump into .asphodel/paradise (PRD), search by plain English, build Material and Main decks with live legality checks, then export a ready-to-paste list.
@@ -714,6 +724,9 @@ function getTryItShellHtml() {
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-lobby="true">Multiplayer lobby</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-leave-room="true">Leave room</button>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-settings="true">Settings</button>
+              <a class="tryit-menu-item" role="menuitem" href="${BUILDER_PAGE_URL}">Builder</a>
+              <a class="tryit-menu-item" role="menuitem" href="${STUDIO_PAGE_URL}">Studio</a>
+              <a class="tryit-menu-item" role="menuitem" href="${ANALYTICS_PAGE_URL}">Analytics</a>
               <button class="tryit-menu-item" type="button" role="menuitem" data-tryit-menu-close="true">Close</button>
             </div>
           </div>
@@ -894,6 +907,7 @@ if (IS_TRYIT_PAGE) {
   app.innerHTML = getStudioShellHtml({
     appVersion: APP_VERSION,
     builderUrl: BUILDER_PAGE_URL,
+    analyticsUrl: ANALYTICS_PAGE_URL,
   });
 } else {
   app.innerHTML = getBuilderShellHtml();
@@ -1112,6 +1126,7 @@ document.addEventListener("keydown", (event) => {
 
 if (IS_TRYIT_PAGE) {
   bootTryItPage();
+  void recordVisit();
 } else if (IS_STUDIO_PAGE) {
   bootStudioPage({
     state,
@@ -1151,8 +1166,10 @@ if (IS_TRYIT_PAGE) {
     appVersion: APP_VERSION,
   });
   bindLightboxUi();
+  void recordVisit();
 } else {
   bootBuilderPage();
+  void recordVisit();
 }
 
 function bootTryItPage() {
@@ -1734,6 +1751,7 @@ function bootBuilderPage() {
 function openFullscreenDeckBuilder() {
   if (!deckFullscreen.open) {
     deckFullscreen.showModal();
+    recordDeckFullscreen();
   }
   renderDeck();
 }
@@ -1871,6 +1889,9 @@ async function runSearch(
       state.status = `${buildStatus(state.cards.length, state.parsed, usedFallback)} Stopped after ${MAX_SEARCH_PAGES} pages — use Load more for the rest.`;
     } else {
       state.status = buildStatus(state.cards.length, state.parsed, usedFallback);
+    }
+    if (reset) {
+      recordSearch();
     }
   } catch (error) {
     console.error(error);
@@ -9630,6 +9651,7 @@ function addCardToDeck(card, quantityToAdd = 1, sectionOverride = null) {
       ...deckCardMetadata(card),
     });
   }
+  recordDeckAdd();
   saveDeck();
   renderDeck();
   renderCards();
@@ -9675,9 +9697,11 @@ async function exportDeck(button = exportDeckButton) {
   try {
     await navigator.clipboard.writeText(text);
     button.textContent = "Copied. Ready to paste.";
+    recordExport();
   } catch {
     window.prompt("Copy this decklist", text);
     button.textContent = "Copied. Ready to paste.";
+    recordExport();
   } finally {
     window.setTimeout(() => {
       button.textContent = original;
@@ -10896,6 +10920,7 @@ function openLightbox(card, { source = "search", cards: cardList } = {}) {
   renderLightboxCard();
   lightbox.showModal();
   lightboxCloseFocus();
+  recordLightboxOpen();
 }
 
 function renderLightboxCard() {

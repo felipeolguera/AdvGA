@@ -120,7 +120,7 @@ function clampStudioZoneSplit(value) {
   return Math.min(STUDIO_ZONE_SPLIT_MAX, Math.max(STUDIO_ZONE_SPLIT_MIN, split));
 }
 
-export function getStudioShellHtml({ appVersion, builderUrl }) {
+export function getStudioShellHtml({ appVersion, builderUrl, analyticsUrl }) {
   return `
   <main class="page-shell studio-page">
     <header class="studio-header">
@@ -138,6 +138,7 @@ export function getStudioShellHtml({ appVersion, builderUrl }) {
         <button class="ghost compact" type="button" id="studio-clear-board">Clear</button>
         <button class="ghost compact studio-guide-button" type="button" id="studio-guide" aria-label="Studio guide">Guide</button>
         <a class="ghost compact" href="${builderUrl}">Builder</a>
+        <a class="ghost compact" href="${analyticsUrl}">Analytics</a>
       </nav>
     </header>
 

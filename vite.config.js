@@ -12,6 +12,7 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         tryit: resolve(__dirname, "tryit.html"),
         studio: resolve(__dirname, "studio.html"),
+        analytics: resolve(__dirname, "analytics.html"),
       },
     },
   },
