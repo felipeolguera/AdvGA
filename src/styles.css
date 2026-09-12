@@ -4526,6 +4526,7 @@ body[data-page="studio"] #app {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .studio-search-dialog .studio-search-bar {
@@ -4539,7 +4540,14 @@ body[data-page="studio"] #app {
   margin-top: 10px;
 }
 
+/* Keep example chips from colliding with a full results grid. */
+.studio-search-dialog:has(.studio-carousel:not(.is-empty)) .studio-examples {
+  display: none;
+}
+
 .studio-search-dialog .studio-autocomplete-list {
+  position: relative;
+  z-index: 2;
   margin-top: 12px;
   max-height: min(36vh, 300px);
 }
@@ -4554,35 +4562,56 @@ body[data-page="studio"] #app {
   min-height: 0;
 }
 
+.studio-search-dialog .studio-search-status {
+  margin: 8px 0 0;
+}
+
 .studio-search-dialog .studio-carousel {
-  min-height: 0;
-  margin-top: 10px;
+  align-items: stretch;
+  align-content: stretch;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  margin-top: 10px;
+  overflow: hidden;
 }
 
 .studio-search-dialog .studio-carousel-nav {
   display: none;
 }
 
-.studio-search-dialog .studio-tray {
+.studio-search-dialog .studio-tray,
+.studio-search-dialog .studio-carousel:not(.is-empty) .studio-tray {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 12px;
+  align-content: start;
+  gap: 16px 12px;
   overflow: auto;
   overflow-x: hidden;
   scroll-snap-type: none;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
   min-height: 0;
-  padding: 4px 2px 8px;
+  max-height: 100%;
+  padding: 6px 4px 12px;
+  background: rgba(8, 6, 14, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
 }
 
 .studio-search-dialog .studio-card-in-tray,
 .studio-search-dialog .studio-carousel-more {
   width: auto;
   min-width: 0;
+  align-self: start;
 }
 
 .studio-search-dialog .studio-card-name {
   display: -webkit-box;
+  min-height: 2.5em;
+  margin-top: 8px;
 }
 
 .studio-search-dialog .search-filters {
@@ -5849,6 +5878,10 @@ body[data-page="studio"] #app {
 
   .studio-search-dialog .studio-examples {
     display: flex;
+  }
+
+  .studio-search-dialog:has(.studio-carousel:not(.is-empty)) .studio-examples {
+    display: none;
   }
 }
 
